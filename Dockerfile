@@ -71,7 +71,9 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh /usr/local/bin/lifeos-backend \
     && mkdir -p /app/data \
     && chown -R node:node /app /usr/local/bin/lifeos-backend
 
-USER node
+# Railway mounts persistent volumes as root. Keep the entrypoint running as
+# root so Prisma can initialize the SQLite file inside /app/data on first boot.
+USER root
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
