@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import {
   Plus,
   Search,
@@ -93,6 +93,17 @@ const priorityDots: Record<string, string> = {
   high: 'bg-orange-500',
   medium: 'bg-amber-500',
   low: 'bg-slate-400',
+}
+
+const HANDOFF_MARKER = '[停点]'
+
+function splitTaskDescription(description: string) {
+  const markerIndex = description.lastIndexOf(HANDOFF_MARKER)
+  if (markerIndex === -1) return { body: description, handoff: '' }
+  return {
+    body: description.slice(0, markerIndex).trim(),
+    handoff: description.slice(markerIndex + HANDOFF_MARKER.length).trim(),
+  }
 }
 
 const priorityBorderColors: Record<string, string> = {
@@ -405,9 +416,14 @@ export function TasksPage() {
   // context menu or double-clicks a task title.
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editTask, setEditTask] = useState<{ id: string; title: string; description: string; priority: Task['priority']; dueDate: string; projectId: string; status: Task['status']; recurrence: Task['recurrence'] } | null>(null)
+  const [handoffDraft, setHandoffDraft] = useState('')
   const isMobile = useIsMobile()
 
   const selectedTask = useMemo(() => tasks.find(t => t.id === selectedTaskId), [tasks, selectedTaskId])
+
+  useEffect(() => {
+    setHandoffDraft(selectedTask ? splitTaskDescription(selectedTask.description).handoff : '')
+  }, [selectedTask?.id, selectedTask?.description])
 
   const filteredTasks = useMemo(() => {
     let result = tasks
@@ -527,6 +543,18 @@ export function TasksPage() {
     })
   }, [editTask, updateTaskMutation, t])
 
+  const saveTaskHandoff = useCallback(() => {
+    if (!selectedTask || !handoffDraft.trim()) return
+    const { body } = splitTaskDescription(selectedTask.description)
+    updateTaskMutation.mutate(
+      { id: selectedTask.id, description: `${body}${body ? '\n\n' : ''}${HANDOFF_MARKER}\n${handoffDraft.trim()}` },
+      {
+        onSuccess: () => showToast.success('停点已保存', '下次打开此任务会直接显示下一步'),
+        onError: () => showToast.error('保存失败', '请稍后重试'),
+      },
+    )
+  }, [selectedTask, handoffDraft, updateTaskMutation])
+
   const handleBulkDone = useCallback(() => {
     selectedIds.forEach(id => {
       updateTaskMutation.mutate({ id, status: 'done' })
@@ -594,8 +622,19 @@ export function TasksPage() {
         )}
       </div>
       <Separator />
-      <div>
-        <p className="text-sm text-muted-foreground leading-relaxed">{selectedTask.description}</p>
+      {splitTaskDescription(selectedTask.description).body && <div>
+        <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{splitTaskDescription(selectedTask.description).body}</p>
+      </div>}
+      <div className="space-y-2 rounded-lg bg-muted/45 p-3">
+        <div className="flex items-center gap-2">
+          <ChevronRight className="h-4 w-4 text-primary" />
+          <p className="text-sm font-medium">停点与下一步</p>
+        </div>
+        <p className="text-xs leading-5 text-muted-foreground">把你停下来的位置和下一步写清楚；仪表盘和另一台设备会读取同一条任务记录。</p>
+        <Textarea value={handoffDraft} onChange={(event) => setHandoffDraft(event.target.value)} placeholder="例如：已整理完资料，下一步是确认报价并发给客户。" className="min-h-20 resize-none text-sm" />
+        <Button size="sm" className="w-full" onClick={saveTaskHandoff} disabled={!handoffDraft.trim() || updateTaskMutation.isPending}>
+          {updateTaskMutation.isPending ? '正在保存…' : '保存停点'}
+        </Button>
       </div>
       <div className="space-y-3">
         {selectedTask.estimatedMinutes && (

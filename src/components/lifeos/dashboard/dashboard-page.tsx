@@ -51,12 +51,13 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Switch } from '@/components/ui/switch'
 import { useAppStore } from '@/stores/app-store'
 import { useTranslation } from '@/lib/i18n'
-import { useDashboard, useTasks, useEvents, useHabits, useCreateTask, useCreateNote, useCreateHabit, useDashboardWidgets, useSaveDashboardWidgets } from '@/lib/api/hooks'
+import { useDashboard, useTasks, useEvents, useHabits, useCreateTask, useCreateNote, useCreateHabit, useUpdateTask, useDashboardWidgets, useSaveDashboardWidgets } from '@/lib/api/hooks'
 import { showToast } from '@/lib/toast'
 import { JournalPrompts } from '@/components/lifeos/dashboard/journal-prompts'
 import { WeeklyReview } from '@/components/lifeos/dashboard/weekly-review'
 import { QuickCapture } from '@/components/lifeos/dashboard/quick-capture'
 import { DailyPlannerWidget } from '@/components/lifeos/dashboard/daily-planner-widget'
+import { ContinuityPanel } from '@/components/lifeos/dashboard/continuity-panel'
 import { OnboardingTips } from '@/components/lifeos/onboarding-tips'
 import { format, subDays, addDays } from 'date-fns'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -164,6 +165,7 @@ export function DashboardPage() {
   const createTaskMut = useCreateTask()
   const createNoteMut = useCreateNote()
   const createHabitMut = useCreateHabit()
+  const updateTaskMut = useUpdateTask()
   const quickSubmitting = createTaskMut.isPending || createNoteMut.isPending || createHabitMut.isPending
 
   const handleQuickCapture = useCallback(() => {
@@ -403,6 +405,19 @@ export function DashboardPage() {
       .filter((task) => (task.status as string) !== 'done')
       .slice(0, 5)
   }, [tasks])
+
+  const saveTaskHandoff = useCallback((task: Record<string, unknown>, handoff: string) => {
+    const original = String(task.description || '')
+    const baseDescription = original.replace(/\n*\[停点\][\s\S]*$/, '').trim()
+    const description = `${baseDescription}${baseDescription ? '\n\n' : ''}[停点]\n${handoff}`
+    updateTaskMut.mutate(
+      { id: String(task.id), description },
+      {
+        onSuccess: () => showToast.success('停点已保存，下一台设备打开这个任务即可继续'),
+        onError: () => showToast.error('停点没有保存成功，请稍后重试'),
+      },
+    )
+  }, [updateTaskMut])
 
   // Upcoming events
   const upcomingEvents = useMemo(() => {
@@ -1023,6 +1038,12 @@ export function DashboardPage() {
 
         {/* Right Column (1/3) */}
         <div className="lifeos-section-gap-y">
+          <ContinuityPanel
+            tasks={(tasks as Record<string, unknown>[]) || []}
+            onOpenTasks={() => setActiveModule('tasks')}
+            onSaveHandoff={saveTaskHandoff}
+            isSaving={updateTaskMut.isPending}
+          />
           {/* Quick Capture Widget */}
           {dashboardWidgets.includes('quick-capture') && <div data-quick-capture>
             <QuickCapture />
