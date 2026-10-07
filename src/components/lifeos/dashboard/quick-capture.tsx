@@ -17,6 +17,7 @@ import {
 import { showToast } from '@/lib/toast'
 import { useAppStore } from '@/stores/app-store'
 import { useTranslation } from '@/lib/i18n'
+import { apiPath } from '@/lib/api/client'
 
 type CaptureType = 'task' | 'note' | 'journal' | 'habit'
 
@@ -68,7 +69,7 @@ export function QuickCapture() {
     try {
       switch (captureType) {
         case 'task': {
-          const res = await fetch('/api/tasks', {
+          const res = await fetch(apiPath('/api/tasks'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title, status: 'todo', priority: 'medium' }),
@@ -81,7 +82,7 @@ export function QuickCapture() {
           // First try to find a "Quick Notes" folder
           let folderId: string | null = null
           try {
-            const foldersRes = await fetch('/api/note-folders')
+            const foldersRes = await fetch(apiPath('/api/note-folders'))
             if (foldersRes.ok) {
               const folders = await foldersRes.json()
               const quickNotesFolder = (folders as { id: string; name: string }[]).find(
@@ -91,7 +92,7 @@ export function QuickCapture() {
                 folderId = quickNotesFolder.id
               } else {
                 // Create the Quick Notes folder
-                const createFolderRes = await fetch('/api/note-folders', {
+                const createFolderRes = await fetch(apiPath('/api/note-folders'), {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ name: 'Quick Notes', icon: '⚡', color: '#f59e0b' }),
@@ -106,7 +107,7 @@ export function QuickCapture() {
             // Folder lookup/create failed, create note without folder
           }
 
-          const res = await fetch('/api/notes', {
+          const res = await fetch(apiPath('/api/notes'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title, content: '', folderId }),
@@ -116,7 +117,7 @@ export function QuickCapture() {
           break
         }
         case 'journal': {
-          const res = await fetch('/api/journal', {
+          const res = await fetch(apiPath('/api/journal'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title, content: '', mood: 'good', energy: 5, stress: 3 }),

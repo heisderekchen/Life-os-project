@@ -61,6 +61,7 @@ import { ContinuityPanel } from '@/components/lifeos/dashboard/continuity-panel'
 import { OnboardingTips } from '@/components/lifeos/onboarding-tips'
 import { format, subDays, addDays } from 'date-fns'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { apiPath } from '@/lib/api/client'
 
 function cn(...inputs: (string | undefined | false)[]) {
   return inputs.filter(Boolean).join(' ')
@@ -340,7 +341,7 @@ export function DashboardPage() {
 
   // Fetch profile for greeting personalization
   useEffect(() => {
-    fetch('/api/profile')
+    fetch(apiPath('/api/profile'))
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.name) setUserName(data.name)
