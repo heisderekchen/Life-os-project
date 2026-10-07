@@ -23,6 +23,7 @@ RUN touch src/lib.rs src/main.rs && cargo build --release
 # ---------- Next.js Builder ----------
 FROM oven/bun:1 AS builder
 WORKDIR /app
+ENV BACKEND_URL="http://localhost:8081"
 
 ENV NEXT_TELEMETRY_DISABLED=1 \
     DATABASE_URL="file:/app/data/prod.db"
@@ -43,7 +44,7 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     PORT=3000 \
     DATABASE_URL="file:/app/data/prod.db" \
-    BACKEND_URL="http://localhost:8080"
+    BACKEND_URL="http://localhost:8081"
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openssl ca-certificates wget curl libsqlite3-0 \
@@ -78,6 +79,6 @@ EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -sf http://localhost:3000/ > /dev/null && \
-        curl -sf http://localhost:8080/health > /dev/null || exit 1
+        curl -sf http://localhost:8081/health > /dev/null || exit 1
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
