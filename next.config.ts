@@ -8,6 +8,10 @@ const config = withBundleAnalyzer({
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // HappySpa serves the private Life OS at /workbench through its authenticated
+  // edge proxy. Keeping the base path in the generated app means assets, API
+  // calls, and client navigation remain on the HappySpa origin.
+  basePath: process.env.LIFEOS_BASE_PATH || undefined,
   // Pin the file-tracing root to this project so the standalone build emits
   // `.next/standalone/server.js` at the root (Next can otherwise infer a parent
   // directory as the workspace root and nest the output).

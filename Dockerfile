@@ -24,6 +24,7 @@ RUN touch src/lib.rs src/main.rs && cargo build --release
 FROM oven/bun:1 AS builder
 WORKDIR /app
 ENV BACKEND_URL="http://localhost:8081"
+ENV LIFEOS_BASE_PATH="/workbench"
 
 ENV NEXT_TELEMETRY_DISABLED=1 \
     DATABASE_URL="file:/app/data/prod.db"
@@ -44,7 +45,8 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     PORT=3000 \
     DATABASE_URL="file:/app/data/prod.db" \
-    BACKEND_URL="http://localhost:8081"
+    BACKEND_URL="http://localhost:8081" \
+    LIFEOS_BASE_PATH="/workbench"
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openssl ca-certificates wget curl libsqlite3-0 \
