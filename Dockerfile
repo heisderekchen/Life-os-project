@@ -25,6 +25,7 @@ FROM oven/bun:1 AS builder
 WORKDIR /app
 ENV BACKEND_URL="http://localhost:8081"
 ENV LIFEOS_BASE_PATH="/workbench"
+ENV NEXT_PUBLIC_LIFEOS_BASE_PATH="/workbench"
 
 ENV NEXT_TELEMETRY_DISABLED=1 \
     DATABASE_URL="file:/app/data/prod.db"

@@ -25,6 +25,7 @@ import { motion } from 'framer-motion'
 import { KeyboardShortcutsHelp } from '@/components/lifeos/keyboard-shortcuts'
 import { useTranslation, availableLanguages } from '@/lib/i18n'
 import type { LanguageCode } from '@/lib/i18n'
+import { apiPath } from '@/lib/api/client'
 
 type SettingsTab = 'profile' | 'appearance' | 'data' | 'shortcuts' | 'notifications' | 'about'
 
@@ -113,7 +114,7 @@ export function SettingsPage() {
 
   // Fetch profile data on mount
   useEffect(() => {
-    fetch('/api/profile')
+    fetch(apiPath('/api/profile'))
       .then(res => res.json())
       .then(data => {
         if (data.name) setProfileName(data.name)
@@ -125,7 +126,7 @@ export function SettingsPage() {
   // Fetch storage info
   useEffect(() => {
     if (activeTab === 'data') {
-      fetch('/api/data/stats')
+      fetch(apiPath('/api/data/stats'))
         .then(res => res.json())
         .then(data => setStorageInfo(data))
         .catch(() => {})
@@ -135,7 +136,7 @@ export function SettingsPage() {
   const handleExport = async () => {
     setIsExporting(true)
     try {
-      const response = await fetch('/api/data/export')
+      const response = await fetch(apiPath('/api/data/export'))
       const data = await response.json()
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
@@ -157,7 +158,7 @@ export function SettingsPage() {
     try {
       const text = await file.text()
       const data = JSON.parse(text)
-      const response = await fetch('/api/data/import', {
+      const response = await fetch(apiPath('/api/data/import'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -166,7 +167,7 @@ export function SettingsPage() {
       if (result.success) {
         showToast.success(t('toast.imported'), `${result.totalImported} ${t('toast.recordsRestored')}`)
         // Refresh storage info
-        const statsRes = await fetch('/api/data/stats')
+        const statsRes = await fetch(apiPath('/api/data/stats'))
         const statsData = await statsRes.json()
         setStorageInfo(statsData)
       } else {
@@ -182,13 +183,13 @@ export function SettingsPage() {
   const handleReset = async () => {
     setIsResetting(true)
     try {
-      const response = await fetch('/api/data/reset', { method: 'DELETE' })
+      const response = await fetch(apiPath('/api/data/reset'), { method: 'DELETE' })
       const result = await response.json()
       if (result.success) {
         showToast.success(t('toast.dataReset'), t('toast.dataCleared'))
         setStorageInfo(null)
         // Refresh storage info
-        const statsRes = await fetch('/api/data/stats')
+        const statsRes = await fetch(apiPath('/api/data/stats'))
         const statsData = await statsRes.json()
         setStorageInfo(statsData)
       } else {
@@ -287,7 +288,7 @@ export function SettingsPage() {
                   <Separator />
                   <div><label className="text-sm font-medium mb-1.5 block">{t('settings.displayName')}</label><Input value={profileName} onChange={e => setProfileName(e.target.value)} /></div>
                   <div><label className="text-sm font-medium mb-1.5 block">{t('settings.email')}</label><Input type="email" value={profileEmail} onChange={e => setProfileEmail(e.target.value)} /></div>
-                  <Button size="sm" className="text-white shadow-sm" style={{ background: `linear-gradient(to right, ${activeAccentHex}, ${activeAccentHex}cc)` }} onClick={async () => { try { await fetch('/api/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: profileName, email: profileEmail }) }); showToast.success(t('toast.profileUpdated'), t('toast.changesSaved')); } catch { showToast.error(t('toast.saveFailed'), t('toast.profileUpdateFailed')); } }}><span className="animate-save-flash rounded px-2 -mx-2 -py-1 my-1">{t('settings.saveChanges')}</span></Button>
+                  <Button size="sm" className="text-white shadow-sm" style={{ background: `linear-gradient(to right, ${activeAccentHex}, ${activeAccentHex}cc)` }} onClick={async () => { try { await fetch(apiPath('/api/profile'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: profileName, email: profileEmail }) }); showToast.success(t('toast.profileUpdated'), t('toast.changesSaved')); } catch { showToast.error(t('toast.saveFailed'), t('toast.profileUpdateFailed')); } }}><span className="animate-save-flash rounded px-2 -mx-2 -py-1 my-1">{t('settings.saveChanges')}</span></Button>
                 </CardContent>
               </Card>
               <Card className="border-red-200 dark:border-red-900/30">

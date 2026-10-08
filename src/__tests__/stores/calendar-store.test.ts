@@ -23,6 +23,7 @@ describe('Calendar Store', () => {
       color: 'red',
       location: null,
       taskId: null,
+      recurrence: null,
       createdAt: new Date().toISOString(),
     }
     addEvent(event)

@@ -48,6 +48,7 @@ import { useAppStore, type ModuleId } from '@/stores/app-store'
 import { useTranslation } from '@/lib/i18n'
 import { useTheme } from 'next-themes'
 import { motion, AnimatePresence } from 'framer-motion'
+import { apiPath } from '@/lib/api/client'
 
 // ─── Data Definitions ────────────────────────────────────────────────
 
@@ -345,7 +346,7 @@ export function SetupWizard() {
     setNextTheme(selectedTheme)
 
     if (name.trim()) {
-      fetch('/api/profile', {
+      fetch(apiPath('/api/profile'), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
