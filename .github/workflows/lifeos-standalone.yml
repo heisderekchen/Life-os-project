@@ -58,6 +58,7 @@ jobs:
       - run: node --check deploy/standalone/agent-bridge.mjs
       - run: node deploy/standalone/scripts/test-runtime.mjs
       - run: node deploy/standalone/scripts/test-http.mjs
+      - run: sh deploy/standalone/scripts/test-run-node-path.sh
       - run: python3 deploy/standalone/scripts/test-sqlite-tools.py
       - run: node deploy/standalone/scripts/test-agent-bridge.mjs
       - name: Validate deployment Compose configuration
