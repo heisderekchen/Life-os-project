@@ -41,6 +41,10 @@ jobs:
       - run: bun run lint
       - run: bun run test
       - run: bun run build
+      - name: Package portable Node 24 runtime
+        run: bash deploy/standalone/scripts/build-node-bundle.sh /tmp/lifeos-standalone-node.tar.gz
+      - name: Run synthetic loopback acceptance on the packaged runtime
+        run: bash deploy/standalone/scripts/loopback-acceptance.sh /tmp/lifeos-standalone-node.tar.gz
       - run: node --check deploy/standalone/server.mjs
       - run: node --check deploy/standalone/src/personal-workbench.mjs
       - run: node --check deploy/standalone/agent-bridge.mjs
@@ -71,13 +75,15 @@ jobs:
           push: false
           tags: lifeos-agent:${{ github.sha }}
           outputs: type=docker,dest=/tmp/lifeos-agent.tar
-      - name: Hash deployable image artifacts
-        run: sha256sum /tmp/lifeos-standalone.tar /tmp/lifeos-agent.tar > /tmp/lifeos-images.sha256
+      - name: Hash deployable build archives
+        run: cd /tmp && sha256sum lifeos-standalone.tar lifeos-agent.tar lifeos-standalone-node.tar.gz > lifeos-images.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: lifeos-standalone-${{ github.sha }}
           path: |
             /tmp/lifeos-standalone.tar
             /tmp/lifeos-agent.tar
+            /tmp/lifeos-standalone-node.tar.gz
+            /tmp/lifeos-standalone-node.tar.gz.sha256
             /tmp/lifeos-images.sha256
           retention-days: 7

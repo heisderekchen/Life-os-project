@@ -12,6 +12,7 @@ import { issueSessionToken, matchesEntryKey, verifySessionToken } from './sessio
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.GATEWAY_PORT || 3000)
+const LISTEN_HOST = process.env.LIFEOS_LISTEN_HOST || '0.0.0.0'
 const NEXT_PORT = Number(process.env.NEXT_PORT || 3001)
 const NEXT_ROOT = process.env.NEXT_ROOT || '/app'
 const BASE_PATH = process.env.LIFEOS_BASE_PATH || '/workbench'
@@ -330,7 +331,7 @@ const next = spawn(process.execPath, ['server.js'], {
   stdio: 'inherit',
 })
 next.on('exit', code => process.exit(code ?? 1))
-server.listen(PORT, '0.0.0.0')
+server.listen(PORT, LISTEN_HOST)
 if (RECURRENCE_ENABLED) {
   setInterval(() => { processLifeOsRecurringTasks(env).catch(error => console.error('Life OS recurrence runner failed', error?.message || 'unknown')) }, 60_000).unref()
 }

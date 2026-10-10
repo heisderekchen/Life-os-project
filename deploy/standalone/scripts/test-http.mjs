@@ -45,6 +45,7 @@ const child = spawn(process.execPath, [join(root, 'server.mjs')], {
   cwd: temp,
   env: { ...process.env, DATABASE_URL: `file:${join(temp, 'lifeos.db')}`, AUTH_SECRET: 'test-only-auth-secret',
     PERSONAL_WORKBENCH_ENTRY_KEY: 'test-only-entry-key', GATEWAY_PORT: String(port), NEXT_PORT: String(nextPort), NEXT_ROOT: nextDir,
+    LIFEOS_LISTEN_HOST: '127.0.0.1',
     ENVIRONMENT: 'production', LIFEOS_PUBLIC_ORIGIN: origin, TRUSTED_PROXY_IP: '127.0.0.1',
     PERSONAL_WORKBENCH_OWNER_SETUP_ENABLED: 'true', PERSONAL_WORKBENCH_OWNER_SETUP_GRANT: setupGrant,
     LIFEOS_RECURRENCE_ENABLED: 'false',
