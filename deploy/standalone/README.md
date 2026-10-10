@@ -35,6 +35,12 @@ docker buildx build --platform linux/amd64 --load \
   -t lifeos-standalone:local .
 ```
 
+The verification workflow also publishes a short-retention artifact containing
+the tested `linux/amd64` app image, the AI service image, and their SHA-256
+manifest. To use that exact build on the server, download the artifact, verify
+the hashes, load the app tar and tag it `lifeos-standalone:local`. Only load and
+tag `lifeos-agent:<commit>` as `lifeos-agent:local` if enabling the AI profile.
+
 Copy `.env.example` to `.env` on the server and supply `LIFEOS_DOMAIN`,
 `AUTH_SECRET`, and `PERSONAL_WORKBENCH_ENTRY_KEY` from the approved private
 secret source. Keep these values and any data exports outside the public repo.
@@ -77,7 +83,26 @@ import/count/FK checks, and backup/restore behavior. A container build, real
 HTTPS browser run, real export comparison, and ECS memory measurement remain
 deployment acceptance gates.
 
-The separate AI agent service still needs PostgreSQL, provider secrets/pricing,
-an authenticated HMAC bridge, and an approved task trigger. It is not wired by
-this runtime and must not be presented as available until those steps are
-completed.
+## Optional AI planning service
+
+The private task planner is integrated as an opt-in `ai` Compose profile. It
+uses a dedicated PostgreSQL volume and separate service/worker containers; it
+does not access the Life OS SQLite database or HappySpa data. The app gateway
+forwards only the signed-in owner's explicit task prompt over a server-side
+HMAC subject bridge. There is no direct public route to the service. The UI
+creates a draft first, shows its exact prompt/model/budget, and requires a
+separate approval click before the worker can call a provider. Results are
+proposals and never update tasks automatically.
+
+On the 2 GiB ECS, keep this profile off unless memory is measured with the
+complete workload. To enable it, configure the database password, random
+service token, independent signing secret, provider key and current pricing
+rates in the private `.env`; then run
+`docker compose --profile ai up -d`. Do not use sample or empty credentials.
+The endpoint stays disabled until both provider configuration and a recent
+worker heartbeat are present. OpenAI requires its own additional confirmation.
+Back up its separate database with `scripts/backup-agent-db.sh`; retain the
+dump and SHA-256 file privately.
+
+No AI provider credentials are bundled. Without the optional profile and
+credentials, core Life OS remains usable and AI reports itself unavailable.

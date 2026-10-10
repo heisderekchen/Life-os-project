@@ -51,6 +51,7 @@ const en = {
     growth: 'Growth',
     dashboard: 'Dashboard',
     tasks: 'Tasks',
+    projects: 'Projects',
     notes: 'Notes',
     calendar: 'Calendar',
     timeTracker: 'Time Tracker',
@@ -84,6 +85,7 @@ const en = {
     signOut: 'Sign out',
     focusMode: 'Focus Mode',
     home: 'Home',
+    openNavigation: 'Open navigation',
   },
 
   // Module Groups (breadcrumb)
@@ -198,7 +200,52 @@ const en = {
   },
 
   // Tasks
+  projects: {
+    title: 'Projects',
+    subtitle: 'A home for the work you are moving forward.',
+    search: 'Search projects',
+    create: 'New project',
+    createFirst: 'Create your first project',
+    edit: 'Edit project',
+    name: 'Project name',
+    description: 'Description',
+    status: 'Status',
+    startDate: 'Start date',
+    endDate: 'End date',
+    color: 'Project color',
+    all: 'All projects',
+    active: 'Active',
+    completed: 'Completed',
+    archived: 'Archived',
+    emptyTitle: 'Your projects will live here',
+    emptyDescription: 'Gather related tasks and keep your next steps in view.',
+    noResults: 'No projects match your search.',
+    taskCount: '{count} tasks',
+    noDescription: 'No description yet',
+    deleteTitle: 'Delete project?',
+    deleteDescription: 'This removes “{name}”. Its tasks will stay in your workspace without a project.',
+    deleteConfirm: 'Delete project',
+    loadError: 'Projects could not be loaded.',
+    saveError: 'Project could not be saved.',
+    deleteError: 'Project could not be deleted.',
+    retry: 'Try again',
+    statuses: {
+      active: 'Active',
+      'on-hold': 'On hold',
+      completed: 'Completed',
+      cancelled: 'Cancelled',
+    },
+    actions: {
+      edit: 'Edit {name}',
+      archive: 'Archive {name}',
+      unarchive: 'Restore {name}',
+      delete: 'Delete {name}',
+    },
+  },
+
+  // Tasks
   tasks: {
+    selection: { select: 'Select', deselect: 'Deselect', selectAll: 'Select all', deselectAll: 'Deselect all' },
     title: 'Tasks',
     list: 'List',
     board: 'Board',
@@ -419,6 +466,11 @@ const en = {
 
   // Finance
   finance: {
+    monthlyBudget: 'Monthly budget',
+    monthlyBudgetSubtitle: 'Set category budgets and track spending',
+    manageBudgets: 'Manage budgets',
+    budgetSaved: 'Budget saved',
+    userSet: 'Custom budget',
     title: 'Finance',
     accounts: 'Accounts',
     transactions: 'Transactions',
@@ -496,6 +548,7 @@ const en = {
 
   // Goals
   goals: {
+    health: "Health",
     title: 'Goals',
     newGoal: 'New Goal',
     goalTitle: 'Goal title',
@@ -793,7 +846,7 @@ const en = {
       title: 'Welcome home.',
       subtitle: 'This is your space — calm, private, and entirely yours. Built to help you live, think and grow on your own terms.',
       prop1Title: 'Yours, privately',
-      prop1Desc: 'Everything stays on your device. No accounts, no cloud, no tracking.',
+      prop1Desc: 'Demo data stays in this browser. People using this browser profile can also access it.',
       prop2Title: 'All in one place',
       prop2Desc: 'Tasks, habits, notes, finance, goals and more — quietly connected.',
       prop3Title: 'Shaped to you',
@@ -822,7 +875,7 @@ const en = {
       finance: 'Finance',
       goals: 'Goals',
     },
-    storageParagraph: 'Life OS stores everything locally with SQLite — zero configuration, fully private, and yours to export anytime.',
+    storageParagraph: 'Demo data stays in this browser as unencrypted JSON. Clearing site data removes it; other devices and preview addresses do not sync. Export your own backup.',
     recommended: 'Recommended',
     storageSubtitle: 'Local-first, privacy-focused storage',
     storageFeatures: ['Zero configuration', 'Stays on your device', 'Fast & lightweight', 'Export anytime'],
@@ -849,6 +902,7 @@ const en = {
     modules: {
       dashboard: { label: 'Dashboard', desc: 'Overview of your life at a glance' },
       tasks: { label: 'Tasks', desc: 'Manage and track your tasks' },
+      projects: { label: 'Projects', desc: 'Organize work and related tasks' },
       notes: { label: 'Notes', desc: 'Capture ideas and thoughts' },
       calendar: { label: 'Calendar', desc: 'Schedule and plan events' },
       time: { label: 'Time Tracker', desc: 'Track time and Pomodoro' },
@@ -1004,6 +1058,7 @@ const en = {
 
   // Toast messages
   toast: {
+    error: 'Error',
     saved: 'Saved',
     saveFailed: 'Save failed',
     completed: 'Completed',

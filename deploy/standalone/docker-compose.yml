@@ -1,0 +1,121 @@
+services:
+  life-os:
+    image: lifeos-standalone:local
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      args:
+        LIFEOS_BASE_PATH: /workbench
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      DATABASE_URL: file:/app/data/lifeos.db
+      BACKEND_URL: http://127.0.0.1:8081
+      LIFEOS_BASE_PATH: /workbench
+      NEXT_PUBLIC_LIFEOS_BASE_PATH: /workbench
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET from the approved private-workbench secret source}
+      PERSONAL_WORKBENCH_ENTRY_KEY: ${PERSONAL_WORKBENCH_ENTRY_KEY:?Set PERSONAL_WORKBENCH_ENTRY_KEY from the approved private-workbench secret source}
+      PERSONAL_WORKBENCH_OWNER: ${PERSONAL_WORKBENCH_OWNER:-lifeos-owner}
+      PERSONAL_WORKBENCH_OWNER_SETUP_ENABLED: ${PERSONAL_WORKBENCH_OWNER_SETUP_ENABLED:-false}
+      PERSONAL_WORKBENCH_OWNER_SETUP_GRANT: ${PERSONAL_WORKBENCH_OWNER_SETUP_GRANT:-}
+      AGENT_SERVICE_URL: ${AGENT_SERVICE_URL:-http://agent-service:8080}
+      AGENT_SERVICE_TOKEN: ${AGENT_SERVICE_TOKEN:-}
+      WORKSPACE_SUBJECT_SIGNING_SECRET: ${WORKSPACE_SUBJECT_SIGNING_SECRET:-}
+    volumes:
+      - lifeos-data:/app/data
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/internal/health >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+
+  gateway:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      life-os:
+        condition: service_healthy
+    environment:
+      LIFEOS_DOMAIN: ${LIFEOS_DOMAIN:?Set LIFEOS_DOMAIN to the dedicated Life OS hostname}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+  db-tools:
+    image: python:3.13-alpine
+    profiles: [tools]
+    entrypoint: ["python3"]
+    volumes:
+      - lifeos-data:/data
+      - ./scripts:/scripts:ro
+
+  agent-db:
+    image: postgres:17-alpine
+    profiles: [ai]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: lifeos_agent
+      POSTGRES_USER: lifeos_agent
+      POSTGRES_PASSWORD: ${AGENT_DB_PASSWORD:-}
+    volumes:
+      - agent-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lifeos_agent -d lifeos_agent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  agent-service:
+    image: lifeos-agent:local
+    build:
+      context: ../../agent-service
+      dockerfile: Dockerfile
+    profiles: [ai]
+    restart: unless-stopped
+    environment: &agent-env
+      NODE_ENV: production
+      PORT: "8080"
+      DATABASE_URL: postgres://lifeos_agent:${AGENT_DB_PASSWORD:-}@agent-db:5432/lifeos_agent
+      AGENT_SERVICE_TOKEN: ${AGENT_SERVICE_TOKEN:-}
+      WORKSPACE_SUBJECT_SIGNING_SECRET: ${WORKSPACE_SUBJECT_SIGNING_SECRET:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      DEEPSEEK_INPUT_USD_PER_MILLION: ${DEEPSEEK_INPUT_USD_PER_MILLION:-}
+      DEEPSEEK_OUTPUT_USD_PER_MILLION: ${DEEPSEEK_OUTPUT_USD_PER_MILLION:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+      OPENAI_INPUT_USD_PER_MILLION: ${OPENAI_INPUT_USD_PER_MILLION:-}
+      OPENAI_OUTPUT_USD_PER_MILLION: ${OPENAI_OUTPUT_USD_PER_MILLION:-}
+      AGENT_MAX_BUDGET_USD: ${AGENT_MAX_BUDGET_USD:-0.1}
+      AGENT_MAX_OUTPUT_TOKENS: ${AGENT_MAX_OUTPUT_TOKENS:-800}
+    depends_on:
+      agent-db:
+        condition: service_healthy
+    expose: ["8080"]
+
+  agent-worker:
+    image: lifeos-agent:local
+    profiles: [ai]
+    restart: unless-stopped
+    command: ["node", "src/worker-loop.js"]
+    environment: *agent-env
+    depends_on:
+      agent-db:
+        condition: service_healthy
+
+volumes:
+  lifeos-data:
+  caddy-data:
+  caddy-config:
+  agent-data:

@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---------- Next.js Builder ----------
-FROM oven/bun:1 AS builder
+FROM oven/bun:1.3.4 AS builder
 WORKDIR /app
 ARG LIFEOS_BASE_PATH=/workbench
 ENV BACKEND_URL="http://localhost:8081"
@@ -19,7 +19,7 @@ RUN bun run db:generate
 RUN bun run build
 
 # ---------- Runner ----------
-FROM node:22-slim AS runner
+FROM node:24-slim AS runner
 WORKDIR /app
 ARG LIFEOS_BASE_PATH=/workbench
 

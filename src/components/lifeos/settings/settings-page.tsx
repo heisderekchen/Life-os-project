@@ -676,7 +676,162 @@ export function SettingsPage() {
                         <button
                           key={variant.value}
                           className={cn(
-                          …2474 tokens truncated…                     duration: 1.5,
+                            'p-3 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 relative',
+                            isActive ? 'shadow-sm' : 'border-border hover:border-muted-foreground/30',
+                            isMidnightDisabled && 'opacity-40 cursor-not-allowed'
+                          )}
+                          style={isActive ? { borderColor: activeAccentHex, backgroundColor: `${activeAccentHex}10` } : undefined}
+                          onClick={() => {
+                            if (isMidnightDisabled) return
+                            setThemeVariant(variant.value)
+                          }}
+                        >
+                          {/* Mini variant preview */}
+                          <div className="w-full h-14 rounded-lg overflow-hidden border border-border/50">
+                            <div className="flex h-full" style={{ backgroundColor: isDark ? variant.darkBg : variant.lightBg }}>
+                              <div className="w-3 shrink-0" style={{ backgroundColor: isDark ? `${variant.darkBg}cc` : `${variant.lightBg}cc` }} />
+                              <div className="flex-1 flex flex-col p-1 gap-0.5">
+                                <div className="h-1.5 rounded-sm w-3/4" style={{ backgroundColor: isDark ? variant.darkCard : variant.lightCard }} />
+                                <div className="flex gap-0.5 mt-0.5">
+                                  <div className="flex-1 h-3 rounded-sm" style={{ backgroundColor: isDark ? variant.darkCard : variant.lightCard }} />
+                                  <div className="flex-1 h-3 rounded-sm" style={{ backgroundColor: isDark ? variant.darkCard : variant.lightCard }} />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs font-medium">{uiText(variant.label)}</p>
+                            <p className="text-[9px] text-muted-foreground leading-tight">{uiText(variant.desc)}</p>
+                          </div>
+                          {isActive && (
+                            <div className="absolute top-2 right-2 rounded-full p-0.5" style={{ backgroundColor: activeAccentHex }}>
+                              <Check className="h-2.5 w-2.5 text-white" />
+                            </div>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Font Size Selector */}
+              <Card className="overflow-hidden hover-lift">
+                <div className="h-1 bg-gradient-to-r from-amber-400 to-orange-500" />
+                <CardHeader>
+                  <CardTitle className="text-base">{t('settings.fontSize')}</CardTitle>
+                  <CardDescription>{t('settings.fontSizeDesc')}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-3">
+                    {([
+                      { value: 'small' as const, label: t('settings.small'), sample: 'text-xs' },
+                      { value: 'medium' as const, label: t('settings.medium'), sample: 'text-sm' },
+                      { value: 'large' as const, label: t('settings.large'), sample: 'text-base' },
+                    ]).map((option) => {
+                      const isActive = fontSize === option.value
+                      return (
+                        <button
+                          key={option.value}
+                          className={cn(
+                            'p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2',
+                            isActive ? 'shadow-sm' : 'border-border hover:border-muted-foreground/30'
+                          )}
+                          style={isActive ? { borderColor: activeAccentHex, backgroundColor: `${activeAccentHex}10` } : undefined}
+                          onClick={() => setFontSize(option.value)}
+                        >
+                          <span className={cn(option.sample, 'font-medium text-foreground')}>
+                            Aa
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">{uiText(option.label)}</span>
+                          {isActive && (
+                            <Check className="h-3 w-3" style={{ color: activeAccentHex }} />
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* UI Density */}
+              <Card className="overflow-hidden hover-lift">
+                <div className="h-1 bg-gradient-to-r from-cyan-400 to-sky-500" />
+                <CardHeader>
+                  <CardTitle className="text-base">{t('settings.density')}</CardTitle>
+                  <CardDescription>{t('settings.densityDesc')}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-3">
+                    {([
+                      { value: 'compact' as const, label: t('settings.compact'), desc: t('settings.compactDesc'), padding: 'p-1.5', gap: 'gap-1' },
+                      { value: 'comfortable' as const, label: t('settings.comfortable'), desc: t('settings.comfortableDesc'), padding: 'p-3', gap: 'gap-2' },
+                      { value: 'spacious' as const, label: t('settings.spacious'), desc: t('settings.spaciousDesc'), padding: 'p-4', gap: 'gap-3' },
+                    ]).map((option) => {
+                      const isActive = uiDensity === option.value
+                      return (
+                        <button
+                          key={option.value}
+                          className={cn(
+                            'rounded-xl border-2 transition-all duration-200 flex flex-col items-center',
+                            isActive ? 'shadow-sm' : 'border-border hover:border-muted-foreground/30'
+                          )}
+                          style={isActive ? { borderColor: activeAccentHex, backgroundColor: `${activeAccentHex}10` } : undefined}
+                          onClick={() => setUiDensity(option.value)}
+                        >
+                          {/* Visual density preview */}
+                          <div className={cn('w-full flex flex-col', option.padding, option.gap)}>
+                            <div className={cn('w-full h-2 rounded-sm bg-muted/50', option.value === 'compact' ? 'h-1.5' : option.value === 'spacious' ? 'h-3' : 'h-2')} />
+                            <div className={cn('w-3/4 h-2 rounded-sm bg-muted/30', option.value === 'compact' ? 'h-1.5' : option.value === 'spacious' ? 'h-3' : 'h-2')} />
+                            <div className={cn('w-1/2 h-2 rounded-sm bg-muted/20', option.value === 'compact' ? 'h-1.5' : option.value === 'spacious' ? 'h-3' : 'h-2')} />
+                          </div>
+                          <div className="px-3 pb-3 text-center">
+                            <p className="text-xs font-medium">{uiText(option.label)}</p>
+                            <p className="text-[10px] text-muted-foreground">{option.desc}</p>
+                          </div>
+                          {isActive && (
+                            <Check className="h-3 w-3 mb-2" style={{ color: activeAccentHex }} />
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Animations Toggle */}
+              <Card className="overflow-hidden hover-lift">
+                <div className="h-1 bg-gradient-to-r from-pink-400 to-rose-500" />
+                <CardHeader>
+                  <CardTitle className="text-base">{t('settings.animations')}</CardTitle>
+                  <CardDescription>{t('settings.animationsDesc')}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium">{t('settings.enableAnimations')}</p>
+                      <p className="text-xs text-muted-foreground">{t('settings.animationsDesc')}</p>
+                    </div>
+                    <Switch checked={animationsEnabled} onCheckedChange={setAnimationsEnabled} />
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium">{t('settings.animationsPreview')}</p>
+                      <p className="text-xs text-muted-foreground">{t('settings.animationsPreviewDesc')}</p>
+                    </div>
+                    <div className="flex gap-1.5">
+                      {[0, 1, 2].map(i => (
+                        <motion.div
+                          key={i}
+                          className="w-6 h-6 rounded-md"
+                          style={{ backgroundColor: activeAccentHex }}
+                          animate={animationsEnabled ? {
+                            scale: [1, 1.2, 1],
+                            opacity: [0.5, 1, 0.5],
+                          } : { scale: 1, opacity: 0.6 }}
+                          transition={animationsEnabled ? {
+                            duration: 1.5,
                             repeat: Infinity,
                             delay: i * 0.2,
                           } : { duration: 0 }}

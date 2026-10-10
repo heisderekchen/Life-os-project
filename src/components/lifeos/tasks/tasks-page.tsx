@@ -61,6 +61,7 @@ import { useTranslation } from '@/lib/i18n'
 import { showToast } from '@/lib/toast'
 import { useTasks, useProjects, useCreateTask, useUpdateTask, useDeleteTask } from '@/lib/api/hooks'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { AgentRunPanel } from '@/components/lifeos/tasks/agent-run-panel'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   DndContext,
@@ -665,10 +666,595 @@ export function TasksPage() {
       <section className="space-y-3 rounded-xl border border-border/60 bg-card p-3.5">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{uiText('Execution log')}</p>
         <TaskRunSignals task={selectedTask} />
-        <p className="text-xs leading-5 text-muted-foreground">{uiText('No execution is connected to this task.')}</p>
+        <AgentRunPanel task={{ id: selectedTask.id, title: selectedTask.title, description: splitTaskDescription(selectedTask.description).body }} />
       </section>
       <section className="space-y-2 rounded-xl border border-border/60 bg-card p-3.5">
-        <p …8535 tokens truncated…            <Select
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{uiText('Result and acceptance')}</p>
+        <p className="text-sm font-medium">{selectedTask.status === 'done' ? uiText('This task is marked complete.') : uiText('Results will appear here after execution.')}</p>
+        <p className="text-xs text-muted-foreground">{uiText('Acceptance has not been recorded.')}</p>
+      </section>
+      <div className="space-y-2 rounded-lg bg-muted/45 p-3">
+        <div className="flex items-center gap-2">
+          <ChevronRight className="h-4 w-4 text-primary" />
+          <p className="text-sm font-medium">停点与下一步</p>
+        </div>
+        <p className="text-xs leading-5 text-muted-foreground">把你停下来的位置和下一步写清楚；仪表盘和另一台设备会读取同一条任务记录。</p>
+        <Textarea value={handoffDraft} onChange={(event) => setHandoffDraft(event.target.value)} placeholder="例如：已整理完资料，下一步是确认报价并发给客户。" className="min-h-20 resize-none text-sm" />
+        <Button size="sm" className="w-full" onClick={saveTaskHandoff} disabled={!handoffDraft.trim() || updateTaskMutation.isPending}>
+          {updateTaskMutation.isPending ? '正在保存…' : '保存停点'}
+        </Button>
+      </div>
+      <div className="space-y-3">
+        {selectedTask.estimatedMinutes && (
+          <div className="flex items-center gap-2 text-sm">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            <span className="text-muted-foreground">{t('tasks.estimated')}</span>
+            <span className="font-medium">{selectedTask.estimatedMinutes} {t('tasks.min')}</span>
+            {selectedTask.actualMinutes && (
+              <>
+                <span className="text-muted-foreground ml-2">{t('tasks.actual')}</span>
+                <span className="font-medium">{selectedTask.actualMinutes} {t('tasks.min')}</span>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+      {selectedTask.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selectedTask.tags.map(tag => (
+            <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+          ))}
+        </div>
+      )}
+      {selectedTask.recurrence && selectedTask.recurrence !== 'none' && (
+        <div className="flex items-center gap-2 text-sm">
+          <RefreshCw className="h-4 w-4 text-muted-foreground" />
+          <span className="text-muted-foreground">{uiText("Tekrar:")}</span>
+          <Badge variant="secondary" className="text-xs capitalize">{selectedTask.recurrence}</Badge>
+        </div>
+      )}
+      <Separator />
+      {/* Sub-tasks */}
+      <div className="space-y-2">
+        <p className="text-sm font-medium">{uiText("Alt Görevler")}</p>
+        {tasks.filter(t => t.parentTaskId === selectedTask.id).map(sub => (
+          <div key={sub.id} className="flex items-center gap-2">
+            <Checkbox
+              checked={sub.status === 'done'}
+              onCheckedChange={() => toggleTaskStatus(sub.id)}
+            />
+            <span className={cn('text-sm flex-1', sub.status === 'done' && 'line-through text-muted-foreground')}>{sub.title}</span>
+            <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => deleteTask(sub.id)}>
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </div>
+        ))}
+        <div className="flex items-center gap-2 mt-1">
+          <Input
+            placeholder={uiText("Alt görev ekle...")}
+            value={newSubtask}
+            onChange={(e) => setNewSubtask(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleAddSubtask() }}
+            className="h-7 text-xs"
+          />
+          <Button size="sm" variant="outline" className="h-7 shrink-0" onClick={handleAddSubtask} disabled={createTaskMutation.isPending}>
+            <Plus className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+      <Separator />
+      <div className="space-y-2">
+        <Button variant="outline" size="sm" className="w-full" onClick={() => toggleTaskStatus(selectedTask.id)}>
+          {selectedTask.status === 'done' ? t('tasks.markIncomplete') : t('tasks.markComplete')}
+        </Button>
+        <Button variant="outline" size="sm" className="w-full text-destructive hover:text-destructive" onClick={() => deleteTask(selectedTask.id)}>
+          <Trash2 className="h-3.5 w-3.5 mr-1.5" />{t('tasks.deleteTask')}
+        </Button>
+      </div>
+    </div>
+  ) : null
+
+  return (
+    <div className="flex h-full animate-page-enter">
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Productivity Score + Progress Bar */}
+        <div className="px-4 pt-3 pb-1">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-md border border-border flex items-center justify-center text-xs font-bold text-foreground bg-muted/40">
+                {taskCompletionPct}%
+              </div>
+              <div>
+                <p className="text-xs font-semibold">{t('tasks.productivityScore')}</p>
+                <p className="text-[10px] text-muted-foreground">{tasks.filter(t => t.status === 'done').length} {uiText("of")} {tasks.length} {t('tasks.tasksDone')}</p>
+              </div>
+            </div>
+            <div className="flex-1">
+              <div className="h-2 bg-muted/50 rounded-full overflow-hidden">
+                <div className="h-full rounded-full animate-day-progress" style={{ width: `${taskCompletionPct}%`, background: `linear-gradient(to right, ${accentHex}, ${accentHex}cc)` }} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Overdue Section */}
+        {overdueTasks.length > 0 && (
+          <div className="px-4 py-2">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/30">
+              <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse-red" />
+              <span className="text-xs font-medium text-red-600 dark:text-red-400">{overdueTasks.length} {overdueTasks.length > 1 ? t('tasks.overdueTasksPlural') : t('tasks.overdueTasks')}</span>
+              <div className="flex-1" />
+              <span className="text-[10px] text-red-500/70">{t('tasks.reviewDueDates')}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Toolbar */}
+        <div className="p-4 border-b border-border/50 space-y-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <Tabs value={taskView} onValueChange={(v) => setTaskView(v as 'list' | 'board')}>
+                <TabsList className="h-8">
+                  <TabsTrigger value="list" className="text-xs px-3 h-6">
+                    <List className="h-3.5 w-3.5 mr-1" />{t('tasks.list')}
+                  </TabsTrigger>
+                  <TabsTrigger value="board" className="text-xs px-3 h-6">
+                    <LayoutGrid className="h-3.5 w-3.5 mr-1" />{t('tasks.board')}
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+              {taskView === 'list' && (
+                <Button
+                  variant={selectionMode ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="h-7 text-xs gap-1.5"
+                  onClick={() => {
+                    setSelectionMode(prev => !prev)
+                    setSelectedIds(new Set())
+                  }}
+                >
+                  <MousePointer2 className="h-3.5 w-3.5" />
+                  {selectionMode ? t('cancel') : t('tasks.selection.select')}
+                </Button>
+              )}
+              <div className="flex min-w-0 flex-wrap items-center gap-1">
+                {(['all', 'todo', 'in-progress', 'done'] as const).map((filter) => {
+                  const count = filter === 'all' ? tasks.length : tasks.filter(t => t.status === filter).length
+                  const isActive = taskFilter === filter
+                  return (
+                    <Button
+                      key={filter}
+                      variant={isActive ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className={cn('h-7 text-xs gap-1.5 tab-transition', isActive && 'border-l-2')}
+                      style={isActive ? { borderLeftColor: accentHex } : undefined}
+                      onClick={() => setTaskFilter(filter)}
+                    >
+                      {filter === 'all' ? t('tasks.all') : filter === 'in-progress' ? t('tasks.inProgress') : filter === 'todo' ? t('tasks.todo') : t('tasks.done')}
+                      <motion.span
+                        key={`${filter}-${count}`}
+                        initial={{ scale: 0.8, opacity: 0.5 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className={cn(
+                          'inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full text-[10px] font-medium transition-colors',
+                          taskFilter === filter ? (filterBadgeColors[filter] || filterBadgeColors.all) : 'bg-muted text-muted-foreground'
+                        )}
+                      >
+                        {count}
+                      </motion.span>
+                    </Button>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1.5">
+                    <LayoutTemplate className="h-4 w-4" />{t('tasks.templates')}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-2" align="end">
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground px-2 py-1">{t('tasks.addTask')}</p>
+                    {taskTemplates.map((template) => (
+                      <button
+                        key={template.title}
+                        className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-left hover:bg-accent transition-colors text-sm group"
+                        onClick={() => handleTemplateSelect(template)}
+                      >
+                        <Badge className={cn(`${priorityColors[template.priority]} text-[9px] shrink-0 px-1.5 py-0 rounded-full font-semibold`)}>
+                          {uiText(template.priority)}
+                        </Badge>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-xs truncate">{uiText(template.title)}</p>
+                          <p className="text-[10px] text-muted-foreground truncate">{uiText(template.description)}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm">
+                    <Plus className="h-4 w-4 mr-1.5" />{t('tasks.addTask')}
+                  </Button>
+                </DialogTrigger>
+              <DialogContent
+                aria-describedby={undefined}
+                className="w-[calc(100vw-1rem)] max-h-[calc(100dvh-1rem)] flex flex-col gap-0 overflow-hidden border-0 p-0 shadow-2xl sm:max-h-[min(90dvh,800px)] sm:max-w-[560px]"
+              >
+                {/* Gradient accent strip */}
+                <div
+                  className="h-1 w-full"
+                  style={{ background: `linear-gradient(90deg, ${accentHex}, ${accentHex}66, transparent)` }}
+                />
+                <DialogHeader className="px-4 pt-5 pb-3 sm:px-6">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: `${accentHex}1a`, color: accentHex }}
+                    >
+                      <Sparkles className="h-4.5 w-4.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <DialogTitle className="text-base font-semibold leading-tight">
+                        {t('tasks.newTask')}
+                      </DialogTitle>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {t('tasks.composer.subtitle')}
+                      </p>
+                    </div>
+                  </div>
+                  <DialogDescription className="sr-only">{uiText("Create a new task for your workflow")}</DialogDescription>
+                </DialogHeader>
+
+                <div
+                  className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pb-4 sm:px-6"
+                  onKeyDown={(e) => {
+                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                      e.preventDefault()
+                      handleAddTask()
+                    }
+                  }}
+                >
+                  {/* Title — big, borderless, primary input */}
+                  <input
+                    autoFocus
+                    placeholder={t('tasks.composer.titlePlaceholder')}
+                    value={newTask.title}
+                    onChange={(e) => setNewTask(prev => ({ ...prev, title: e.target.value }))}
+                    className="w-full text-lg md:text-xl font-medium bg-transparent border-0 outline-none placeholder:text-muted-foreground/50 focus:ring-0 px-0 py-1"
+                  />
+
+                  {/* Description — subtle bg, auto height */}
+                  <Textarea
+                    placeholder={t('tasks.composer.descPlaceholder')}
+                    value={newTask.description}
+                    onChange={(e) => setNewTask(prev => ({ ...prev, description: e.target.value }))}
+                    className="min-h-[68px] resize-none bg-muted/40 border-border/60 focus-visible:bg-muted/60 text-sm"
+                  />
+
+                  {/* Priority pills */}
+                  <div>
+                    <p className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider mb-2">
+                      {t('tasks.composer.priorityLabel')}
+                    </p>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {(['low', 'medium', 'high', 'urgent'] as const).map((p) => {
+                        const active = newTask.priority === p
+                        const dot = { low: '#3b82f6', medium: '#f59e0b', high: '#f97316', urgent: '#ef4444' }[p]
+                        return (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => setNewTask(prev => ({ ...prev, priority: p }))}
+                            className={cn(
+                              'flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-medium border transition-all',
+                              active
+                                ? 'border-transparent text-foreground shadow-sm'
+                                : 'border-border/60 text-muted-foreground hover:text-foreground hover:bg-accent/40'
+                            )}
+                            style={active ? { backgroundColor: `${dot}1a`, boxShadow: `0 0 0 1px ${dot}55 inset` } : undefined}
+                          >
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: dot }} />
+                            {t(`tasks.${p}`)}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Attribute chips: Due / Project / Recurrence / Tags */}
+                  <div className="flex flex-wrap gap-2">
+                    {/* Due date chip */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className={cn(
+                            'inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-xs font-medium transition-colors',
+                            newTask.dueDate
+                              ? 'border-transparent text-foreground'
+                              : 'border-border/70 text-muted-foreground hover:bg-accent/40'
+                          )}
+                          style={newTask.dueDate ? { backgroundColor: `${accentHex}1a`, color: accentHex } : undefined}
+                        >
+                          <CalendarDays className="h-3.5 w-3.5" />
+                          {newTask.dueDate
+                            ? new Date(newTask.dueDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+                            : t('tasks.composer.noDue')}
+                          <ChevronDown className="h-3 w-3 opacity-60" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-60 p-2">
+                        <div className="space-y-0.5">
+                          {[
+                            { id: 'today', label: t('tasks.composer.today'), days: 0 },
+                            { id: 'tomorrow', label: t('tasks.composer.tomorrow'), days: 1 },
+                            { id: 'thisWeek', label: t('tasks.composer.thisWeek'), days: ((7 - new Date().getDay()) || 7) },
+                          ].map(opt => (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              className="w-full flex items-center justify-between text-xs px-2.5 py-1.5 rounded-md hover:bg-accent text-left"
+                              onClick={() => {
+                                const d = new Date()
+                                d.setDate(d.getDate() + opt.days)
+                                const iso = d.toISOString().slice(0, 10)
+                                setNewTask(prev => ({ ...prev, dueDate: iso }))
+                              }}
+                            >
+                              <span>{opt.label}</span>
+                              <span className="text-muted-foreground">
+                                {(() => { const d = new Date(); d.setDate(d.getDate() + opt.days); return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) })()}
+                              </span>
+                            </button>
+                          ))}
+                          <div className="border-t border-border/60 my-1" />
+                          <label className="px-2.5 py-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70 block">
+                            {t('tasks.composer.pickDate')}
+                          </label>
+                          <Input
+                            type="date"
+                            value={newTask.dueDate}
+                            onChange={(e) => setNewTask(prev => ({ ...prev, dueDate: e.target.value }))}
+                            className="h-8 text-xs"
+                          />
+                          {newTask.dueDate && (
+                            <button
+                              type="button"
+                              className="w-full text-left text-xs px-2.5 py-1.5 rounded-md hover:bg-accent text-muted-foreground mt-1"
+                              onClick={() => setNewTask(prev => ({ ...prev, dueDate: '' }))}
+                            >
+                              {t('tasks.composer.clearDate')}
+                            </button>
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+
+                    {/* Project chip */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className={cn(
+                            'inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-xs font-medium transition-colors',
+                            newTask.projectId
+                              ? 'border-transparent text-foreground'
+                              : 'border-border/70 text-muted-foreground hover:bg-accent/40'
+                          )}
+                          style={newTask.projectId ? { backgroundColor: `${accentHex}1a`, color: accentHex } : undefined}
+                        >
+                          <Folder className="h-3.5 w-3.5" />
+                          {newTask.projectId
+                            ? (projects.find(p => p.id === newTask.projectId)?.name ?? t('tasks.composer.project'))
+                            : t('tasks.composer.noProject')}
+                          <ChevronDown className="h-3 w-3 opacity-60" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-56 p-1">
+                        <button
+                          type="button"
+                          className="w-full text-left text-xs px-2.5 py-1.5 rounded-md hover:bg-accent text-muted-foreground"
+                          onClick={() => setNewTask(prev => ({ ...prev, projectId: '' }))}
+                        >
+                          {t('tasks.composer.noProject')}
+                        </button>
+                        {projects.length > 0 && <div className="border-t border-border/60 my-1" />}
+                        {projects.map(p => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            className={cn(
+                              'w-full text-left text-xs px-2.5 py-1.5 rounded-md hover:bg-accent flex items-center justify-between',
+                              newTask.projectId === p.id && 'bg-accent/60'
+                            )}
+                            onClick={() => setNewTask(prev => ({ ...prev, projectId: p.id }))}
+                          >
+                            <span className="truncate">{p.name}</span>
+                            {newTask.projectId === p.id && <Check className="h-3.5 w-3.5" style={{ color: accentHex }} />}
+                          </button>
+                        ))}
+                      </PopoverContent>
+                    </Popover>
+
+                    {/* Recurrence chip */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className={cn(
+                            'inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-xs font-medium transition-colors',
+                            newTask.recurrence && newTask.recurrence !== 'none'
+                              ? 'border-transparent text-foreground'
+                              : 'border-border/70 text-muted-foreground hover:bg-accent/40'
+                          )}
+                          style={newTask.recurrence && newTask.recurrence !== 'none' ? { backgroundColor: `${accentHex}1a`, color: accentHex } : undefined}
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          {(() => {
+                            const r = newTask.recurrence
+                            if (!r || r === 'none') return t('tasks.composer.recurrenceNone')
+                            return t(`tasks.composer.recurrence${r.charAt(0).toUpperCase() + r.slice(1)}`) !== `tasks.composer.recurrence${r.charAt(0).toUpperCase() + r.slice(1)}`
+                              ? t(`tasks.composer.recurrence${r.charAt(0).toUpperCase() + r.slice(1)}`)
+                              : ({ daily: uiText('Günlük'), weekly: uiText('Haftalık'), monthly: uiText('Aylık') } as Record<string, string>)[r]
+                          })()}
+                          <ChevronDown className="h-3 w-3 opacity-60" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-44 p-1">
+                        {([
+                          ['none', t('tasks.composer.recurrenceNone')],
+                          ['daily', uiText('Günlük')],
+                          ['weekly', uiText('Haftalık')],
+                          ['monthly', uiText('Aylık')],
+                        ] as const).map(([val, label]) => {
+                          const active = (newTask.recurrence ?? 'none') === val
+                          return (
+                            <button
+                              key={val}
+                              type="button"
+                              className={cn(
+                                'w-full text-left text-xs px-2.5 py-1.5 rounded-md hover:bg-accent flex items-center justify-between',
+                                active && 'bg-accent/60'
+                              )}
+                              onClick={() => setNewTask(prev => ({ ...prev, recurrence: val as Task['recurrence'] }))}
+                            >
+                              <span>{label}</span>
+                              {active && <Check className="h-3.5 w-3.5" style={{ color: accentHex }} />}
+                            </button>
+                          )
+                        })}
+                      </PopoverContent>
+                    </Popover>
+
+                    {/* Tags chip */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className={cn(
+                            'inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-xs font-medium transition-colors',
+                            newTask.tags.trim()
+                              ? 'border-transparent text-foreground'
+                              : 'border-border/70 text-muted-foreground hover:bg-accent/40'
+                          )}
+                          style={newTask.tags.trim() ? { backgroundColor: `${accentHex}1a`, color: accentHex } : undefined}
+                        >
+                          <Hash className="h-3.5 w-3.5" />
+                          {newTask.tags.trim()
+                            ? `${newTask.tags.split(',').map(s => s.trim()).filter(Boolean).length} ${t('tasks.tags').toLowerCase()}`
+                            : t('tasks.tags')}
+                          <ChevronDown className="h-3 w-3 opacity-60" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-72 p-3 space-y-2">
+                        <Input
+                          placeholder={t('tasks.composer.tagsPlaceholder')}
+                          value={newTask.tags}
+                          onChange={(e) => setNewTask(prev => ({ ...prev, tags: e.target.value }))}
+                          className="h-8 text-xs"
+                        />
+                        {newTask.tags.trim() && (
+                          <div className="flex flex-wrap gap-1">
+                            {newTask.tags.split(',').map(s => s.trim()).filter(Boolean).map((tag, i) => (
+                              <Badge key={`${tag}-${i}`} variant="secondary" className="text-[10px] font-normal py-0.5">
+                                #{tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+
+                <DialogFooter className="sticky bottom-0 flex-row items-center justify-end gap-2 border-t border-border/60 bg-background/95 px-4 py-3 backdrop-blur sm:justify-between sm:px-6">
+                  <span className="hidden sm:flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    {t('tasks.composer.cmdEnter')}
+                    <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-border/70 bg-background text-[10px] font-medium">
+                      <Command className="h-2.5 w-2.5" />Enter
+                    </kbd>
+                    {t('tasks.composer.cmdEnterAction')}
+                  </span>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <DialogClose asChild>
+                      <Button variant="ghost" size="sm">{t('cancel')}</Button>
+                    </DialogClose>
+                    <Button
+                      size="sm"
+                      onClick={handleAddTask}
+                      disabled={createTaskMutation.isPending || !newTask.title.trim()}
+                      className="gap-1.5 text-white hover:opacity-95"
+                      style={{ backgroundColor: accentHex, boxShadow: `0 10px 24px -10px ${accentHex}` }}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      {t('tasks.createTask')}
+                    </Button>
+                  </div>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* ─── Edit Task Dialog ──────────────────────────────────── */}
+            <Dialog open={editDialogOpen} onOpenChange={(o) => { setEditDialogOpen(o); if (!o) setEditTask(null) }}>
+              <DialogContent className="max-w-lg" aria-describedby={undefined}>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Edit3 className="h-4 w-4" />
+                    {t('tasks.editTask')}
+                  </DialogTitle>
+                  <DialogDescription className="sr-only">{t('tasks.editTask')}</DialogDescription>
+                </DialogHeader>
+                {editTask && (
+                  <div
+                    className="space-y-4 py-2"
+                    onKeyDown={(e) => {
+                      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                        e.preventDefault()
+                        handleUpdateTask()
+                      }
+                    }}
+                  >
+                    <div>
+                      <label className="text-sm font-medium mb-1.5 block">{t('tasks.taskTitle')}</label>
+                      <Input
+                        autoFocus
+                        value={editTask.title}
+                        onChange={(e) => setEditTask((p) => p && ({ ...p, title: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1.5 block">{t('tasks.description')}</label>
+                      <Textarea
+                        rows={3}
+                        value={editTask.description}
+                        onChange={(e) => setEditTask((p) => p && ({ ...p, description: e.target.value }))}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium mb-1.5 block">{t('tasks.priority')}</label>
+                        <Select
+                          value={editTask.priority}
+                          onValueChange={(v) => setEditTask((p) => p && ({ ...p, priority: v as Task['priority'] }))}
+                        >
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="low">{t('tasks.low')}</SelectItem>
+                            <SelectItem value="medium">{t('tasks.medium')}</SelectItem>
+                            <SelectItem value="high">{t('tasks.high')}</SelectItem>
+                            <SelectItem value="urgent">{t('tasks.urgent')}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium mb-1.5 block">{t('tasks.status')}</label>
+                        <Select
                           value={editTask.status}
                           onValueChange={(v) => setEditTask((p) => p && ({ ...p, status: v as Task['status'] }))}
                         >

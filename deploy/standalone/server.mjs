@@ -1,6 +1,7 @@
 import { createServer, request as httpRequest } from 'node:http'
 import { DatabaseSync } from 'node:sqlite'
 import { spawn } from 'node:child_process'
+import { createWorkspaceSubjectHeaders, mapAgentTarget } from './agent-bridge.mjs'
 import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -131,6 +132,89 @@ async function handlePublicAuth(req, res, pathname, requestUrl) {
   res.writeHead(204, { 'set-cookie': sessionCookie(issueSessionToken(AUTH_SECRET, ENTRY_KEY, env.PERSONAL_WORKBENCH_OWNER)), 'cache-control': 'no-store' }); res.end(); return true
 }
 
+
+async function handleAgentApi(req, res, requestUrl, auth) {
+  const target = mapAgentTarget(requestUrl.pathname, requestUrl.search, BASE_PATH)
+  if (!target) { json(res, 404, { error: 'Not found' }); return }
+  if (target.startsWith('/v1/health')) {
+    const serviceUrl = process.env.AGENT_SERVICE_URL || ''
+    const token = process.env.AGENT_SERVICE_TOKEN || ''
+    const signingSecret = process.env.WORKSPACE_SUBJECT_SIGNING_SECRET || ''
+    if (!serviceUrl || !token || !signingSecret) {
+      json(res, 200, {
+        enabled: false,
+        reason: 'service_not_configured',
+        taskTrigger: 'not_configured',
+        providers: { deepseek: false, openai: false },
+      })
+      return
+    }
+    try {
+      const response = await fetch(new URL(target, serviceUrl.endsWith('/') ? serviceUrl : serviceUrl + '/'), {
+        method: 'GET', headers: { accept: 'application/json' }, redirect: 'error', signal: AbortSignal.timeout(5000),
+      })
+      if (!response.ok) throw new Error('AGENT_HEALTH_UNAVAILABLE')
+      const health = await response.json()
+      json(res, 200, { enabled: true, ...health })
+    } catch {
+      json(res, 200, {
+        enabled: false,
+        reason: 'service_unavailable',
+        taskTrigger: 'not_configured',
+        providers: { deepseek: false, openai: false },
+      })
+    }
+    return
+  }
+
+  if (!['GET', 'POST', 'PATCH'].includes(req.method || 'GET')) {
+    json(res, 405, { error: 'Method not allowed' }); return
+  }
+  if (req.method !== 'GET' && (!forwardedSecure(req) || !sameOrigin(req))) {
+    json(res, 404, { error: 'Not found' }); return
+  }
+  const serviceUrl = process.env.AGENT_SERVICE_URL || ''
+  const token = process.env.AGENT_SERVICE_TOKEN || ''
+  const signingSecret = process.env.WORKSPACE_SUBJECT_SIGNING_SECRET || ''
+  if (!serviceUrl || !token || !signingSecret) {
+    json(res, 503, { error: 'AI_SERVICE_NOT_CONFIGURED' }); return
+  }
+  try {
+    const body = req.method === 'GET' ? Buffer.alloc(0) : await readRequest(req)
+    if (body.length > 32_000) { json(res, 413, { error: 'Request body too large' }); return }
+    if (body.length && !/^application\/json(?:\s*;|$)/i.test(req.headers['content-type'] || '')) {
+      json(res, 415, { error: 'JSON required' }); return
+    }
+    const idempotencyKey = String(req.headers['idempotency-key'] || '')
+    const headers = createWorkspaceSubjectHeaders({
+      ownerId: auth.username,
+      method: req.method || 'GET',
+      requestTarget: target,
+      body,
+      idempotencyKey,
+      serviceToken: token,
+      signingSecret,
+    })
+    headers.accept = 'application/json'
+    if (body.length) headers['content-type'] = 'application/json'
+    const response = await fetch(new URL(target, serviceUrl.endsWith('/') ? serviceUrl : serviceUrl + '/'), {
+      method: req.method,
+      headers,
+      ...(body.length ? { body } : {}),
+      redirect: 'error',
+      signal: AbortSignal.timeout(15_000),
+    })
+    const payload = Buffer.from(await response.arrayBuffer())
+    res.writeHead(response.status, {
+      'content-type': response.headers.get('content-type') || 'application/json; charset=utf-8',
+      'cache-control': 'no-store',
+    })
+    res.end(payload)
+  } catch {
+    json(res, 502, { error: 'AI_SERVICE_UNAVAILABLE' })
+  }
+}
+
 async function handlePrivateApi(req, res, mappedPath, requestUrl, auth) {
   const request = await toWebRequest(req, requestUrl)
   const url = new URL(request.url)
@@ -158,12 +242,17 @@ const server = createServer(async (req, res) => {
   if (requestUrl.pathname === '/' && verifySessionToken(cookie(req), AUTH_SECRET, ENTRY_KEY)) {
     res.writeHead(308, { location: `${BASE_PATH}/` }); res.end(); return
   }
+  const auth = verifySessionToken(cookie(req), AUTH_SECRET, ENTRY_KEY)
+  const agentPrefix = BASE_PATH + '/api/agent'
+  if (requestUrl.pathname === agentPrefix || requestUrl.pathname.startsWith(agentPrefix + '/')) {
+    if (!auth) return json(res, 404, { error: 'Not found' })
+    return handleAgentApi(req, res, requestUrl, auth)
+  }
   const apiPath = mapPrivateApiPath(requestUrl.pathname)
   const directAuthPath = requestUrl.pathname.startsWith('/api/personal-workbench/') ? requestUrl.pathname : null
   if (directAuthPath && await handlePublicAuth(req, res, directAuthPath, requestUrl)) return
   const apiTarget = apiPath || (directAuthPath ? directAuthPath : null)
   if (apiTarget) {
-    const auth = verifySessionToken(cookie(req), AUTH_SECRET, ENTRY_KEY)
     if (!auth) return json(res, 404, { error: 'Not found' })
     if (requestUrl.pathname === '/api/personal-workbench/session' || requestUrl.pathname === `${BASE_PATH}/api/personal-workbench/session`) {
       if (req.method !== 'DELETE') return json(res, 404, { error: 'Not found' })
@@ -182,7 +271,6 @@ const server = createServer(async (req, res) => {
     }
     res.writeHead(308, { location: `${BASE_PATH}/` }); res.end(); return
   }
-  const auth = verifySessionToken(cookie(req), AUTH_SECRET, ENTRY_KEY)
   if (!auth) return json(res, 404, { error: 'Not found' })
   if (requestUrl.pathname === `${BASE_PATH}/` || requestUrl.pathname.startsWith(`${BASE_PATH}/`)) return proxyToNext(req, res)
   return json(res, 404, { error: 'Not found' })
