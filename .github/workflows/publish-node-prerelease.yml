@@ -1,0 +1,51 @@
+name: Publish Life OS Node pre-release
+
+on:
+  push:
+    branches: [codex/standalone-deployment]
+
+jobs:
+  publish:
+    if: ${{ github.event.head_commit.message == 'Publish verified Life OS Node runtime pre-release for a1b7c14' }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    env:
+      SOURCE_COMMIT: a1b7c14a72a54bd9e6dc0aeba20099e1779e6355
+      BUILD_RUN_ID: '38080059444'
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Confirm the source workflow succeeded for the pinned commit
+        run: |
+          set -euo pipefail
+          run="$(gh run view "$BUILD_RUN_ID" --repo "$GITHUB_REPOSITORY" --json status,conclusion,headSha)"
+          test "$(jq -r .status <<<"$run")" = completed
+          test "$(jq -r .conclusion <<<"$run")" = success
+          test "$(jq -r .headSha <<<"$run")" = "$SOURCE_COMMIT"
+      - name: Download the successful Node runtime artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: lifeos-node-runtime-a1b7c14a72a54bd9e6dc0aeba20099e1779e6355
+          run-id: 38080059444
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/lifeos-node-runtime
+      - name: Verify archive digest and embedded source commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/lifeos-node-runtime"
+          sha256sum -c lifeos-standalone-node.tar.gz.sha256
+          version="$(tar -xOzf lifeos-standalone-node.tar.gz ./VERSION)"
+          grep -Fx "source_commit=$SOURCE_COMMIT" <<<"$version"
+          test -s lifeos-standalone-node.tar.gz
+      - name: Publish explicitly marked GitHub pre-release
+        run: |
+          gh release create "lifeos-node-runtime-a1b7c14" \
+            "$RUNNER_TEMP/lifeos-node-runtime/lifeos-standalone-node.tar.gz" \
+            "$RUNNER_TEMP/lifeos-node-runtime/lifeos-standalone-node.tar.gz.sha256" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$SOURCE_COMMIT" \
+            --prerelease \
+            --title "Life OS Node runtime pre-release a1b7c14" \
+            --notes "Build-only pre-release for isolated loopback acceptance. This is not a production deployment. Archive is source commit $SOURCE_COMMIT; no user data, credentials, or host configuration are included."
