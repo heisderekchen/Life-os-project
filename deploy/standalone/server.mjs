@@ -313,6 +313,7 @@ async function handleHttpRequest(req, res) {
     }
   }
   if (requestUrl.pathname === BASE_PATH) {
+    if (auth) return proxyToNext(req, res)
     res.writeHead(308, { location: `${BASE_PATH}/` }); res.end(); return
   }
   if (requestUrl.pathname === '/' || requestUrl.pathname === `${BASE_PATH}/`) {

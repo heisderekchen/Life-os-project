@@ -141,6 +141,9 @@ try {
   assert.equal(state.setupComplete, true)
   const page = await fetch(`${base}/workbench/`, { headers })
   assert.equal(await page.text(), 'mock next /workbench/')
+  const canonicalPage = await fetch(`${base}/workbench`, { headers })
+  assert.equal(canonicalPage.status, 200)
+  assert.equal(await canonicalPage.text(), 'mock next /workbench')
   console.log('HTTP private entry, /workbench login recovery, trusted HTTPS owner setup, malformed/oversize request handling, signed AI bridge, app-state sync, and recurrence-off health check passed.')
 } finally {
   child.kill('SIGTERM')
