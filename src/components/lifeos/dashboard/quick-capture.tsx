@@ -1,5 +1,7 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CheckSquare, StickyNote, BookOpen, Repeat, Send, ChevronDown } from 'lucide-react'
@@ -17,6 +19,7 @@ import {
 import { showToast } from '@/lib/toast'
 import { useAppStore } from '@/stores/app-store'
 import { useTranslation } from '@/lib/i18n'
+import { apiPath } from '@/lib/api/client'
 
 type CaptureType = 'task' | 'note' | 'journal' | 'habit'
 
@@ -28,6 +31,7 @@ const captureTypes: { value: CaptureType; label: string; icon: React.ElementType
 ]
 
 export function QuickCapture() {
+  useInterfaceLanguage()
   const { accentColor } = useAppStore()
   const { t } = useTranslation()
   const accentHexMap: Record<string, string> = {
@@ -68,20 +72,20 @@ export function QuickCapture() {
     try {
       switch (captureType) {
         case 'task': {
-          const res = await fetch('/api/tasks', {
+          const res = await fetch(apiPath('/api/tasks'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title, status: 'todo', priority: 'medium' }),
           })
           if (!res.ok) throw new Error('Failed to create task')
-          showToast.success('Task captured', `"${title}" added to your tasks`)
+          showToast.success(uiText("Task captured"), `"${title}" added to your tasks`)
           break
         }
         case 'note': {
           // First try to find a "Quick Notes" folder
           let folderId: string | null = null
           try {
-            const foldersRes = await fetch('/api/note-folders')
+            const foldersRes = await fetch(apiPath('/api/note-folders'))
             if (foldersRes.ok) {
               const folders = await foldersRes.json()
               const quickNotesFolder = (folders as { id: string; name: string }[]).find(
@@ -91,7 +95,7 @@ export function QuickCapture() {
                 folderId = quickNotesFolder.id
               } else {
                 // Create the Quick Notes folder
-                const createFolderRes = await fetch('/api/note-folders', {
+                const createFolderRes = await fetch(apiPath('/api/note-folders'), {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ name: 'Quick Notes', icon: '⚡', color: '#f59e0b' }),
@@ -106,34 +110,34 @@ export function QuickCapture() {
             // Folder lookup/create failed, create note without folder
           }
 
-          const res = await fetch('/api/notes', {
+          const res = await fetch(apiPath('/api/notes'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title, content: '', folderId }),
           })
           if (!res.ok) throw new Error('Failed to create note')
-          showToast.success('Note captured', `"${title}" added to Quick Notes`)
+          showToast.success(uiText("Note captured"), `"${title}" added to Quick Notes`)
           break
         }
         case 'journal': {
-          const res = await fetch('/api/journal', {
+          const res = await fetch(apiPath('/api/journal'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title, content: '', mood: 'good', energy: 5, stress: 3 }),
           })
           if (!res.ok) throw new Error('Failed to create journal entry')
-          showToast.success('Journal entry captured', `"${title}" added to your journal`)
+          showToast.success(uiText("Journal entry captured"), `"${title}" added to your journal`)
           break
         }
         case 'habit': {
-          showToast.info('Habits can be created in the Habits module', 'Navigate to Habits to set up new habits')
+          showToast.info(uiText("Habits can be created in the Habits module"), uiText("Navigate to Habits to set up new habits"))
           break
         }
       }
 
       setInputValue('')
     } catch {
-      showToast.error('Capture failed', 'Could not save your item. Please try again.')
+      showToast.error(uiText("Capture failed"), uiText("Could not save your item. Please try again."))
     } finally {
       setIsSubmitting(false)
     }
@@ -195,7 +199,7 @@ export function QuickCapture() {
                       }`}
                     >
                       <type.icon className={`h-3 w-3 ${captureType === type.value ? type.color : ''}`} />
-                      {type.label}
+                      {uiText(type.label)}
                     </button>
                   ))}
                 </div>

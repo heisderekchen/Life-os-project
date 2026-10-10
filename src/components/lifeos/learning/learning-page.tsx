@@ -1,5 +1,7 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
 import { useState, useMemo, useCallback } from 'react'
 import {
   Plus, GraduationCap, BookOpen, Video, FileText, Headphones, Dumbbell, Clock, Star, Trash2, ExternalLink, CheckCircle2, Circle, ArrowLeft, Play, Flame, Search, Map, X,
@@ -134,6 +136,7 @@ const accentHexMap: Record<string, string> = {
 }
 
 export function LearningPage() {
+  useInterfaceLanguage()
   const accentColor = useAppStore((s) => s.accentColor)
   const { t } = useTranslation()
   const accentHex = accentHexMap[accentColor] || '#10b981'
@@ -196,13 +199,13 @@ export function LearningPage() {
         order: r.order,
       })),
     })
-    showToast.success('Progress updated')
+    showToast.success(uiText("Progress updated"))
   }, [courses, updateCourseMutation])
 
   const deleteCourse = useCallback((id: string) => {
     deleteCourseMutation.mutate(id)
     if (selectedCourseId === id) setSelectedCourseId(null)
-    showToast.info('Course deleted')
+    showToast.info(uiText("Course deleted"))
   }, [deleteCourseMutation, selectedCourseId])
 
   const handleAddCourse = useCallback(() => {
@@ -216,7 +219,7 @@ export function LearningPage() {
       onSuccess: () => {
         setNewCourse({ title: '', description: '', provider: '', url: '' })
         setCreateDialogOpen(false)
-        showToast.success('Course added')
+        showToast.success(uiText("Course added"))
       }
     })
   }, [newCourse, createCourseMutation])
@@ -295,7 +298,7 @@ export function LearningPage() {
                     <div key={idx} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-accent/50 transition-colors">
                       <span className="text-lg">{emoji}</span>
                       <span className="text-sm flex-1">{resource.title}</span>
-                      <Badge className="text-[10px] rounded-full border-0 bg-slate-500/10 text-slate-600 dark:text-slate-400">{resource.type}</Badge>
+                      <Badge className="text-[10px] rounded-full border-0 bg-slate-500/10 text-slate-600 dark:text-slate-400">{uiText(resource.type)}</Badge>
                       {resource.url && (
                         <a href={resource.url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">
                           <ExternalLink className="h-3.5 w-3.5" />
@@ -336,7 +339,7 @@ export function LearningPage() {
               <p className="text-sm text-muted-foreground mt-1">{selectedCourse.description}</p>
               <div className="flex items-center gap-2 mt-2 flex-wrap">
                 {selectedCourse.provider && <Badge variant="outline" className="text-xs">{selectedCourse.provider}</Badge>}
-                <Badge className={cn('text-xs rounded-full border-0', selectedCourse.status === 'in-progress' ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400' : selectedCourse.status === 'completed' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : selectedCourse.status === 'paused' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'bg-slate-500/10 text-slate-600 dark:text-slate-400')}>{selectedCourse.status}</Badge>
+                <Badge className={cn('text-xs rounded-full border-0', selectedCourse.status === 'in-progress' ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400' : selectedCourse.status === 'completed' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : selectedCourse.status === 'paused' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'bg-slate-500/10 text-slate-600 dark:text-slate-400')}>{uiText(selectedCourse.status)}</Badge>
                 <RatingStars rating={selectedCourse.rating} size={14} />
               </div>
             </div>
@@ -344,7 +347,7 @@ export function LearningPage() {
           </div>
           <div className="flex items-center gap-4"><div className="flex-1"><Progress value={selectedCourse.progress} className="h-3" /></div><span className="text-sm font-semibold">{selectedCourse.progress}%</span></div>
           {selectedCourse.notes && <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">{selectedCourse.notes}</p></CardContent></Card>}
-          <Card><CardHeader className="pb-2"><CardTitle className="text-base">{t('learning.resources')} ({selectedCourse.resources.length})</CardTitle></CardHeader><CardContent><div className="space-y-2">{selectedCourse.resources.map(resource => { const IconComp = resourceTypeIcons[resource.type] || FileText; const emoji = resourceTypeEmojis[resource.type] || '📄'; return (<div key={resource.id} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-accent/50 cursor-pointer transition-colors" onClick={() => toggleResource(selectedCourse.id, resource.id)}>{resource.completed ? <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 500 }}><CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" /></motion.div> : <Circle className="h-4 w-4 text-muted-foreground shrink-0" />}<span className="text-lg">{emoji}</span><span className={cn('text-sm flex-1', resource.completed && 'line-through text-muted-foreground')}>{resource.title}</span><Badge className="text-[10px] rounded-full border-0 bg-slate-500/10 text-slate-600 dark:text-slate-400">{resource.type}</Badge></div>) })}{selectedCourse.resources.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">{t('learning.noResources')}</p>}</div></CardContent></Card>
+          <Card><CardHeader className="pb-2"><CardTitle className="text-base">{t('learning.resources')} ({selectedCourse.resources.length})</CardTitle></CardHeader><CardContent><div className="space-y-2">{selectedCourse.resources.map(resource => { const IconComp = resourceTypeIcons[resource.type] || FileText; const emoji = resourceTypeEmojis[resource.type] || '📄'; return (<div key={resource.id} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-accent/50 cursor-pointer transition-colors" onClick={() => toggleResource(selectedCourse.id, resource.id)}>{resource.completed ? <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 500 }}><CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" /></motion.div> : <Circle className="h-4 w-4 text-muted-foreground shrink-0" />}<span className="text-lg">{emoji}</span><span className={cn('text-sm flex-1', resource.completed && 'line-through text-muted-foreground')}>{resource.title}</span><Badge className="text-[10px] rounded-full border-0 bg-slate-500/10 text-slate-600 dark:text-slate-400">{uiText(resource.type)}</Badge></div>) })}{selectedCourse.resources.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">{t('learning.noResources')}</p>}</div></CardContent></Card>
         </div>
       </div>
     )
@@ -394,7 +397,7 @@ export function LearningPage() {
             <div className="grid grid-cols-3 gap-4">
               <Card className="overflow-hidden hover-lift"><div className="h-1" style={{ background: `linear-gradient(to right, ${accentHex}, ${accentHex}cc)` }} /><CardContent className="p-4 text-center"><GraduationCap className="h-5 w-5 mx-auto mb-1" style={{ color: accentHex }} /><p className="text-2xl font-bold">{inProgressCount}</p><p className="text-xs text-muted-foreground">{t('learning.inProgress')}</p></CardContent></Card>
               <Card className="overflow-hidden hover-lift"><div className="h-1" style={{ background: `linear-gradient(to right, ${accentHex}cc, ${accentHex})` }} /><CardContent className="p-4 text-center"><CheckCircle2 className="h-5 w-5 mx-auto mb-1" style={{ color: accentHex }} /><p className="text-2xl font-bold">{completedCount}</p><p className="text-xs text-muted-foreground">{t('learning.completed')}</p></CardContent></Card>
-              <Card className="overflow-hidden hover-lift"><div className="h-1" style={{ background: `linear-gradient(to right, ${accentHex}aa, ${accentHex})` }} /><CardContent className="p-4 text-center"><div className="flex items-center justify-center gap-1"><Clock className="h-5 w-5" style={{ color: accentHex }} /><Flame className="h-4 w-4 text-orange-500 animate-fire" /></div><p className="text-2xl font-bold">{totalHours}h</p><p className="text-xs text-muted-foreground">{t('learning.studyStreak')}</p></CardContent></Card>
+              <Card className="overflow-hidden hover-lift"><div className="h-1" style={{ background: `linear-gradient(to right, ${accentHex}aa, ${accentHex})` }} /><CardContent className="p-4 text-center"><div className="flex items-center justify-center gap-1"><Clock className="h-5 w-5" style={{ color: accentHex }} /><Flame className="h-4 w-4 text-orange-500 animate-fire" /></div><p className="text-2xl font-bold">{totalHours}{uiText("h")}</p><p className="text-xs text-muted-foreground">{t('learning.studyStreak')}</p></CardContent></Card>
             </div>
 
             {/* Continue Learning Quick Action */}
@@ -432,7 +435,7 @@ export function LearningPage() {
 
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">{['all', 'not-started', 'in-progress', 'completed', 'paused'].map(status => (<Button key={status} variant={(status === 'all' ? !statusFilter : statusFilter === status) ? 'secondary' : 'ghost'} size="sm" className="h-7 text-xs" onClick={() => setStatusFilter(status === 'all' ? null : status)}>{status === 'all' ? t('all') : status === 'not-started' ? t('learning.notStarted') : status === 'in-progress' ? t('learning.inProgress') : status === 'completed' ? t('learning.completed') : t('learning.paused')}</Button>))}</div>
-              <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}><DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1.5" />{t('learning.newCourse')}</Button></DialogTrigger><DialogContent aria-describedby={undefined}><DialogHeader><DialogTitle>{t('learning.newCourse')}</DialogTitle><DialogDescription className="sr-only">Add a new course to track</DialogDescription></DialogHeader><div className="space-y-4 py-2"><div><label className="text-sm font-medium mb-1.5 block">{t('learning.courseTitle')}</label><Input placeholder={t('learning.courseName')} value={newCourse.title} onChange={e => setNewCourse(p => ({ ...p, title: e.target.value }))} /></div><div><label className="text-sm font-medium mb-1.5 block">{t('learning.whatWillYouLearn')}</label><Textarea placeholder={t('learning.whatWillYouLearn')} value={newCourse.description} onChange={e => setNewCourse(p => ({ ...p, description: e.target.value }))} /></div><div className="grid grid-cols-2 gap-4"><div><label className="text-sm font-medium mb-1.5 block">{t('learning.provider')}</label><Input placeholder="e.g. Coursera" value={newCourse.provider} onChange={e => setNewCourse(p => ({ ...p, provider: e.target.value }))} /></div><div><label className="text-sm font-medium mb-1.5 block">{t('learning.url')}</label><Input placeholder="https://..." value={newCourse.url} onChange={e => setNewCourse(p => ({ ...p, url: e.target.value }))} /></div></div></div><DialogFooter><DialogClose asChild><Button variant="outline">{t('cancel')}</Button></DialogClose><Button onClick={handleAddCourse} disabled={createCourseMutation.isPending}>{t('add')}</Button></DialogFooter></DialogContent></Dialog>
+              <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}><DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1.5" />{t('learning.newCourse')}</Button></DialogTrigger><DialogContent aria-describedby={undefined}><DialogHeader><DialogTitle>{t('learning.newCourse')}</DialogTitle><DialogDescription className="sr-only">{uiText("Add a new course to track")}</DialogDescription></DialogHeader><div className="space-y-4 py-2"><div><label className="text-sm font-medium mb-1.5 block">{t('learning.courseTitle')}</label><Input placeholder={t('learning.courseName')} value={newCourse.title} onChange={e => setNewCourse(p => ({ ...p, title: e.target.value }))} /></div><div><label className="text-sm font-medium mb-1.5 block">{t('learning.whatWillYouLearn')}</label><Textarea placeholder={t('learning.whatWillYouLearn')} value={newCourse.description} onChange={e => setNewCourse(p => ({ ...p, description: e.target.value }))} /></div><div className="grid grid-cols-2 gap-4"><div><label className="text-sm font-medium mb-1.5 block">{t('learning.provider')}</label><Input placeholder={uiText("e.g. Coursera")} value={newCourse.provider} onChange={e => setNewCourse(p => ({ ...p, provider: e.target.value }))} /></div><div><label className="text-sm font-medium mb-1.5 block">{t('learning.url')}</label><Input placeholder="https://..." value={newCourse.url} onChange={e => setNewCourse(p => ({ ...p, url: e.target.value }))} /></div></div></div><DialogFooter><DialogClose asChild><Button variant="outline">{t('cancel')}</Button></DialogClose><Button onClick={handleAddCourse} disabled={createCourseMutation.isPending}>{t('add')}</Button></DialogFooter></DialogContent></Dialog>
             </div>
 
             {isLoading ? (
@@ -461,7 +464,7 @@ export function LearningPage() {
                           <div className="h-1 bg-gradient-to-r" style={{ background: `linear-gradient(to right, ${hexColor}, ${hexColor}88)` }} />
                           <CardContent className="p-4 space-y-3">
                             <div className="flex items-start justify-between">
-                              <Badge className={cn('text-[10px] rounded-full border-0', course.status === 'in-progress' ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400' : course.status === 'completed' ? '' : course.status === 'paused' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'bg-slate-500/10 text-slate-600 dark:text-slate-400')} style={course.status === 'completed' ? { color: accentHex, backgroundColor: `${accentHex}1A` } : undefined}>{course.status}</Badge>
+                              <Badge className={cn('text-[10px] rounded-full border-0', course.status === 'in-progress' ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400' : course.status === 'completed' ? '' : course.status === 'paused' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'bg-slate-500/10 text-slate-600 dark:text-slate-400')} style={course.status === 'completed' ? { color: accentHex, backgroundColor: `${accentHex}1A` } : undefined}>{uiText(course.status)}</Badge>
                               <CourseProgressRing progress={course.progress} size={36} strokeWidth={3} color={hexColor} />
                             </div>
                             <div>
@@ -590,7 +593,7 @@ export function LearningPage() {
                             </Badge>
                             <Badge variant="outline" className="text-[10px] rounded-full">
                               <Clock className="h-2.5 w-2.5 mr-0.5" />
-                              {path.estimatedHours}h
+                              {path.estimatedHours}{uiText("h")}
                             </Badge>
                           </div>
                           <div className="flex items-center gap-1 flex-wrap">

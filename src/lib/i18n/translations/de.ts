@@ -49,6 +49,7 @@ const de: TranslationKeys = {
     growth: 'Wachstum',
     dashboard: 'Dashboard',
     tasks: 'Aufgaben',
+    projects: 'Projekte',
     notes: 'Notizen',
     calendar: 'Kalender',
     timeTracker: 'Zeiterfassung',
@@ -68,6 +69,7 @@ const de: TranslationKeys = {
   },
 
   header: {
+    openNavigation: 'Navigation öffnen',
     searchEverything: 'Alles durchsuchen...',
     quickCreate: 'Schnell erstellen',
     newTask: 'Neue Aufgabe',
@@ -188,7 +190,41 @@ const de: TranslationKeys = {
     midnight: '0 Uhr',
   },
 
+  projects: {
+    title: 'Projekte',
+    subtitle: 'Ein Ort für die Arbeit, die du voranbringst.',
+    search: 'Projekte suchen',
+    create: 'Neues Projekt',
+    createFirst: 'Erstelle dein erstes Projekt',
+    edit: 'Projekt bearbeiten',
+    name: 'Projektname',
+    description: 'Beschreibung',
+    status: 'Status',
+    startDate: 'Startdatum',
+    endDate: 'Enddatum',
+    color: 'Projektfarbe',
+    all: 'Alle Projekte',
+    active: 'Aktiv',
+    completed: 'Abgeschlossen',
+    archived: 'Archiviert',
+    emptyTitle: 'Hier erscheinen deine Projekte',
+    emptyDescription: 'Bündle zusammengehörige Aufgaben und behalte den nächsten Schritt im Blick.',
+    noResults: 'Keine passenden Projekte gefunden.',
+    taskCount: '{count} Aufgaben',
+    noDescription: 'Noch keine Beschreibung',
+    deleteTitle: 'Projekt löschen?',
+    deleteDescription: '„{name}“ wird entfernt. Die Aufgaben bleiben erhalten und sind keinem Projekt mehr zugeordnet.',
+    deleteConfirm: 'Projekt löschen',
+    loadError: 'Projekte konnten nicht geladen werden.',
+    saveError: 'Projekt konnte nicht gespeichert werden.',
+    deleteError: 'Projekt konnte nicht gelöscht werden.',
+    retry: 'Erneut versuchen',
+    statuses: { active: 'Aktiv', 'on-hold': 'Pausiert', completed: 'Abgeschlossen', cancelled: 'Abgebrochen' },
+    actions: { edit: '{name} bearbeiten', archive: '{name} archivieren', unarchive: '{name} wiederherstellen', delete: '{name} löschen' },
+  },
+
   tasks: {
+    selection: { select: 'Auswählen', deselect: 'Auswahl aufheben', selectAll: 'Alle auswählen', deselectAll: 'Auswahl aufheben' },
     title: 'Aufgaben',
     list: 'Liste',
     board: 'Board',
@@ -403,6 +439,7 @@ const de: TranslationKeys = {
   },
 
   finance: {
+    monthlyBudget: 'Monthly budget', monthlyBudgetSubtitle: 'Set category budgets and track spending', manageBudgets: 'Manage budgets', budgetSaved: 'Budget saved', userSet: 'Custom budget',
     title: 'Finanzen',
     accounts: 'Konten',
     transactions: 'Transaktionen',
@@ -479,6 +516,7 @@ const de: TranslationKeys = {
   },
 
   goals: {
+    health: "Gesundheit",
     title: 'Ziele',
     newGoal: 'Neues Ziel',
     goalTitle: 'Zieltitel',
@@ -810,6 +848,7 @@ const de: TranslationKeys = {
     modules: {
       dashboard: { label: 'Dashboard', desc: 'Übersicht deines Lebens auf einen Blick' },
       tasks: { label: 'Aufgaben', desc: 'Verwalte und verfolge deine Aufgaben' },
+      projects: { label: 'Projekte', desc: 'Organisiere Arbeit und zugehörige Aufgaben' },
       notes: { label: 'Notizen', desc: 'Erfasse Ideen und Gedanken' },
       calendar: { label: 'Kalender', desc: 'Plane Termine und Ereignisse' },
       time: { label: 'Zeiterfassung', desc: 'Zeit & Pomodoro verfolgen' },
@@ -955,6 +994,7 @@ const de: TranslationKeys = {
   },
 
   toast: {
+    error: 'Error',
     saved: 'Gespeichert',
     saveFailed: 'Speichern fehlgeschlagen',
     completed: 'Abgeschlossen',

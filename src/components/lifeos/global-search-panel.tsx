@@ -1,5 +1,7 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
   Search,
@@ -104,6 +106,7 @@ function removeRecentSearch(query: string) {
 }
 
 export function GlobalSearchPanel() {
+  useInterfaceLanguage()
   const { globalSearchOpen, setGlobalSearchOpen, setActiveModule } = useAppStore()
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(-1)
@@ -232,7 +235,7 @@ export function GlobalSearchPanel() {
                     setSelectedIndex(-1)
                   }}
                   onKeyDown={handleKeyDown}
-                  placeholder="Search tasks, notes, habits, goals..."
+                  placeholder={uiText("Search tasks, notes, habits, goals...")}
                   className="flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground/60"
                 />
                 {isLoading && (
@@ -257,7 +260,7 @@ export function GlobalSearchPanel() {
                 {showRecent && (
                   <div className="p-3">
                     <div className="flex items-center justify-between mb-2 px-2">
-                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Recent Searches</span>
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{uiText("Recent Searches")}</span>
                       <Sparkles className="h-3.5 w-3.5 text-muted-foreground/40" />
                     </div>
                     <div className="space-y-0.5">
@@ -300,10 +303,10 @@ export function GlobalSearchPanel() {
                               <Icon className={`h-3.5 w-3.5 ${colors.text}`} />
                             </div>
                             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                              {type}
+                              {uiText(type)}
                             </span>
                             <span className="text-[10px] text-muted-foreground/50 ml-auto">
-                              {moduleLabels[firstItem.module] || firstItem.module}
+                              {uiText(moduleLabels[firstItem.module] || firstItem.module)}
                             </span>
                           </div>
                           <div className="space-y-0.5">
@@ -356,9 +359,9 @@ export function GlobalSearchPanel() {
                 {query && debouncedQuery && !isLoading && !hasResults && (
                   <div className="p-8 text-center">
                     <div className="text-4xl mb-3">🔍</div>
-                    <p className="text-sm font-medium text-muted-foreground">No results found</p>
+                    <p className="text-sm font-medium text-muted-foreground">{uiText("No results found")}</p>
                     <p className="text-xs text-muted-foreground/60 mt-1">
-                      Try searching for a different term
+                      {uiText("Try searching for a different term")}
                     </p>
                   </div>
                 )}
@@ -367,9 +370,9 @@ export function GlobalSearchPanel() {
                 {!query && !showRecent && (
                   <div className="p-8 text-center">
                     <div className="text-4xl mb-3">✨</div>
-                    <p className="text-sm font-medium text-muted-foreground">Search across all modules</p>
+                    <p className="text-sm font-medium text-muted-foreground">{uiText("Search across all modules")}</p>
                     <p className="text-xs text-muted-foreground/60 mt-1">
-                      Tasks, notes, habits, goals, events, and more
+                      {uiText("Tasks, notes, habits, goals, events, and more")}
                     </p>
                     <div className="flex flex-wrap justify-center gap-2 mt-4">
                       {['Tasks', 'Notes', 'Habits', 'Goals', 'Journal'].map((tag) => (
@@ -378,7 +381,7 @@ export function GlobalSearchPanel() {
                           onClick={() => { setQuery(tag); setDebouncedQuery(tag) }}
                           className="text-xs px-2.5 py-1 rounded-full border border-border/50 bg-accent/30 hover:bg-accent/60 transition-colors"
                         >
-                          {tag}
+                          {uiText(tag)}
                         </button>
                       ))}
                     </div>
@@ -391,19 +394,19 @@ export function GlobalSearchPanel() {
                 <div className="flex items-center gap-3">
                   <span className="flex items-center gap-1">
                     <kbd className="inline-flex h-4 items-center rounded border bg-muted px-1 font-mono text-[9px]">↑↓</kbd>
-                    Navigate
+                    {uiText("Navigate")}
                   </span>
                   <span className="flex items-center gap-1">
                     <kbd className="inline-flex h-4 items-center rounded border bg-muted px-1 font-mono text-[9px]">↵</kbd>
-                    Select
+                    {uiText("Select")}
                   </span>
                   <span className="flex items-center gap-1">
                     <kbd className="inline-flex h-4 items-center rounded border bg-muted px-1 font-mono text-[9px]">esc</kbd>
-                    Close
+                    {uiText("Close")}
                   </span>
                 </div>
                 {hasResults && (
-                  <span>{flatResults.length} result{flatResults.length !== 1 ? 's' : ''}</span>
+                  <span>{flatResults.length} {uiText("result")}{useAppStore.getState().language !== 'zh' && flatResults.length !== 1 ? 's' : ''}</span>
                 )}
               </div>
             </div>

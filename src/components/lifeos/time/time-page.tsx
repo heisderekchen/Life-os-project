@@ -1,5 +1,7 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
   Play,
@@ -46,7 +48,8 @@ import { usePomodoro, type PomodoroMode, type PomodoroSettings } from '@/hooks/u
 import { useAppStore } from '@/stores/app-store'
 import { showToast } from '@/lib/toast'
 import { useTranslation } from '@/lib/i18n'
-import { format, subDays, startOfDay, isToday } from 'date-fns'
+import { subDays, startOfDay, isToday } from 'date-fns'
+import { getDisplayLocale, localizedFormat as format } from '@/lib/i18n/format'
 
 function cn(...inputs: (string | undefined | false)[]) {
   return inputs.filter(Boolean).join(' ')
@@ -92,17 +95,17 @@ function formatTimerDisplay(seconds: number): string {
 }
 
 function formatDuration(minutes: number): string {
-  if (minutes < 60) return `${minutes}m`
+  if (minutes < 60) return `${minutes}${uiText('m')}`
   const hrs = Math.floor(minutes / 60)
   const mins = minutes % 60
-  return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`
+  return mins > 0 ? `${hrs}${uiText('h')} ${mins}${uiText('m')}` : `${hrs}${uiText('h')}`
 }
 
 function formatTime(isoString: string): string {
-  return new Date(isoString).toLocaleTimeString('en-US', {
+  return new Date(isoString).toLocaleTimeString(getDisplayLocale(), {
     hour: '2-digit',
     minute: '2-digit',
-    hour12: true,
+    hour12: getDisplayLocale() !== 'zh-CN',
   })
 }
 
@@ -203,6 +206,7 @@ function PomodoroSettingsDialog({
   settings: PomodoroSettings
   onUpdate: (updates: Partial<PomodoroSettings>) => void
 }) {
+  useInterfaceLanguage()
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -212,20 +216,20 @@ function PomodoroSettingsDialog({
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Pomodoro Settings</DialogTitle>
+          <DialogTitle>{uiText("Pomodoro Settings")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-6 py-4">
           {/* Duration Settings */}
           <div className="space-y-4">
             <h4 className="text-sm font-semibold flex items-center gap-2">
               <Clock className="h-4 w-4 text-muted-foreground" />
-              Timer Durations
+              {uiText("Timer Durations")}
             </h4>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label className="text-sm flex items-center gap-2">
                   <Brain className="h-3.5 w-3.5 text-emerald-500" />
-                  Focus
+                  {uiText("Focus")}
                 </Label>
                 <div className="flex items-center gap-2">
                   <Slider
@@ -236,13 +240,13 @@ function PomodoroSettingsDialog({
                     step={5}
                     className="w-24"
                   />
-                  <span className="text-sm font-mono w-10 text-right">{settings.focusDuration}m</span>
+                  <span className="text-sm font-mono w-10 text-right">{settings.focusDuration}{uiText("m")}</span>
                 </div>
               </div>
               <div className="flex items-center justify-between">
                 <Label className="text-sm flex items-center gap-2">
                   <Coffee className="h-3.5 w-3.5 text-cyan-500" />
-                  Short Break
+                  {uiText("Short Break")}
                 </Label>
                 <div className="flex items-center gap-2">
                   <Slider
@@ -253,13 +257,13 @@ function PomodoroSettingsDialog({
                     step={1}
                     className="w-24"
                   />
-                  <span className="text-sm font-mono w-10 text-right">{settings.shortBreakDuration}m</span>
+                  <span className="text-sm font-mono w-10 text-right">{settings.shortBreakDuration}{uiText("m")}</span>
                 </div>
               </div>
               <div className="flex items-center justify-between">
                 <Label className="text-sm flex items-center gap-2">
                   <Sparkles className="h-3.5 w-3.5 text-violet-500" />
-                  Long Break
+                  {uiText("Long Break")}
                 </Label>
                 <div className="flex items-center gap-2">
                   <Slider
@@ -270,11 +274,11 @@ function PomodoroSettingsDialog({
                     step={5}
                     className="w-24"
                   />
-                  <span className="text-sm font-mono w-10 text-right">{settings.longBreakDuration}m</span>
+                  <span className="text-sm font-mono w-10 text-right">{settings.longBreakDuration}{uiText("m")}</span>
                 </div>
               </div>
               <div className="flex items-center justify-between">
-                <Label className="text-sm">Sessions before long break</Label>
+                <Label className="text-sm">{uiText("Sessions before long break")}</Label>
                 <div className="flex items-center gap-2">
                   <Slider
                     value={[settings.sessionsBeforeLongBreak]}
@@ -296,18 +300,18 @@ function PomodoroSettingsDialog({
           <div className="space-y-4">
             <h4 className="text-sm font-semibold flex items-center gap-2">
               <Target className="h-4 w-4 text-muted-foreground" />
-              Behavior
+              {uiText("Behavior")}
             </h4>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label className="text-sm">Auto-start breaks</Label>
+                <Label className="text-sm">{uiText("Auto-start breaks")}</Label>
                 <Switch
                   checked={settings.autoStartBreaks}
                   onCheckedChange={(v) => onUpdate({ autoStartBreaks: v })}
                 />
               </div>
               <div className="flex items-center justify-between">
-                <Label className="text-sm">Auto-start focus</Label>
+                <Label className="text-sm">{uiText("Auto-start focus")}</Label>
                 <Switch
                   checked={settings.autoStartFocus}
                   onCheckedChange={(v) => onUpdate({ autoStartFocus: v })}
@@ -316,7 +320,7 @@ function PomodoroSettingsDialog({
               <div className="flex items-center justify-between">
                 <Label className="text-sm flex items-center gap-2">
                   {settings.soundEnabled ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
-                  Sound notifications
+                  {uiText("Sound notifications")}
                 </Label>
                 <Switch
                   checked={settings.soundEnabled}
@@ -332,10 +336,10 @@ function PomodoroSettingsDialog({
           <div className="space-y-3">
             <h4 className="text-sm font-semibold flex items-center gap-2">
               <Flame className="h-4 w-4 text-orange-500" />
-              Daily Goal
+              {uiText("Daily Goal")}
             </h4>
             <div className="flex items-center justify-between">
-              <Label className="text-sm">Target pomodoros per day</Label>
+              <Label className="text-sm">{uiText("Target pomodoros per day")}</Label>
               <div className="flex items-center gap-2">
                 <Slider
                   value={[settings.dailyGoal]}
@@ -359,6 +363,7 @@ function PomodoroSettingsDialog({
 // Main Time Page Component
 // ============================================
 export function TimePage() {
+  useInterfaceLanguage()
   const { accentColor } = useAppStore()
   const { t } = useTranslation()
   const accentHexMap: Record<string, string> = {
@@ -484,7 +489,7 @@ export function TimePage() {
           setTimerTaskId('')
           setElapsedSeconds(0)
           setStartedAt(null)
-          showToast.success('Time entry saved')
+          showToast.success(uiText("Time entry saved"))
         },
       }
     )
@@ -506,7 +511,7 @@ export function TimePage() {
 
   const deleteEntry = useCallback((id: string) => {
     deleteTimeEntryMutation.mutate(id)
-    showToast.info('Time entry deleted')
+    showToast.info(uiText("Time entry deleted"))
   }, [deleteTimeEntryMutation])
 
   // Today's entries
@@ -633,7 +638,7 @@ export function TimePage() {
                           )}
                         >
                           <MIcon className="h-3.5 w-3.5 mr-1.5" />
-                          {mConfig.label}
+                          {uiText(mConfig.label)}
                         </Button>
                       )
                     })}
@@ -666,7 +671,7 @@ export function TimePage() {
                             <div className="flex items-center justify-center gap-1.5 mt-2">
                               <ModeIcon className={cn('h-4 w-4', currentModeConfig.textColor)} />
                               <span className={cn('text-sm font-semibold uppercase tracking-wider', currentModeConfig.textColor)}>
-                                {currentModeConfig.label}
+                                {uiText(currentModeConfig.label)}
                               </span>
                             </div>
                           </motion.div>
@@ -684,7 +689,7 @@ export function TimePage() {
                               'bg-violet-500 shadow-sm shadow-violet-500/50'
                             )} />
                             <span className={cn('text-[10px] font-semibold tracking-wider', currentModeConfig.textColor)}>
-                              RUNNING
+                              {uiText("RUNNING")}
                             </span>
                           </motion.div>
                         )}
@@ -707,7 +712,7 @@ export function TimePage() {
                         />
                       ))}
                       <span className="text-xs text-muted-foreground ml-2">
-                        Session {(pomodoro.completedSessions % pomodoro.sessionsInCycle) + (pomodoro.mode === 'focus' ? 1 : 0)} of {pomodoro.sessionsInCycle}
+                        {uiText("Session")} {(pomodoro.completedSessions % pomodoro.sessionsInCycle) + (pomodoro.mode === 'focus' ? 1 : 0)} {uiText("of")} {pomodoro.sessionsInCycle}
                       </span>
                     </div>
 
@@ -755,7 +760,7 @@ export function TimePage() {
                     </div>
 
                     <p className="text-[10px] text-muted-foreground/60 mt-3">
-                      Press Space to play/pause
+                      {uiText("Press Space to play/pause")}
                     </p>
                   </div>
                 </CardContent>
@@ -769,10 +774,10 @@ export function TimePage() {
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-1">
                     <Flame className="h-4 w-4" style={{ color: accentHex }} />
-                    <span className="text-xs text-muted-foreground">Pomodoros</span>
+                    <span className="text-xs text-muted-foreground">{uiText("Pomodoros")}</span>
                   </div>
                   <p className="text-2xl font-bold">{todayCompletedPomodoros}</p>
-                  <p className="text-xs text-muted-foreground">completed today</p>
+                  <p className="text-xs text-muted-foreground">{uiText("completed today")}</p>
                 </CardContent>
               </Card>
               <Card className="overflow-hidden hover-lift">
@@ -780,10 +785,10 @@ export function TimePage() {
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-1">
                     <Clock className="h-4 w-4" style={{ color: accentHex }} />
-                    <span className="text-xs text-muted-foreground">Focus Time</span>
+                    <span className="text-xs text-muted-foreground">{uiText("Focus Time")}</span>
                   </div>
                   <p className="text-2xl font-bold">{formatDuration(todayFocusMinutes)}</p>
-                  <p className="text-xs text-muted-foreground">today</p>
+                  <p className="text-xs text-muted-foreground">{uiText("today")}</p>
                 </CardContent>
               </Card>
               <Card className="overflow-hidden hover-lift">
@@ -791,7 +796,7 @@ export function TimePage() {
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-1">
                     <Target className="h-4 w-4 text-amber-500" />
-                    <span className="text-xs text-muted-foreground">Daily Goal</span>
+                    <span className="text-xs text-muted-foreground">{uiText("Daily Goal")}</span>
                   </div>
                   <p className="text-2xl font-bold">{todayCompletedPomodoros}/{pomodoro.settings.dailyGoal}</p>
                   <Progress value={dailyGoalProgress} className="h-1.5 mt-1" />
@@ -802,10 +807,10 @@ export function TimePage() {
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-1">
                     <TrendingUp className="h-4 w-4 text-rose-500" />
-                    <span className="text-xs text-muted-foreground">Total Tracked</span>
+                    <span className="text-xs text-muted-foreground">{uiText("Total Tracked")}</span>
                   </div>
                   <p className="text-2xl font-bold">{formatDuration(todayTotalMinutes)}</p>
-                  <p className="text-xs text-muted-foreground">{todayEntries.length} entries</p>
+                  <p className="text-xs text-muted-foreground">{todayEntries.length} {uiText("entries")}</p>
                 </CardContent>
               </Card>
             </div>
@@ -818,19 +823,19 @@ export function TimePage() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Target className="h-4 w-4 text-amber-500" />
-                  Daily Goal Progress
+                  {uiText("Daily Goal Progress")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-end gap-2">
                   <span className="text-3xl font-bold">{todayCompletedPomodoros}</span>
-                  <span className="text-muted-foreground text-sm mb-1">/ {pomodoro.settings.dailyGoal} pomodoros</span>
+                  <span className="text-muted-foreground text-sm mb-1">/ {pomodoro.settings.dailyGoal} {uiText("pomodoros")}</span>
                 </div>
                 <Progress value={dailyGoalProgress} className="h-2" />
                 <p className="text-xs text-muted-foreground">
                   {dailyGoalProgress >= 100
-                    ? '🎉 Goal reached! Great work!'
-                    : `${pomodoro.settings.dailyGoal - todayCompletedPomodoros} more to reach your goal`
+                    ? uiText('🎉 Goal reached! Great work!')
+                    : `${pomodoro.settings.dailyGoal - todayCompletedPomodoros} ${uiText('more to reach your goal')}`
                   }
                 </p>
               </CardContent>
@@ -841,7 +846,7 @@ export function TimePage() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Timer className="h-4 w-4" style={{ color: accentHex }} />
-                  Today&apos;s Sessions
+                  {uiText("Today\'s Sessions")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
@@ -849,7 +854,7 @@ export function TimePage() {
                   <div className="px-6 pb-4 space-y-2">
                     {pomodoroSessions.length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-6">
-                        No sessions yet. Start your first pomodoro!
+                        {uiText("No sessions yet. Start your first pomodoro!")}
                       </p>
                     ) : (
                       pomodoroSessions.slice(0, 20).map((session, idx) => {
@@ -877,7 +882,7 @@ export function TimePage() {
                               <SIcon className={cn('h-3.5 w-3.5', sConfig.textColor)} />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-medium">{sConfig.label}</p>
+                              <p className="text-xs font-medium">{uiText(sConfig.label)}</p>
                               <p className="text-[10px] text-muted-foreground">
                                 {format(new Date(sStartedAt), 'h:mm a')}
                               </p>
@@ -886,11 +891,11 @@ export function TimePage() {
                               <span className="text-xs font-mono">{formatDuration(Math.round(sDuration / 60))}</span>
                               {sCompleted ? (
                                 <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 text-[9px] px-1.5">
-                                  Done
+                                  {uiText("Done")}
                                 </Badge>
                               ) : (
                                 <Badge variant="outline" className="text-[9px] px-1.5">
-                                  Skip
+                                  {uiText("Skip")}
                                 </Badge>
                               )}
                             </div>
@@ -908,21 +913,21 @@ export function TimePage() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <BarChart3 className="h-4 w-4" style={{ color: accentHex }} />
-                  This Week
+                  {uiText("This Week")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-muted-foreground">Total tracked</span>
+                    <span className="text-xs text-muted-foreground">{uiText("Total tracked")}</span>
                     <span className="text-sm font-semibold">{formatDuration(weekTotalMinutes)}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-muted-foreground">Avg daily</span>
+                    <span className="text-xs text-muted-foreground">{uiText("Avg daily")}</span>
                     <span className="text-sm font-semibold">{formatDuration(avgDailyMinutes)}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-muted-foreground">Time entries</span>
+                    <span className="text-xs text-muted-foreground">{uiText("Time entries")}</span>
                     <span className="text-sm font-semibold">{entries.length}</span>
                   </div>
                 </div>
@@ -1010,13 +1015,13 @@ export function TimePage() {
                           animate={{ opacity: 1 }}
                         >
                           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-sm shadow-emerald-500/50" />
-                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold tracking-wider">RECORDING</span>
+                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold tracking-wider">{uiText("RECORDING")}</span>
                         </motion.div>
                       )}
                       {isPaused && (
                         <div className="flex items-center justify-center gap-1 mt-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                          <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">PAUSED</span>
+                          <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">{uiText("PAUSED")}</span>
                         </div>
                       )}
                     </div>
@@ -1031,7 +1036,7 @@ export function TimePage() {
                           style={{ background: `linear-gradient(to right, ${accentHex}, ${accentHex}cc)` }}
                         >
                           <Play className="h-5 w-5 mr-2" />
-                          Start
+                          {uiText("Start")}
                         </Button>
                       ) : (
                         <>
@@ -1043,7 +1048,7 @@ export function TimePage() {
                               style={{ background: `linear-gradient(to right, ${accentHex}, ${accentHex}cc)` }}
                             >
                               <Play className="h-4 w-4 mr-1.5" />
-                              Resume
+                              {uiText("Resume")}
                             </Button>
                           ) : (
                             <Button
@@ -1053,7 +1058,7 @@ export function TimePage() {
                               className="border-amber-300 text-amber-600 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/30 rounded-xl"
                             >
                               <Pause className="h-4 w-4 mr-1.5" />
-                              Pause
+                              {uiText("Pause")}
                             </Button>
                           )}
                           <Button
@@ -1063,7 +1068,7 @@ export function TimePage() {
                             className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-950/30 rounded-xl"
                           >
                             <Square className="h-4 w-4 mr-1.5" />
-                            Stop
+                            {uiText("Stop")}
                           </Button>
                         </>
                       )}
@@ -1081,12 +1086,12 @@ export function TimePage() {
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-1">
                   <Clock className="h-4 w-4" style={{ color: accentHex }} />
-                  <span className="text-xs text-muted-foreground">Today</span>
+                  <span className="text-xs text-muted-foreground">{uiText("Today")}</span>
                 </div>
                 {isLoading ? <Skeleton className="h-7 w-16" /> : (
                   <p className="text-2xl font-bold">{formatDuration(todayTotalMinutes)}</p>
                 )}
-                <p className="text-xs text-muted-foreground">{todayEntries.length} entries</p>
+                <p className="text-xs text-muted-foreground">{todayEntries.length} {uiText("entries")}</p>
               </CardContent>
             </Card>
             <Card className="overflow-hidden hover-lift">
@@ -1094,7 +1099,7 @@ export function TimePage() {
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-1">
                   <CalendarDays className="h-4 w-4" style={{ color: accentHex }} />
-                  <span className="text-xs text-muted-foreground">This Week</span>
+                  <span className="text-xs text-muted-foreground">{uiText("This Week")}</span>
                 </div>
                 {isLoading ? <Skeleton className="h-7 w-16" /> : (
                   <p className="text-2xl font-bold">{formatDuration(weekTotalMinutes)}</p>
@@ -1106,12 +1111,12 @@ export function TimePage() {
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-1">
                   <TrendingUp className="h-4 w-4 text-amber-500" />
-                  <span className="text-xs text-muted-foreground">Avg Daily</span>
+                  <span className="text-xs text-muted-foreground">{uiText("Avg Daily")}</span>
                 </div>
                 {isLoading ? <Skeleton className="h-7 w-16" /> : (
                   <p className="text-2xl font-bold">{formatDuration(avgDailyMinutes)}</p>
                 )}
-                <p className="text-xs text-muted-foreground">last 7 days</p>
+                <p className="text-xs text-muted-foreground">{uiText("last 7 days")}</p>
               </CardContent>
             </Card>
             <Card className="overflow-hidden hover-lift">
@@ -1119,7 +1124,7 @@ export function TimePage() {
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-1">
                   <List className="h-4 w-4 text-rose-500" />
-                  <span className="text-xs text-muted-foreground">Today&apos;s Entries</span>
+                  <span className="text-xs text-muted-foreground">{uiText("Today\'s Entries")}</span>
                 </div>
                 {isLoading ? <Skeleton className="h-7 w-8" /> : (
                   <p className="text-2xl font-bold">{todayEntries.length}</p>
@@ -1133,16 +1138,16 @@ export function TimePage() {
             <Tabs value={timeView} onValueChange={v => setTimeView(v as 'entries' | 'weekly')}>
               <TabsList className="h-8">
                 <TabsTrigger value="entries" className="text-xs px-3 h-6">
-                  <List className="h-3.5 w-3.5 mr-1" />Entries
+                  <List className="h-3.5 w-3.5 mr-1" />{uiText("Entries")}
                 </TabsTrigger>
                 <TabsTrigger value="weekly" className="text-xs px-3 h-6">
-                  <BarChart3 className="h-3.5 w-3.5 mr-1" />Weekly
+                  <BarChart3 className="h-3.5 w-3.5 mr-1" />{uiText("Weekly")}
                 </TabsTrigger>
               </TabsList>
             </Tabs>
             {todayEntries.length > 0 && (
               <p className="text-sm text-muted-foreground">
-                Total today: <span className="font-semibold" style={{ color: accentHex }}>{formatDuration(todayTotalMinutes)}</span>
+                {uiText("Total today:")} <span className="font-semibold" style={{ color: accentHex }}>{formatDuration(todayTotalMinutes)}</span>
               </p>
             )}
           </div>
@@ -1195,7 +1200,7 @@ export function TimePage() {
                               <p className="text-sm font-medium truncate">{entry.description}</p>
                               {!entry.endTime && (
                                 <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 text-[10px]">
-                                  Active
+                                  {uiText("Active")}
                                 </Badge>
                               )}
                               {entry.task && (
@@ -1246,7 +1251,7 @@ export function TimePage() {
             {entries.filter(e => !isToday(new Date(e.startTime))).length > 0 && (
               <>
                 <Separator className="my-4" />
-                <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 mb-2">Earlier</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 mb-2">{uiText("Earlier")}</h3>
                 <div className="space-y-2">
                   {entries
                     .filter(e => !isToday(new Date(e.startTime)))
@@ -1285,8 +1290,8 @@ export function TimePage() {
           /* Weekly Chart */
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Weekly Overview</CardTitle>
-              <CardDescription>Hours tracked per day, last 7 days</CardDescription>
+              <CardTitle className="text-base">{uiText("Weekly Overview")}</CardTitle>
+              <CardDescription>{uiText("Hours tracked per day, last 7 days")}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-64">
@@ -1322,7 +1327,7 @@ export function TimePage() {
                       formatter={(value: number) => [`${value}h`, 'Hours']}
                       labelFormatter={(label) => {
                         const item = weeklyChartData.find(d => d.day === label)
-                        return item?.isToday ? `${label} (Today)` : label
+                        return item?.isToday ? `${label} (${uiText('Today')})` : label
                       }}
                       contentStyle={{
                         backgroundColor: 'hsl(var(--card))',

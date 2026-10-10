@@ -1,5 +1,7 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
 import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   CheckSquare,
@@ -20,7 +22,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { useAppStore } from '@/stores/app-store'
 import { useTasks, useHabits, useEvents } from '@/lib/api/hooks'
-import { format } from 'date-fns'
+import { localizedFormat as format } from '@/lib/i18n/format'
 import { motion, AnimatePresence } from 'framer-motion'
 
 function cn(...inputs: (string | undefined | false)[]) {
@@ -29,6 +31,7 @@ function cn(...inputs: (string | undefined | false)[]) {
 
 // Circular Day Progress ring
 function DayProgressRing({ value, size = 100, strokeWidth = 6 }: { value: number; size?: number; strokeWidth?: number }) {
+  useInterfaceLanguage()
   const radius = (size - strokeWidth) / 2
   const circumference = radius * 2 * Math.PI
   const offset = circumference - (value / 100) * circumference
@@ -67,7 +70,7 @@ function DayProgressRing({ value, size = 100, strokeWidth = 6 }: { value: number
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-xl font-bold">{value}%</span>
-        <span className="text-[9px] text-muted-foreground uppercase tracking-wider">Day</span>
+        <span className="text-[9px] text-muted-foreground uppercase tracking-wider">{uiText("Day")}</span>
       </div>
     </div>
   )
@@ -94,6 +97,7 @@ interface PlannerSection {
 }
 
 export function DailyPlanner() {
+  useInterfaceLanguage()
   const { setActiveModule } = useAppStore()
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
 
@@ -281,7 +285,7 @@ export function DailyPlanner() {
               <Zap className="h-4 w-4" />
             </div>
             <div>
-              <CardTitle className="text-base font-semibold">Daily Planner</CardTitle>
+              <CardTitle className="text-base font-semibold">{uiText("Daily Planner")}</CardTitle>
               <p className="text-xs text-muted-foreground mt-0.5">{format(new Date(), 'EEEE, MMMM d')}</p>
             </div>
           </div>
@@ -336,7 +340,7 @@ export function DailyPlanner() {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold">{section.title}</span>
+                        <span className="text-sm font-semibold">{uiText(section.title)}</span>
                         {isActive && (
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                         )}
@@ -369,7 +373,7 @@ export function DailyPlanner() {
                       <div className="mt-2.5 space-y-1.5">
                         {section.items.length === 0 ? (
                           <div className="text-center py-4 text-muted-foreground">
-                            <p className="text-xs">Nothing scheduled</p>
+                            <p className="text-xs">{uiText("Nothing scheduled")}</p>
                           </div>
                         ) : (
                           section.items.map((item, idx) => (
@@ -435,7 +439,7 @@ export function DailyPlanner() {
             className="mt-4 pt-3 border-t border-border/30"
           >
             <div className="flex items-center justify-between text-xs mb-2">
-              <span className="text-muted-foreground font-medium">Today&apos;s Completion</span>
+              <span className="text-muted-foreground font-medium">{uiText("Today's Completion")}</span>
               <span className="font-bold text-emerald-600 dark:text-emerald-400">{overallCompletion}%</span>
             </div>
             <Progress value={overallCompletion} className="h-2 [&>div]:bg-gradient-to-r [&>div]:from-amber-500 [&>div]:via-emerald-500 [&>div]:to-violet-500" />

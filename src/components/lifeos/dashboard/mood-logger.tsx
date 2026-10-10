@@ -1,5 +1,7 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
 import { useState } from 'react'
 import { useCreateJournalEntry } from '@/lib/api/hooks'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -19,6 +21,7 @@ interface MoodLoggerProps {
 }
 
 export function MoodLogger({ onLogged, compact = false }: MoodLoggerProps) {
+  useInterfaceLanguage()
   const [selectedMood, setSelectedMood] = useState<number | null>(null)
   const [showSuccess, setShowSuccess] = useState(false)
   const createEntry = useCreateJournalEntry()
@@ -64,7 +67,7 @@ export function MoodLogger({ onLogged, compact = false }: MoodLoggerProps) {
               <Check className="h-4 w-4 text-white" />
             </motion.div>
             <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
-              Mood logged!
+              {uiText("Mood logged!")}
             </span>
           </motion.div>
         ) : (
@@ -91,7 +94,7 @@ export function MoodLogger({ onLogged, compact = false }: MoodLoggerProps) {
                   }
                   disabled:opacity-50
                 `}
-                title={mood.label}
+                title={uiText(mood.label)}
               >
                 {mood.emoji}
                 {selectedMood === mood.score && (
@@ -108,7 +111,7 @@ export function MoodLogger({ onLogged, compact = false }: MoodLoggerProps) {
       </AnimatePresence>
       {!compact && !showSuccess && (
         <p className="text-xs text-muted-foreground text-center mt-2">
-          Tap to log your current mood
+          {uiText("Tap to log your current mood")}
         </p>
       )}
     </div>

@@ -1,5 +1,9 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
+import { getDisplayLocale } from '@/lib/i18n/format'
+
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import {
   Plus,
@@ -41,7 +45,6 @@ import { SUPPORTED_CURRENCIES, useExchangeRates, useExchangeRateHistory, convert
 import { exportFinanceReportToPDF } from '@/lib/finance/export'
 
 function cn(...inputs: (string | undefined | false)[]) { return inputs.filter(Boolean).join(' ') }
-
 
 /**
  * Smoothly animate a number from its previous value to `target` over
@@ -150,6 +153,7 @@ const accentHexMap: Record<string, string> = {
 }
 
 export function FinancePage() {
+  useInterfaceLanguage()
   const accentColor = useAppStore((s) => s.accentColor)
   const baseCurrency = useAppStore((s) => s.baseCurrency)
   const setBaseCurrency = useAppStore((s) => s.setBaseCurrency)
@@ -433,7 +437,7 @@ export function FinancePage() {
     return Object.entries(byMonth)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, { income, expense }]) => ({
-        month: new Date(month + '-01').toLocaleDateString('en-US', { month: 'short' }),
+        month: new Date(month + '-01').toLocaleDateString(getDisplayLocale(), { month: 'short' }),
         income,
         expense,
         net: income - expense,
@@ -472,7 +476,7 @@ export function FinancePage() {
       onSuccess: () => {
         setNewTransaction({ description: '', amount: '', type: 'expense', categoryId: '', accountId: '', date: new Date().toISOString().split('T')[0] })
         setCreateDialogOpen(false)
-        showToast.success('Transaction added')
+        showToast.success(uiText("Transaction added"))
       }
     })
   }, [newTransaction, categories, createTransactionMutation])
@@ -493,7 +497,7 @@ export function FinancePage() {
       totalExpense: totalExpenses,
       currency: baseCurrency,
     })
-    showToast.success('PDF Report exported')
+    showToast.success(uiText("PDF Report exported"))
   }, [accounts, filteredTransactions, totalIncome, totalExpenses, baseCurrency])
 
   return (
@@ -508,7 +512,7 @@ export function FinancePage() {
             </Button>
           </DialogTrigger>
           <DialogContent aria-describedby={undefined}>
-            <DialogHeader><DialogTitle>{t('finance.newAccount')}</DialogTitle><DialogDescription className="sr-only">Add a new finance account</DialogDescription></DialogHeader>
+            <DialogHeader><DialogTitle>{t('finance.newAccount')}</DialogTitle><DialogDescription className="sr-only">{uiText("Add a new finance account")}</DialogDescription></DialogHeader>
             <div className="space-y-4 py-2">
               <div><label className="text-sm font-medium mb-1.5 block">{t('finance.accountName')}</label><Input placeholder={t('finance.accountNamePlaceholder')} value={newAccount.name} onChange={e => setNewAccount(p => ({ ...p, name: e.target.value }))} /></div>
               <div className="grid grid-cols-2 gap-4">
@@ -546,9 +550,9 @@ export function FinancePage() {
                   <p className={cn('text-2xl font-bold', account.balance < 0 && 'text-red-500')}>
                     {account.balance >= 0 ? <span style={{ color: accentHex }}>↑</span> : <span className="text-red-500">↓</span>}
                     {formatCurrency(Math.abs(account.balance), account.currency || 'USD')}
-                    {account.balance < 0 && <span className="text-sm ml-1">CR</span>}
+                    {account.balance < 0 && <span className="text-sm ml-1">{uiText("CR")}</span>}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-1">{t('finance.accountType', { type: account.type.charAt(0).toUpperCase() + account.type.slice(1) })}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{t('finance.accountType', { type: t(`finance.${account.type}`) })}</p>
                 </CardContent>
               </Card>
             </motion.div>
@@ -718,7 +722,7 @@ export function FinancePage() {
                 style={{ backgroundColor: 'hsl(var(--background) / 0.6)' }}
               >
                 <span className="text-muted-foreground/60">{code}</span>
-                <span>{rate.toLocaleString('en-US', { maximumFractionDigits: 4 })}</span>
+                <span>{rate.toLocaleString(getDisplayLocale(), { maximumFractionDigits: 4 })}</span>
               </span>
             ))}
           </div>
@@ -852,7 +856,7 @@ export function FinancePage() {
             <p className="mt-3 text-[11px] text-muted-foreground/70 text-center font-mono tabular-nums">
               {t('finance.converter.rateLine', {
                 from: convFrom,
-                value: convUnitRate.toLocaleString('en-US', { maximumFractionDigits: 4 }),
+                value: convUnitRate.toLocaleString(getDisplayLocale(), { maximumFractionDigits: 4 }),
                 to: convTo,
               })}
             </p>
@@ -915,7 +919,7 @@ export function FinancePage() {
                     const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''))
                     let imported = 0
                     const defaultAccountId = accounts[0]?.id
-                    if (!defaultAccountId) { showToast.error('Önce bir hesap ekleyin'); return }
+                    if (!defaultAccountId) { showToast.error(uiText("Önce bir hesap ekleyin")); return }
                     lines.slice(1).forEach(line => {
                       const cols = line.split(',').map(c => c.trim().replace(/"/g, ''))
                       const row: Record<string, string> = {}
@@ -942,18 +946,18 @@ export function FinancePage() {
                 }}
               />
               <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs pointer-events-none">
-                <Upload className="h-3.5 w-3.5" />CSV İçe Aktar
+                <Upload className="h-3.5 w-3.5" />{uiText("CSV İçe Aktar")}
               </Button>
             </label>
           )}
           <Button size="sm" variant="outline" onClick={handleExportReport} className="h-8 gap-1.5 text-xs">
-            <FileDown className="h-3.5 w-3.5" />PDF Dışa Aktar
+            <FileDown className="h-3.5 w-3.5" />{uiText("PDF Dışa Aktar")}
           </Button>
         </div>
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1.5" />{t('finance.newTransaction')}</Button></DialogTrigger>
           <DialogContent aria-describedby={undefined}>
-            <DialogHeader><DialogTitle>{t('finance.newTransaction')}</DialogTitle><DialogDescription className="sr-only">Add a new financial transaction</DialogDescription></DialogHeader>
+            <DialogHeader><DialogTitle>{t('finance.newTransaction')}</DialogTitle><DialogDescription className="sr-only">{uiText("Add a new financial transaction")}</DialogDescription></DialogHeader>
             <div className="space-y-4 py-2">
               <div><label className="text-sm font-medium mb-1.5 block">{t('finance.description')}</label><Input placeholder={t('finance.whatWasThisFor')} value={newTransaction.description} onChange={e => setNewTransaction(p => ({ ...p, description: e.target.value }))} /></div>
               <div className="grid grid-cols-2 gap-4">
@@ -1006,7 +1010,7 @@ export function FinancePage() {
                   <div key={b.id} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/40">
                     <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
                     <span className="text-sm text-red-700 dark:text-red-300 font-medium">
-                      {b.icon} <strong>{b.name}</strong> bütçesi aşıldı — harcanan: ${b.spent.toFixed(0)} / limit: ${b.budget}
+                      {b.icon} <strong>{b.name}</strong> {uiText("bütçesi aşıldı — harcanan: $")}{b.spent.toFixed(0)} {uiText("/ limit: $")}{b.budget}
                     </span>
                   </div>
                 ))}
@@ -1014,7 +1018,7 @@ export function FinancePage() {
                   <div key={b.id} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40">
                     <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
                     <span className="text-sm text-amber-700 dark:text-amber-300">
-                      {b.icon} <strong>{b.name}</strong> bütçesinin {b.percentage}% kullanıldı — ${Math.max(0, b.budget - b.spent).toFixed(0)} kaldı
+                      {b.icon} <strong>{b.name}</strong> {uiText("bütçesinin")} {b.percentage}{uiText("% kullanıldı — $")}{Math.max(0, b.budget - b.spent).toFixed(0)} {uiText("kaldı")}
                     </span>
                   </div>
                 ))}
@@ -1123,7 +1127,7 @@ export function FinancePage() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">{t('finance.monthlySpendingTrend')}</CardTitle>
-              <CardDescription className="text-xs">Gelir (yeşil) vs Harcama (kırmızı)</CardDescription>
+              <CardDescription className="text-xs">{uiText("Gelir (yeşil) vs Harcama (kırmızı)")}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-72 bg-gradient-to-b from-muted/20 to-transparent rounded-lg p-2">
@@ -1133,7 +1137,7 @@ export function FinancePage() {
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                       <XAxis dataKey="month" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={40} />
-                      <Tooltip formatter={(value: number) => `$${value.toLocaleString('en-US', { minimumFractionDigits: 2 })}`} />
+                      <Tooltip formatter={(value: number) => `$${value.toLocaleString(getDisplayLocale(), { minimumFractionDigits: 2 })}`} />
                       <Bar dataKey="income" fill={accentHex} radius={[3, 3, 0, 0]} name="Gelir" />
                       <Bar dataKey="expense" fill="#ef4444" radius={[3, 3, 0, 0]} name="Harcama" />
                     </BarChart>
@@ -1166,7 +1170,7 @@ export function FinancePage() {
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-base">Kategori Dağılımı</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-base">{uiText("Kategori Dağılımı")}</CardTitle></CardHeader>
               <CardContent>
                 <div className="space-y-2">
                   {spendingByCategory.slice(0, 6).map(cat => {

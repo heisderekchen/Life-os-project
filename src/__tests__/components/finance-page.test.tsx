@@ -94,7 +94,7 @@ describe('FinancePage', () => {
     const account = screen.getByTestId('account-account-1')
     expect(account).toBeInTheDocument()
     expect(screen.getByText('Checking Account')).toBeInTheDocument()
-    expect(screen.getByText('$1,000.00')).toBeInTheDocument()
+    expect(screen.getAllByText('$1,000.00')).toHaveLength(2)
   })
 
   it('has add account button', () => {

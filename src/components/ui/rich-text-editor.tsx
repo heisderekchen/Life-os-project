@@ -1,5 +1,9 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
+import { sanitizeRichText } from '@/lib/rich-text-safety'
+
 import { useEditor, EditorContent } from '@tiptap/react'
 import { useEffect } from 'react'
 import StarterKit from '@tiptap/starter-kit'
@@ -86,6 +90,7 @@ export function RichTextEditor({
   placeholder,
   className,
 }: RichTextEditorProps) {
+  useInterfaceLanguage()
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -101,7 +106,7 @@ export function RichTextEditor({
         placeholder: placeholder || 'Start writing...',
       }),
     ],
-    content: value,
+    content: sanitizeRichText(value),
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML())
     },
@@ -117,7 +122,7 @@ export function RichTextEditor({
 
   useEffect(() => {
     if (editor && value !== editor.getHTML()) {
-      editor.commands.setContent(value)
+      editor.commands.setContent(sanitizeRichText(value))
     }
   }, [value, editor])
 
@@ -131,28 +136,28 @@ export function RichTextEditor({
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBold().run()}
           isActive={editor.isActive('bold')}
-          tooltip="Bold"
+          tooltip={uiText("Bold")}
         >
           <Bold className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleItalic().run()}
           isActive={editor.isActive('italic')}
-          tooltip="Italic"
+          tooltip={uiText("Italic")}
         >
           <Italic className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleUnderline().run()}
           isActive={editor.isActive('underline')}
-          tooltip="Underline"
+          tooltip={uiText("Underline")}
         >
           <UnderlineIcon className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleCode().run()}
           isActive={editor.isActive('code')}
-          tooltip="Code"
+          tooltip={uiText("Code")}
         >
           <Code className="h-4 w-4" />
         </ToolbarButton>
@@ -162,14 +167,14 @@ export function RichTextEditor({
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
           isActive={editor.isActive('heading', { level: 1 })}
-          tooltip="Heading 1"
+          tooltip={uiText("Heading 1")}
         >
           <Heading1 className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
           isActive={editor.isActive('heading', { level: 2 })}
-          tooltip="Heading 2"
+          tooltip={uiText("Heading 2")}
         >
           <Heading2 className="h-4 w-4" />
         </ToolbarButton>
@@ -179,21 +184,21 @@ export function RichTextEditor({
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBulletList().run()}
           isActive={editor.isActive('bulletList')}
-          tooltip="Bullet List"
+          tooltip={uiText("Bullet List")}
         >
           <List className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
           isActive={editor.isActive('orderedList')}
-          tooltip="Ordered List"
+          tooltip={uiText("Ordered List")}
         >
           <ListOrdered className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleTaskList().run()}
           isActive={editor.isActive('taskList')}
-          tooltip="Task List"
+          tooltip={uiText("Task List")}
         >
           <CheckSquare className="h-4 w-4" />
         </ToolbarButton>
@@ -203,7 +208,7 @@ export function RichTextEditor({
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
           isActive={editor.isActive('blockquote')}
-          tooltip="Blockquote"
+          tooltip={uiText("Blockquote")}
         >
           <Quote className="h-4 w-4" />
         </ToolbarButton>
@@ -212,14 +217,14 @@ export function RichTextEditor({
           <ToolbarButton
             onClick={() => editor.chain().focus().undo().run()}
             disabled={!editor.can().undo()}
-            tooltip="Undo"
+            tooltip={uiText("Undo")}
           >
             <Undo className="h-4 w-4" />
           </ToolbarButton>
           <ToolbarButton
             onClick={() => editor.chain().focus().redo().run()}
             disabled={!editor.can().redo()}
-            tooltip="Redo"
+            tooltip={uiText("Redo")}
           >
             <Redo className="h-4 w-4" />
           </ToolbarButton>

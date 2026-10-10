@@ -1,5 +1,11 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
+import { sanitizeRichText } from '@/lib/rich-text-safety'
+
+import { getDisplayLocale } from '@/lib/i18n/format'
+
 import { useState, useMemo, useCallback } from 'react'
 import { RichTextEditor } from '@/components/ui/rich-text-editor'
 import {
@@ -102,6 +108,7 @@ function mapApiEntry(apiEntry: Record<string, unknown>): JournalEntry {
 }
 
 export function JournalPage() {
+  useInterfaceLanguage()
   const { accentColor } = useAppStore()
   const { t } = useTranslation()
   const accentHexMap: Record<string, string> = {
@@ -228,7 +235,7 @@ export function JournalPage() {
     showToast.info(t('toast.deleted'))
   }, [deleteEntryMutation, selectedEntryId, t])
 
-  const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+  const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString(getDisplayLocale(), { weekday: 'short', month: 'short', day: 'numeric' })
 
   const getEntriesForDate = (dateStr: string) => entries.filter(e => e.date === dateStr)
 
@@ -277,7 +284,7 @@ export function JournalPage() {
             <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
               <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1.5" />{t('journal.newEntry')}</Button></DialogTrigger>
               <DialogContent className="max-w-lg" aria-describedby={undefined}>
-                <DialogHeader><DialogTitle>{t('journal.newEntry')}</DialogTitle><DialogDescription className="sr-only">Write a new journal entry</DialogDescription></DialogHeader>
+                <DialogHeader><DialogTitle>{t('journal.newEntry')}</DialogTitle><DialogDescription className="sr-only">{uiText("Write a new journal entry")}</DialogDescription></DialogHeader>
                 <div className="space-y-4 py-2">
                   <div className="flex items-center gap-2">
                     <div className="flex-1"><label className="text-sm font-medium mb-1.5 block">{t('journal.titleOptional')}</label><Input placeholder={t('journal.howWasYourDay')} value={newEntry.title} onChange={e => setNewEntry(p => ({ ...p, title: e.target.value }))} /></div>
@@ -344,7 +351,7 @@ export function JournalPage() {
                     <div><label className="text-sm font-medium mb-2 block flex items-center gap-1.5"><Zap className="h-3.5 w-3.5 text-amber-500" />{t('journal.energyLabel')}: {newEntry.energy}%</label><Slider value={[newEntry.energy]} onValueChange={([v]) => setNewEntry(p => ({ ...p, energy: v }))} max={100} step={5} /></div>
                     <div><label className="text-sm font-medium mb-2 block flex items-center gap-1.5"><TrendingUp className="h-3.5 w-3.5 text-rose-500" />{t('journal.stressLabel')}: {newEntry.stress}%</label><Slider value={[newEntry.stress]} onValueChange={([v]) => setNewEntry(p => ({ ...p, stress: v }))} max={100} step={5} /></div>
                   </div>
-                  <div><label className="text-sm font-medium mb-1.5 block">{t('tasks.tags')}</label><Input placeholder="tag1, tag2" value={newEntry.tags} onChange={e => setNewEntry(p => ({ ...p, tags: e.target.value }))} /></div>
+                  <div><label className="text-sm font-medium mb-1.5 block">{t('tasks.tags')}</label><Input placeholder={uiText("tag1, tag2")} value={newEntry.tags} onChange={e => setNewEntry(p => ({ ...p, tags: e.target.value }))} /></div>
                 </div>
                 <DialogFooter><DialogClose asChild><Button variant="outline">{t('cancel')}</Button></DialogClose><Button onClick={handleAddEntry} disabled={createEntryMutation.isPending}>{t('journal.saveEntry')}</Button></DialogFooter>
               </DialogContent>
@@ -364,7 +371,7 @@ export function JournalPage() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <span className="text-lg font-bold text-amber-700 dark:text-amber-300">{writingStreak}</span>
-                    <span className="text-sm font-medium text-amber-700 dark:text-amber-300">-day {t('journal.writingStreak').toLowerCase()}</span>
+                    <span className="text-sm font-medium text-amber-700 dark:text-amber-300">{uiText("-day")} {t('journal.writingStreak').toLowerCase()}</span>
                   </div>
                   <span className="text-xs text-amber-600/70 dark:text-amber-400/70">{t('journal.keepMomentum')}</span>
                 </div>
@@ -467,7 +474,7 @@ export function JournalPage() {
                     <span className="text-2xl">{mood?.icon || '📝'}</span>
                   <div className="flex-1 min-w-0"><p className="text-sm font-medium truncate">{entry.title || t('journal.journalEntry')}</p><p className="text-xs text-muted-foreground truncate">{entry.content.slice(0, 80)}</p></div>
                   <span className="text-xs text-muted-foreground shrink-0">{formatDate(entry.date)}</span>
-                  <span className="text-[10px] text-muted-foreground shrink-0">{wc}w</span>
+                  <span className="text-[10px] text-muted-foreground shrink-0">{wc}{uiText("w")}</span>
                 </div>)
               })}</div>
             )}
@@ -478,7 +485,7 @@ export function JournalPage() {
       {/* Edit Entry Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="max-w-lg" aria-describedby={undefined}>
-          <DialogHeader><DialogTitle>{t('edit')} {t('journal.journalEntry')}</DialogTitle><DialogDescription className="sr-only">Edit journal entry</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{t('edit')} {t('journal.journalEntry')}</DialogTitle><DialogDescription className="sr-only">{uiText("Edit journal entry")}</DialogDescription></DialogHeader>
           <div className="py-2">
             <RichTextEditor value={editContent} onChange={setEditContent} className="min-h-[250px]" />
           </div>
@@ -508,7 +515,7 @@ export function JournalPage() {
               {/* Content without gratitude section */}
               <div 
                 className="prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: selectedEntry.content.replace(/## Gratitude[\s\S]*$/, '').trim() }}
+                dangerouslySetInnerHTML={{ __html: sanitizeRichText(selectedEntry.content.replace(/## Gratitude[\s\S]*$/, '').trim()) }}
               />
 
               {/* Gratitude in detail panel */}

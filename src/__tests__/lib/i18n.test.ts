@@ -1,15 +1,16 @@
 import { describe, it, expect } from 'vitest'
-import { availableLanguages, en, tr, es, de, fr, getTranslation } from '@/lib/i18n'
+import { availableLanguages, en, zh, tr, es, de, fr, getTranslation } from '@/lib/i18n'
 
 describe('i18n', () => {
   describe('availableLanguages', () => {
-    it('should have 5 supported languages', () => {
-      expect(availableLanguages).toHaveLength(5)
+    it('should have 6 supported languages', () => {
+      expect(availableLanguages).toHaveLength(6)
     })
 
     it('should include all required language codes', () => {
       const codes = availableLanguages.map(lang => lang.code)
       expect(codes).toContain('en')
+      expect(codes).toContain('zh')
       expect(codes).toContain('tr')
       expect(codes).toContain('es')
       expect(codes).toContain('de')
@@ -41,6 +42,22 @@ describe('i18n', () => {
     })
   })
 
+  it('translates task selection controls in every supported language', () => {
+    const expected = {
+      en: ['Select', 'Deselect', 'Select all', 'Deselect all'],
+      zh: ['选择', '取消选择', '全选', '取消全选'],
+      tr: ['Seç', 'Seçimi kaldır', 'Tümünü seç', 'Tümünün seçimini kaldır'],
+      es: ['Seleccionar', 'Deseleccionar', 'Seleccionar todo', 'Deseleccionar todo'],
+      de: ['Auswählen', 'Auswahl aufheben', 'Alle auswählen', 'Auswahl aufheben'],
+      fr: ['Sélectionner', 'Désélectionner', 'Tout sélectionner', 'Tout désélectionner'],
+    } as const
+
+    for (const [language, values] of Object.entries(expected)) {
+      const { selection } = (getTranslation(language) as typeof en).tasks
+      expect([selection.select, selection.deselect, selection.selectAll, selection.deselectAll]).toEqual(values)
+    }
+  })
+
   describe('all locales have the same keys as English', () => {
     function getNestedKeys(obj: any, prefix = ''): string[] {
       let keys: string[] = []
@@ -54,6 +71,8 @@ describe('i18n', () => {
       }
       return keys
     }
+
+    it('Chinese has same keys as English', () => { expect(getNestedKeys(zh).sort()).toEqual(getNestedKeys(en).sort()) })
 
     it('Turkish has same keys as English', () => {
       const enKeys = getNestedKeys(en).sort()

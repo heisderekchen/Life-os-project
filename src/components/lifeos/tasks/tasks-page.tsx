@@ -1,5 +1,7 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import {
   Plus,
@@ -88,13 +90,6 @@ const priorityColors: Record<string, string> = {
   low: 'bg-slate-500/10 text-slate-600 dark:text-slate-400',
 }
 
-const priorityDots: Record<string, string> = {
-  urgent: 'bg-red-500 animate-pulse-urgent',
-  high: 'bg-orange-500',
-  medium: 'bg-amber-500',
-  low: 'bg-slate-400',
-}
-
 const HANDOFF_MARKER = '[停点]'
 
 function splitTaskDescription(description: string) {
@@ -104,6 +99,35 @@ function splitTaskDescription(description: string) {
     body: description.slice(0, markerIndex).trim(),
     handoff: description.slice(markerIndex + HANDOFF_MARKER.length).trim(),
   }
+}
+
+export function TaskRunSignals({ task }: { task: Task }) {
+  const { handoff } = splitTaskDescription(task.description)
+  return (
+    <div className="task-run-signals min-w-0 rounded-xl border border-border/60 bg-muted/20 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{uiText('Latest progress')}</p>
+        <span className="shrink-0 rounded-full border border-border/60 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground">{uiText('Life OS task')}</span>
+      </div>
+      <p className="mt-1.5 min-w-0 whitespace-pre-wrap break-words text-xs leading-5 text-foreground/80">
+        {handoff || uiText('No progress has been recorded yet.')}
+      </p>
+      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2.5 sm:grid-cols-3">
+        <div className="min-w-0">
+          <span className="block text-[10px] text-muted-foreground">{uiText('Worker')}</span>
+          <span className="mt-0.5 block truncate text-[11px] font-medium text-muted-foreground">{uiText('Executor not configured')}</span>
+        </div>
+        <div className="min-w-0">
+          <span className="block text-[10px] text-muted-foreground">{uiText('Pending confirmations')}</span>
+          <span className="mt-0.5 block truncate text-[11px] font-medium text-muted-foreground">{uiText('Acceptance flow not configured')}</span>
+        </div>
+        <div className="col-span-2 min-w-0 sm:col-span-1">
+          <span className="block text-[10px] text-muted-foreground">{uiText('Execution')}</span>
+          <span className="mt-0.5 block truncate text-[11px] font-medium text-muted-foreground">{uiText('No execution record')}</span>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 const priorityBorderColors: Record<string, string> = {
@@ -207,6 +231,7 @@ function getDueDateStatus(dueDate: string | null) {
 // Sortable Task Card Component
 function SortableTaskCard({
   task,
+  projectName,
   selectedTaskId,
   celebratingTaskId,
   onSelectTask,
@@ -216,6 +241,7 @@ function SortableTaskCard({
   columnStatus,
 }: {
   task: Task
+  projectName?: string
   selectedTaskId: string | null
   celebratingTaskId: string | null
   onSelectTask: (id: string) => void
@@ -261,33 +287,33 @@ function SortableTaskCard({
         onClick={() => onSelectTask(task.id)}
         onDoubleClick={(e) => { e.stopPropagation(); onEditTask?.(task) }}
       >
-        <CardContent className="p-3.5 space-y-2.5">
+        <CardContent className="space-y-3 p-3.5 sm:p-4">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-start gap-2.5 flex-1 min-w-0">
-              <div {...attributes} {...listeners} className="mt-0.5 cursor-grab active:cursor-grabbing touch-none">
+              <div {...attributes} {...listeners} aria-label={uiText('Drag task')} className="mt-0.5 cursor-grab active:cursor-grabbing touch-none">
                 <GripVertical className="h-4 w-4 text-muted-foreground/30 shrink-0 hover:text-muted-foreground/60 transition-colors" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className={cn('text-sm font-medium leading-snug', task.status === 'done' && 'line-through-animate text-muted-foreground')}>
+                <p className={cn('text-[15px] font-semibold leading-snug break-words', task.status === 'done' && 'line-through-animate text-muted-foreground')}>
                   {task.title}
                 </p>
               </div>
             </div>
-            <Badge className={cn(`${priorityColors[task.priority]} text-[10px] shrink-0 px-2 py-0.5 rounded-full font-semibold`, task.priority === 'urgent' && 'animate-pulse-urgent')}>
-              {task.priority}
-            </Badge>
           </div>
-          {task.description && (
-            <p className="text-xs text-muted-foreground line-clamp-2 pl-7 leading-relaxed">{task.description}</p>
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5 pl-7">
+            <Badge className={cn(`${priorityColors[task.priority]} rounded-full border-0 px-2 py-0.5 text-[10px] font-semibold`, task.priority === 'urgent' && 'animate-pulse-urgent')}>
+              {t(`tasks.${task.priority}`)}
+            </Badge>
+            <Badge variant="outline" className="rounded-full text-[10px]">{task.status === 'in-progress' ? t('tasks.inProgress') : task.status === 'todo' ? t('tasks.todo') : t('tasks.done')}</Badge>
+            {projectName && <Badge variant="secondary" className="max-w-full truncate rounded-full text-[10px]">{projectName}</Badge>}
+            {task.dueDate && <Badge variant="outline" className={cn('rounded-full text-[10px]', dueStatus.className)}><Clock className="mr-1 h-2.5 w-2.5" />{uiText(dueStatus.label) || task.dueDate}</Badge>}
+          </div>
+          {splitTaskDescription(task.description).body && (
+            <p className="line-clamp-2 pl-7 text-xs leading-relaxed text-muted-foreground">{splitTaskDescription(task.description).body}</p>
           )}
-          <div className="flex items-center justify-between pl-7 pt-0.5">
-            {task.dueDate && (
-              <Badge variant="outline" className={cn('text-[10px] border', dueStatus.className)}>
-                <Clock className="h-2.5 w-2.5 mr-1" />
-                {dueStatus.label || task.dueDate}
-              </Badge>
-            )}
-            <div className="flex items-center gap-0.5 ml-auto">
+          <div className="pl-7"><TaskRunSignals task={task} /></div>
+          <div className="flex items-center justify-end gap-0.5 border-t border-border/50 pl-7 pt-2">
+            <div className="flex items-center gap-0.5">
               {columnStatus !== 'todo' && (
                 <Button variant="ghost" size="icon" className="h-6 w-6 hover:bg-accent" onClick={(e) => { e.stopPropagation(); onMoveTask(task.id, columnStatus === 'in-progress' ? 'todo' : 'in-progress') }}>
                   <ChevronLeft className="h-3 w-3" />
@@ -381,6 +407,7 @@ const accentHexMap: Record<string, string> = {
 }
 
 export function TasksPage() {
+  useInterfaceLanguage()
   const { taskView, setTaskView, taskFilter, setTaskFilter } = useTaskStore()
   const accentColor = useAppStore((s) => s.accentColor)
   const { t } = useTranslation()
@@ -405,6 +432,7 @@ export function TasksPage() {
     if (!apiProjects) return []
     return (apiProjects as Record<string, unknown>[]).map(mapApiProject)
   }, [apiProjects])
+  const projectNames = useMemo(() => new Map(projects.map(project => [project.id, project.name])), [projects])
 
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
@@ -460,11 +488,12 @@ export function TasksPage() {
       dueDate: newTask.dueDate || null,
       projectId: newTask.projectId || null,
       recurrence: newTask.recurrence !== 'none' ? newTask.recurrence : null,
+      tags: newTask.tags.split(',').map(tag => tag.trim()).filter(Boolean),
     }, {
       onSuccess: () => {
         setNewTask({ title: '', description: '', priority: 'medium', dueDate: '', projectId: '', tags: '', recurrence: 'none' })
         setCreateDialogOpen(false)
-        showToast.success('Task created', 'New task has been added')
+        showToast.success(uiText("Task created"), uiText("New task has been added"))
       }
     })
   }, [newTask, createTaskMutation])
@@ -479,7 +508,7 @@ export function TasksPage() {
       projectId: null,
     }, {
       onSuccess: () => {
-        showToast.success('Task created from template', `"${template.title}" task added`)
+        showToast.success(uiText("Task created from template"), `"${template.title}" ${uiText("task added")}`)
       }
     })
   }, [createTaskMutation])
@@ -494,14 +523,14 @@ export function TasksPage() {
     if (newStatus === 'done') {
       setCelebratingTaskId(id)
       setTimeout(() => setCelebratingTaskId(null), 500)
-      showToast.success('Task updated', 'Task marked as done 🎉')
+      showToast.success(uiText("Task updated"), uiText("Task marked as done 🎉"))
     }
   }, [tasks, updateTaskMutation])
 
   const deleteTask = useCallback((id: string) => {
     deleteTaskMutation.mutate(id)
     if (selectedTaskId === id) setSelectedTaskId(null)
-    showToast.info('Task deleted', 'Task has been removed')
+    showToast.info(uiText("Task deleted"), uiText("Task has been removed"))
   }, [deleteTaskMutation, selectedTaskId])
 
   const moveTask = useCallback((id: string, newStatus: Task['status']) => {
@@ -599,7 +628,7 @@ export function TasksPage() {
     }, {
       onSuccess: () => {
         setNewSubtask('')
-        showToast.success('Alt görev eklendi', '')
+        showToast.success(uiText("Alt görev eklendi"), '')
       }
     })
   }, [newSubtask, selectedTaskId, createTaskMutation])
@@ -608,7 +637,7 @@ export function TasksPage() {
     <div className="space-y-5">
       <div className="flex items-start justify-between">
         <h3 className="font-semibold">{selectedTask.title}</h3>
-        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setSelectedTaskId(null)}>
+        <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-7 sm:w-7 shrink-0" aria-label={t('close')} onClick={() => setSelectedTaskId(null)}>
           <X className="h-4 w-4" />
         </Button>
       </div>
@@ -622,591 +651,24 @@ export function TasksPage() {
         )}
       </div>
       <Separator />
-      {splitTaskDescription(selectedTask.description).body && <div>
-        <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{splitTaskDescription(selectedTask.description).body}</p>
-      </div>}
-      <div className="space-y-2 rounded-lg bg-muted/45 p-3">
-        <div className="flex items-center gap-2">
-          <ChevronRight className="h-4 w-4 text-primary" />
-          <p className="text-sm font-medium">停点与下一步</p>
+      <section className="space-y-2 rounded-xl border border-border/60 bg-card p-3.5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{uiText('Task materials')}</p>
+        {splitTaskDescription(selectedTask.description).body
+          ? <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/85">{splitTaskDescription(selectedTask.description).body}</p>
+          : <p className="text-sm text-muted-foreground">{uiText('No data')}</p>}
+        <div className="flex min-w-0 flex-wrap gap-1.5">
+          {selectedTask.projectId && projectNames.get(selectedTask.projectId) && <Badge variant="secondary" className="max-w-full truncate">{projectNames.get(selectedTask.projectId)}</Badge>}
+          {selectedTask.tags.map(tag => <Badge key={tag} variant="outline" className="max-w-full truncate">#{tag}</Badge>)}
+          {selectedTask.recurrence && selectedTask.recurrence !== 'none' && <Badge variant="outline" className="capitalize">{selectedTask.recurrence}</Badge>}
         </div>
-        <p className="text-xs leading-5 text-muted-foreground">把你停下来的位置和下一步写清楚；仪表盘和另一台设备会读取同一条任务记录。</p>
-        <Textarea value={handoffDraft} onChange={(event) => setHandoffDraft(event.target.value)} placeholder="例如：已整理完资料，下一步是确认报价并发给客户。" className="min-h-20 resize-none text-sm" />
-        <Button size="sm" className="w-full" onClick={saveTaskHandoff} disabled={!handoffDraft.trim() || updateTaskMutation.isPending}>
-          {updateTaskMutation.isPending ? '正在保存…' : '保存停点'}
-        </Button>
-      </div>
-      <div className="space-y-3">
-        {selectedTask.estimatedMinutes && (
-          <div className="flex items-center gap-2 text-sm">
-            <Clock className="h-4 w-4 text-muted-foreground" />
-            <span className="text-muted-foreground">{t('tasks.estimated')}</span>
-            <span className="font-medium">{selectedTask.estimatedMinutes} {t('tasks.min')}</span>
-            {selectedTask.actualMinutes && (
-              <>
-                <span className="text-muted-foreground ml-2">{t('tasks.actual')}</span>
-                <span className="font-medium">{selectedTask.actualMinutes} {t('tasks.min')}</span>
-              </>
-            )}
-          </div>
-        )}
-      </div>
-      {selectedTask.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {selectedTask.tags.map(tag => (
-            <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
-          ))}
-        </div>
-      )}
-      {selectedTask.recurrence && selectedTask.recurrence !== 'none' && (
-        <div className="flex items-center gap-2 text-sm">
-          <RefreshCw className="h-4 w-4 text-muted-foreground" />
-          <span className="text-muted-foreground">Tekrar:</span>
-          <Badge variant="secondary" className="text-xs capitalize">{selectedTask.recurrence}</Badge>
-        </div>
-      )}
-      <Separator />
-      {/* Sub-tasks */}
-      <div className="space-y-2">
-        <p className="text-sm font-medium">Alt Görevler</p>
-        {tasks.filter(t => t.parentTaskId === selectedTask.id).map(sub => (
-          <div key={sub.id} className="flex items-center gap-2">
-            <Checkbox
-              checked={sub.status === 'done'}
-              onCheckedChange={() => toggleTaskStatus(sub.id)}
-            />
-            <span className={cn('text-sm flex-1', sub.status === 'done' && 'line-through text-muted-foreground')}>{sub.title}</span>
-            <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => deleteTask(sub.id)}>
-              <Trash2 className="h-3 w-3" />
-            </Button>
-          </div>
-        ))}
-        <div className="flex items-center gap-2 mt-1">
-          <Input
-            placeholder="Alt görev ekle..."
-            value={newSubtask}
-            onChange={(e) => setNewSubtask(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleAddSubtask() }}
-            className="h-7 text-xs"
-          />
-          <Button size="sm" variant="outline" className="h-7 shrink-0" onClick={handleAddSubtask} disabled={createTaskMutation.isPending}>
-            <Plus className="h-3 w-3" />
-          </Button>
-        </div>
-      </div>
-      <Separator />
-      <div className="space-y-2">
-        <Button variant="outline" size="sm" className="w-full" onClick={() => toggleTaskStatus(selectedTask.id)}>
-          {selectedTask.status === 'done' ? t('tasks.markIncomplete') : t('tasks.markComplete')}
-        </Button>
-        <Button variant="outline" size="sm" className="w-full text-destructive hover:text-destructive" onClick={() => deleteTask(selectedTask.id)}>
-          <Trash2 className="h-3.5 w-3.5 mr-1.5" />{t('tasks.deleteTask')}
-        </Button>
-      </div>
-    </div>
-  ) : null
-
-  return (
-    <div className="flex h-full animate-page-enter">
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Productivity Score + Progress Bar */}
-        <div className="px-4 pt-3 pb-1">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-md border border-border flex items-center justify-center text-xs font-bold text-foreground bg-muted/40">
-                {taskCompletionPct}%
-              </div>
-              <div>
-                <p className="text-xs font-semibold">{t('tasks.productivityScore')}</p>
-                <p className="text-[10px] text-muted-foreground">{tasks.filter(t => t.status === 'done').length} of {tasks.length} {t('tasks.tasksDone')}</p>
-              </div>
-            </div>
-            <div className="flex-1">
-              <div className="h-2 bg-muted/50 rounded-full overflow-hidden">
-                <div className="h-full rounded-full animate-day-progress" style={{ width: `${taskCompletionPct}%`, background: `linear-gradient(to right, ${accentHex}, ${accentHex}cc)` }} />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Overdue Section */}
-        {overdueTasks.length > 0 && (
-          <div className="px-4 py-2">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/30">
-              <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse-red" />
-              <span className="text-xs font-medium text-red-600 dark:text-red-400">{overdueTasks.length} {overdueTasks.length > 1 ? t('tasks.overdueTasksPlural') : t('tasks.overdueTasks')}</span>
-              <div className="flex-1" />
-              <span className="text-[10px] text-red-500/70">{t('tasks.reviewDueDates')}</span>
-            </div>
-          </div>
-        )}
-
-        {/* Toolbar */}
-        <div className="p-4 border-b border-border/50 space-y-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Tabs value={taskView} onValueChange={(v) => setTaskView(v as 'list' | 'board')}>
-                <TabsList className="h-8">
-                  <TabsTrigger value="list" className="text-xs px-3 h-6">
-                    <List className="h-3.5 w-3.5 mr-1" />{t('tasks.list')}
-                  </TabsTrigger>
-                  <TabsTrigger value="board" className="text-xs px-3 h-6">
-                    <LayoutGrid className="h-3.5 w-3.5 mr-1" />{t('tasks.board')}
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-              {taskView === 'list' && (
-                <Button
-                  variant={selectionMode ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="h-7 text-xs gap-1.5"
-                  onClick={() => {
-                    setSelectionMode(prev => !prev)
-                    setSelectedIds(new Set())
-                  }}
-                >
-                  <MousePointer2 className="h-3.5 w-3.5" />
-                  {selectionMode ? 'İptal' : 'Seç'}
-                </Button>
-              )}
-              <div className="flex items-center gap-1">
-                {(['all', 'todo', 'in-progress', 'done'] as const).map((filter) => {
-                  const count = filter === 'all' ? tasks.length : tasks.filter(t => t.status === filter).length
-                  const isActive = taskFilter === filter
-                  return (
-                    <Button
-                      key={filter}
-                      variant={isActive ? 'secondary' : 'ghost'}
-                      size="sm"
-                      className={cn('h-7 text-xs gap-1.5 tab-transition', isActive && 'border-l-2')}
-                      style={isActive ? { borderLeftColor: accentHex } : undefined}
-                      onClick={() => setTaskFilter(filter)}
-                    >
-                      {filter === 'all' ? t('tasks.all') : filter === 'in-progress' ? t('tasks.inProgress') : filter === 'todo' ? t('tasks.todo') : t('tasks.done')}
-                      <motion.span
-                        key={`${filter}-${count}`}
-                        initial={{ scale: 0.8, opacity: 0.5 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        className={cn(
-                          'inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full text-[10px] font-medium transition-colors',
-                          taskFilter === filter ? (filterBadgeColors[filter] || filterBadgeColors.all) : 'bg-muted text-muted-foreground'
-                        )}
-                      >
-                        {count}
-                      </motion.span>
-                    </Button>
-                  )
-                })}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1.5">
-                    <LayoutTemplate className="h-4 w-4" />{t('tasks.templates')}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-64 p-2" align="end">
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground px-2 py-1">{t('tasks.addTask')}</p>
-                    {taskTemplates.map((template) => (
-                      <button
-                        key={template.title}
-                        className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-left hover:bg-accent transition-colors text-sm group"
-                        onClick={() => handleTemplateSelect(template)}
-                      >
-                        <Badge className={cn(`${priorityColors[template.priority]} text-[9px] shrink-0 px-1.5 py-0 rounded-full font-semibold`)}>
-                          {template.priority}
-                        </Badge>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-xs truncate">{template.title}</p>
-                          <p className="text-[10px] text-muted-foreground truncate">{template.description}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </PopoverContent>
-              </Popover>
-              <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm">
-                    <Plus className="h-4 w-4 mr-1.5" />{t('tasks.addTask')}
-                  </Button>
-                </DialogTrigger>
-              <DialogContent
-                aria-describedby={undefined}
-                className="sm:max-w-[560px] p-0 overflow-hidden gap-0 border-0 shadow-2xl"
-              >
-                {/* Gradient accent strip */}
-                <div
-                  className="h-1 w-full"
-                  style={{ background: `linear-gradient(90deg, ${accentHex}, ${accentHex}66, transparent)` }}
-                />
-                <DialogHeader className="px-6 pt-5 pb-3">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                      style={{ backgroundColor: `${accentHex}1a`, color: accentHex }}
-                    >
-                      <Sparkles className="h-4.5 w-4.5" />
-                    </div>
-                    <div className="min-w-0">
-                      <DialogTitle className="text-base font-semibold leading-tight">
-                        {t('tasks.newTask')}
-                      </DialogTitle>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {t('tasks.composer.subtitle')}
-                      </p>
-                    </div>
-                  </div>
-                  <DialogDescription className="sr-only">Create a new task for your workflow</DialogDescription>
-                </DialogHeader>
-
-                <div
-                  className="px-6 pb-4 space-y-4"
-                  onKeyDown={(e) => {
-                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                      e.preventDefault()
-                      handleAddTask()
-                    }
-                  }}
-                >
-                  {/* Title — big, borderless, primary input */}
-                  <input
-                    autoFocus
-                    placeholder={t('tasks.composer.titlePlaceholder')}
-                    value={newTask.title}
-                    onChange={(e) => setNewTask(prev => ({ ...prev, title: e.target.value }))}
-                    className="w-full text-lg md:text-xl font-medium bg-transparent border-0 outline-none placeholder:text-muted-foreground/50 focus:ring-0 px-0 py-1"
-                  />
-
-                  {/* Description — subtle bg, auto height */}
-                  <Textarea
-                    placeholder={t('tasks.composer.descPlaceholder')}
-                    value={newTask.description}
-                    onChange={(e) => setNewTask(prev => ({ ...prev, description: e.target.value }))}
-                    className="min-h-[68px] resize-none bg-muted/40 border-border/60 focus-visible:bg-muted/60 text-sm"
-                  />
-
-                  {/* Priority pills */}
-                  <div>
-                    <p className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider mb-2">
-                      {t('tasks.composer.priorityLabel')}
-                    </p>
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {(['low', 'medium', 'high', 'urgent'] as const).map((p) => {
-                        const active = newTask.priority === p
-                        const dot = { low: '#3b82f6', medium: '#f59e0b', high: '#f97316', urgent: '#ef4444' }[p]
-                        return (
-                          <button
-                            key={p}
-                            type="button"
-                            onClick={() => setNewTask(prev => ({ ...prev, priority: p }))}
-                            className={cn(
-                              'flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-medium border transition-all',
-                              active
-                                ? 'border-transparent text-foreground shadow-sm'
-                                : 'border-border/60 text-muted-foreground hover:text-foreground hover:bg-accent/40'
-                            )}
-                            style={active ? { backgroundColor: `${dot}1a`, boxShadow: `0 0 0 1px ${dot}55 inset` } : undefined}
-                          >
-                            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: dot }} />
-                            {t(`tasks.${p}`)}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Attribute chips: Due / Project / Recurrence / Tags */}
-                  <div className="flex flex-wrap gap-2">
-                    {/* Due date chip */}
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button
-                          type="button"
-                          className={cn(
-                            'inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-xs font-medium transition-colors',
-                            newTask.dueDate
-                              ? 'border-transparent text-foreground'
-                              : 'border-border/70 text-muted-foreground hover:bg-accent/40'
-                          )}
-                          style={newTask.dueDate ? { backgroundColor: `${accentHex}1a`, color: accentHex } : undefined}
-                        >
-                          <CalendarDays className="h-3.5 w-3.5" />
-                          {newTask.dueDate
-                            ? new Date(newTask.dueDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
-                            : t('tasks.composer.noDue')}
-                          <ChevronDown className="h-3 w-3 opacity-60" />
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent align="start" className="w-60 p-2">
-                        <div className="space-y-0.5">
-                          {[
-                            { id: 'today', label: t('tasks.composer.today'), days: 0 },
-                            { id: 'tomorrow', label: t('tasks.composer.tomorrow'), days: 1 },
-                            { id: 'thisWeek', label: t('tasks.composer.thisWeek'), days: ((7 - new Date().getDay()) || 7) },
-                          ].map(opt => (
-                            <button
-                              key={opt.id}
-                              type="button"
-                              className="w-full flex items-center justify-between text-xs px-2.5 py-1.5 rounded-md hover:bg-accent text-left"
-                              onClick={() => {
-                                const d = new Date()
-                                d.setDate(d.getDate() + opt.days)
-                                const iso = d.toISOString().slice(0, 10)
-                                setNewTask(prev => ({ ...prev, dueDate: iso }))
-                              }}
-                            >
-                              <span>{opt.label}</span>
-                              <span className="text-muted-foreground">
-                                {(() => { const d = new Date(); d.setDate(d.getDate() + opt.days); return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) })()}
-                              </span>
-                            </button>
-                          ))}
-                          <div className="border-t border-border/60 my-1" />
-                          <label className="px-2.5 py-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70 block">
-                            {t('tasks.composer.pickDate')}
-                          </label>
-                          <Input
-                            type="date"
-                            value={newTask.dueDate}
-                            onChange={(e) => setNewTask(prev => ({ ...prev, dueDate: e.target.value }))}
-                            className="h-8 text-xs"
-                          />
-                          {newTask.dueDate && (
-                            <button
-                              type="button"
-                              className="w-full text-left text-xs px-2.5 py-1.5 rounded-md hover:bg-accent text-muted-foreground mt-1"
-                              onClick={() => setNewTask(prev => ({ ...prev, dueDate: '' }))}
-                            >
-                              {t('tasks.composer.clearDate')}
-                            </button>
-                          )}
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-
-                    {/* Project chip */}
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button
-                          type="button"
-                          className={cn(
-                            'inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-xs font-medium transition-colors',
-                            newTask.projectId
-                              ? 'border-transparent text-foreground'
-                              : 'border-border/70 text-muted-foreground hover:bg-accent/40'
-                          )}
-                          style={newTask.projectId ? { backgroundColor: `${accentHex}1a`, color: accentHex } : undefined}
-                        >
-                          <Folder className="h-3.5 w-3.5" />
-                          {newTask.projectId
-                            ? (projects.find(p => p.id === newTask.projectId)?.name ?? t('tasks.composer.project'))
-                            : t('tasks.composer.noProject')}
-                          <ChevronDown className="h-3 w-3 opacity-60" />
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent align="start" className="w-56 p-1">
-                        <button
-                          type="button"
-                          className="w-full text-left text-xs px-2.5 py-1.5 rounded-md hover:bg-accent text-muted-foreground"
-                          onClick={() => setNewTask(prev => ({ ...prev, projectId: '' }))}
-                        >
-                          {t('tasks.composer.noProject')}
-                        </button>
-                        {projects.length > 0 && <div className="border-t border-border/60 my-1" />}
-                        {projects.map(p => (
-                          <button
-                            key={p.id}
-                            type="button"
-                            className={cn(
-                              'w-full text-left text-xs px-2.5 py-1.5 rounded-md hover:bg-accent flex items-center justify-between',
-                              newTask.projectId === p.id && 'bg-accent/60'
-                            )}
-                            onClick={() => setNewTask(prev => ({ ...prev, projectId: p.id }))}
-                          >
-                            <span className="truncate">{p.name}</span>
-                            {newTask.projectId === p.id && <Check className="h-3.5 w-3.5" style={{ color: accentHex }} />}
-                          </button>
-                        ))}
-                      </PopoverContent>
-                    </Popover>
-
-                    {/* Recurrence chip */}
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button
-                          type="button"
-                          className={cn(
-                            'inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-xs font-medium transition-colors',
-                            newTask.recurrence && newTask.recurrence !== 'none'
-                              ? 'border-transparent text-foreground'
-                              : 'border-border/70 text-muted-foreground hover:bg-accent/40'
-                          )}
-                          style={newTask.recurrence && newTask.recurrence !== 'none' ? { backgroundColor: `${accentHex}1a`, color: accentHex } : undefined}
-                        >
-                          <RefreshCw className="h-3.5 w-3.5" />
-                          {(() => {
-                            const r = newTask.recurrence
-                            if (!r || r === 'none') return t('tasks.composer.recurrenceNone')
-                            return t(`tasks.composer.recurrence${r.charAt(0).toUpperCase() + r.slice(1)}`) !== `tasks.composer.recurrence${r.charAt(0).toUpperCase() + r.slice(1)}`
-                              ? t(`tasks.composer.recurrence${r.charAt(0).toUpperCase() + r.slice(1)}`)
-                              : ({ daily: 'Günlük', weekly: 'Haftalık', monthly: 'Aylık' } as Record<string, string>)[r]
-                          })()}
-                          <ChevronDown className="h-3 w-3 opacity-60" />
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent align="start" className="w-44 p-1">
-                        {([
-                          ['none', t('tasks.composer.recurrenceNone')],
-                          ['daily', 'Günlük'],
-                          ['weekly', 'Haftalık'],
-                          ['monthly', 'Aylık'],
-                        ] as const).map(([val, label]) => {
-                          const active = (newTask.recurrence ?? 'none') === val
-                          return (
-                            <button
-                              key={val}
-                              type="button"
-                              className={cn(
-                                'w-full text-left text-xs px-2.5 py-1.5 rounded-md hover:bg-accent flex items-center justify-between',
-                                active && 'bg-accent/60'
-                              )}
-                              onClick={() => setNewTask(prev => ({ ...prev, recurrence: val as Task['recurrence'] }))}
-                            >
-                              <span>{label}</span>
-                              {active && <Check className="h-3.5 w-3.5" style={{ color: accentHex }} />}
-                            </button>
-                          )
-                        })}
-                      </PopoverContent>
-                    </Popover>
-
-                    {/* Tags chip */}
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button
-                          type="button"
-                          className={cn(
-                            'inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-xs font-medium transition-colors',
-                            newTask.tags.trim()
-                              ? 'border-transparent text-foreground'
-                              : 'border-border/70 text-muted-foreground hover:bg-accent/40'
-                          )}
-                          style={newTask.tags.trim() ? { backgroundColor: `${accentHex}1a`, color: accentHex } : undefined}
-                        >
-                          <Hash className="h-3.5 w-3.5" />
-                          {newTask.tags.trim()
-                            ? `${newTask.tags.split(',').map(s => s.trim()).filter(Boolean).length} ${t('tasks.tags').toLowerCase()}`
-                            : t('tasks.tags')}
-                          <ChevronDown className="h-3 w-3 opacity-60" />
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent align="start" className="w-72 p-3 space-y-2">
-                        <Input
-                          placeholder={t('tasks.composer.tagsPlaceholder')}
-                          value={newTask.tags}
-                          onChange={(e) => setNewTask(prev => ({ ...prev, tags: e.target.value }))}
-                          className="h-8 text-xs"
-                        />
-                        {newTask.tags.trim() && (
-                          <div className="flex flex-wrap gap-1">
-                            {newTask.tags.split(',').map(s => s.trim()).filter(Boolean).map((tag, i) => (
-                              <Badge key={`${tag}-${i}`} variant="secondary" className="text-[10px] font-normal py-0.5">
-                                #{tag}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
-
-                <DialogFooter className="px-6 py-3 border-t border-border/60 bg-muted/20 flex items-center sm:justify-between gap-2">
-                  <span className="hidden sm:flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                    {t('tasks.composer.cmdEnter')}
-                    <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-border/70 bg-background text-[10px] font-medium">
-                      <Command className="h-2.5 w-2.5" />Enter
-                    </kbd>
-                    {t('tasks.composer.cmdEnterAction')}
-                  </span>
-                  <div className="flex items-center gap-2 ml-auto">
-                    <DialogClose asChild>
-                      <Button variant="ghost" size="sm">{t('cancel')}</Button>
-                    </DialogClose>
-                    <Button
-                      size="sm"
-                      onClick={handleAddTask}
-                      disabled={createTaskMutation.isPending || !newTask.title.trim()}
-                      className="gap-1.5 text-white hover:opacity-95"
-                      style={{ backgroundColor: accentHex, boxShadow: `0 10px 24px -10px ${accentHex}` }}
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      {t('tasks.createTask')}
-                    </Button>
-                  </div>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-
-            {/* ─── Edit Task Dialog ──────────────────────────────────── */}
-            <Dialog open={editDialogOpen} onOpenChange={(o) => { setEditDialogOpen(o); if (!o) setEditTask(null) }}>
-              <DialogContent className="max-w-lg" aria-describedby={undefined}>
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <Edit3 className="h-4 w-4" />
-                    {t('tasks.editTask')}
-                  </DialogTitle>
-                  <DialogDescription className="sr-only">{t('tasks.editTask')}</DialogDescription>
-                </DialogHeader>
-                {editTask && (
-                  <div
-                    className="space-y-4 py-2"
-                    onKeyDown={(e) => {
-                      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                        e.preventDefault()
-                        handleUpdateTask()
-                      }
-                    }}
-                  >
-                    <div>
-                      <label className="text-sm font-medium mb-1.5 block">{t('tasks.taskTitle')}</label>
-                      <Input
-                        autoFocus
-                        value={editTask.title}
-                        onChange={(e) => setEditTask((p) => p && ({ ...p, title: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium mb-1.5 block">{t('tasks.description')}</label>
-                      <Textarea
-                        rows={3}
-                        value={editTask.description}
-                        onChange={(e) => setEditTask((p) => p && ({ ...p, description: e.target.value }))}
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm font-medium mb-1.5 block">{t('tasks.priority')}</label>
-                        <Select
-                          value={editTask.priority}
-                          onValueChange={(v) => setEditTask((p) => p && ({ ...p, priority: v as Task['priority'] }))}
-                        >
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="low">{t('tasks.low')}</SelectItem>
-                            <SelectItem value="medium">{t('tasks.medium')}</SelectItem>
-                            <SelectItem value="high">{t('tasks.high')}</SelectItem>
-                            <SelectItem value="urgent">{t('tasks.urgent')}</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium mb-1.5 block">{t('tasks.status')}</label>
-                        <Select
+      </section>
+      <section className="space-y-3 rounded-xl border border-border/60 bg-card p-3.5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{uiText('Execution log')}</p>
+        <TaskRunSignals task={selectedTask} />
+        <p className="text-xs leading-5 text-muted-foreground">{uiText('No execution is connected to this task.')}</p>
+      </section>
+      <section className="space-y-2 rounded-xl border border-border/60 bg-card p-3.5">
+        <p …8535 tokens truncated…            <Select
                           value={editTask.status}
                           onValueChange={(v) => setEditTask((p) => p && ({ ...p, status: v as Task['status'] }))}
                         >
@@ -1302,6 +764,7 @@ export function TasksPage() {
           ) : taskView === 'list' ? (
             <Listview
               tasks={filteredTasks}
+              projects={projects}
               selectedTaskId={selectedTaskId}
               celebratingTaskId={celebratingTaskId}
               onSelectTask={setSelectedTaskId}
@@ -1320,6 +783,7 @@ export function TasksPage() {
               todoTasks={todoTasks}
               inProgressTasks={inProgressTasks}
               doneTasks={doneTasks}
+              projects={projects}
               selectedTaskId={selectedTaskId}
               celebratingTaskId={celebratingTaskId}
               onSelectTask={setSelectedTaskId}
@@ -1341,7 +805,7 @@ export function TasksPage() {
       {/* Detail Panel - Mobile Sheet */}
       {selectedTask && isMobile && (
         <Sheet open={!!selectedTaskId} onOpenChange={(open) => { if (!open) setSelectedTaskId(null) }}>
-          <SheetContent side="right" className="w-80 p-5">
+          <SheetContent side="right" className="lifeos-safe-bottom-lg w-[min(24rem,92vw)] p-4 sm:p-5">
             <SheetHeader className="sr-only">
               <SheetTitle>{t('tasks.taskDetails')}</SheetTitle>
             </SheetHeader>
@@ -1352,14 +816,14 @@ export function TasksPage() {
 
       {/* Bulk Action Bar */}
       {selectionMode && selectedIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-card border border-border rounded-full shadow-lg px-4 py-2 z-50">
-          <span className="text-sm font-medium">{selectedIds.size} seçildi</span>
+        <div className="lifeos-float-above-bottom fixed left-1/2 -translate-x-1/2 flex items-center gap-2 bg-card border border-border rounded-full shadow-lg px-3 sm:px-4 py-2 z-50 max-w-[calc(100vw-1rem)] overflow-x-auto">
+          <span className="text-sm font-medium">{selectedIds.size} {uiText("seçildi")}</span>
           <Separator orientation="vertical" className="h-4" />
           <Button size="sm" variant="ghost" onClick={handleBulkDone}>
-            <Check className="h-4 w-4 mr-1" /> Tamamla
+            <Check className="h-4 w-4 mr-1" /> {uiText("Tamamla")}
           </Button>
           <Button size="sm" variant="ghost" className="text-destructive" onClick={handleBulkDelete}>
-            <Trash2 className="h-4 w-4 mr-1" /> Sil
+            <Trash2 className="h-4 w-4 mr-1" /> {uiText("Sil")}
           </Button>
         </div>
       )}
@@ -1367,8 +831,9 @@ export function TasksPage() {
   )
 }
 
-function Listview({ tasks, selectedTaskId, celebratingTaskId, onSelectTask, onToggleStatus, onDeleteTask, onEditTask, onMoveTask, accentHex = '#10b981', selectionMode = false, selectedIds = new Set<string>(), onToggleSelect, onAdd }: {
+function Listview({ tasks, projects, selectedTaskId, celebratingTaskId, onSelectTask, onToggleStatus, onDeleteTask, onEditTask, onMoveTask, accentHex = '#10b981', selectionMode = false, selectedIds = new Set<string>(), onToggleSelect, onAdd }: {
   tasks: Task[]
+  projects: Project[]
   selectedTaskId: string | null
   celebratingTaskId: string | null
   onSelectTask: (id: string) => void
@@ -1382,6 +847,7 @@ function Listview({ tasks, selectedTaskId, celebratingTaskId, onSelectTask, onTo
   onToggleSelect?: (id: string) => void
   onAdd?: () => void
 }) {
+  useInterfaceLanguage()
   const { t } = useTranslation()
   const allSelected = tasks.length > 0 && tasks.every(t => selectedIds.has(t.id))
 
@@ -1410,7 +876,7 @@ function Listview({ tasks, selectedTaskId, celebratingTaskId, onSelectTask, onTo
   }
 
   return (
-    <div className="divide-y divide-border/50">
+    <div className="space-y-2 p-3 sm:p-4">
       {selectionMode && (
         <div className="flex items-center gap-3 px-4 py-2 bg-muted/30 border-b border-border/50">
           <Checkbox
@@ -1423,7 +889,7 @@ function Listview({ tasks, selectedTaskId, celebratingTaskId, onSelectTask, onTo
               }
             }}
           />
-          <span className="text-xs text-muted-foreground">{allSelected ? 'Hiçbirini seçme' : 'Hepsini seç'}</span>
+          <span className="text-xs text-muted-foreground">{allSelected ? t('tasks.selection.deselectAll') : t('tasks.selection.selectAll')}</span>
         </div>
       )}
       {tasks.map((task) => {
@@ -1431,11 +897,11 @@ function Listview({ tasks, selectedTaskId, celebratingTaskId, onSelectTask, onTo
         const isCelebrating = celebratingTaskId === task.id
         const isSelected = selectedIds.has(task.id)
         const rowContent = (
-          <motion.div
+          <motion.article
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className={cn(
-              'group flex items-center gap-3 px-4 py-3 hover:bg-accent/30 transition-all duration-200 cursor-pointer border-l-[3px]',
+              'task-summary-card group grid min-w-0 cursor-pointer gap-3 border-l-[3px] px-3.5 py-3.5 transition-all duration-200 hover:bg-accent/20 sm:rounded-xl sm:border sm:border-border/60 sm:px-4 sm:py-4',
               priorityBorderColors[task.priority],
               task.status === 'done' && 'opacity-60',
               isCelebrating && 'animate-celebrate',
@@ -1443,73 +909,39 @@ function Listview({ tasks, selectedTaskId, celebratingTaskId, onSelectTask, onTo
             )}
             style={selectedTaskId === task.id && !selectionMode ? { borderLeftColor: accentHex, backgroundColor: 'var(--accent)' } : undefined}
             onClick={() => selectionMode ? onToggleSelect?.(task.id) : onSelectTask(task.id)}
-            onDoubleClick={(e) => {
-              if (selectionMode) return
-              e.stopPropagation()
-              onEditTask?.(task)
-            }}
+            onDoubleClick={(e) => { if (selectionMode) return; e.stopPropagation(); onEditTask?.(task) }}
           >
-            {selectionMode ? (
-              <Checkbox
-                checked={isSelected}
-                onCheckedChange={() => onToggleSelect?.(task.id)}
-                onClick={(e) => e.stopPropagation()}
-              />
-            ) : (
-              <Checkbox
-                checked={task.status === 'done'}
-                onCheckedChange={() => onToggleStatus(task.id)}
-                onClick={(e) => e.stopPropagation()}
-                className={cn("transition-all duration-200", task.status === 'done' && 'animate-check-pop')}
-              />
-            )}
-            <div className={cn('w-2 h-2 rounded-full shrink-0', priorityDots[task.priority])} />
-            <div className="flex-1 min-w-0">
-              <p className={cn('text-sm truncate', task.status === 'done' && 'line-through-animate text-muted-foreground')}>
-                {task.title}
-              </p>
+            <div className="flex min-w-0 items-start gap-3">
+              {selectionMode ? (
+                <Checkbox checked={isSelected} onCheckedChange={() => onToggleSelect?.(task.id)} onClick={(e) => e.stopPropagation()} className="mt-1" />
+              ) : (
+                <Checkbox checked={task.status === 'done'} onCheckedChange={() => onToggleStatus(task.id)} onClick={(e) => e.stopPropagation()} className={cn('mt-1 transition-all duration-200', task.status === 'done' && 'animate-check-pop')} />
+              )}
+              <div className="min-w-0 flex-1 space-y-2.5">
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                  <Badge className={cn(`${priorityColors[task.priority]} rounded-full border-0 px-2 py-0.5 text-[10px] font-semibold`, task.priority === 'urgent' && 'animate-pulse-urgent')}>{t(`tasks.${task.priority}`)}</Badge>
+                  <Badge variant="outline" className="rounded-full text-[10px]">{task.status === 'in-progress' ? t('tasks.inProgress') : task.status === 'todo' ? t('tasks.todo') : t('tasks.done')}</Badge>
+                  {task.projectId && <Badge variant="secondary" className="max-w-full truncate rounded-full text-[10px]">{projects.find(project => project.id === task.projectId)?.name || uiText('Project unavailable')}</Badge>}
+                  {task.dueDate && <Badge variant="outline" className={cn('rounded-full text-[10px]', dueStatus.className)}><Clock className="mr-1 h-2.5 w-2.5" />{uiText(dueStatus.label) || task.dueDate}</Badge>}
+                  {task.recurrence && task.recurrence !== 'none' && <Badge variant="outline" className="rounded-full text-[10px] capitalize"><RefreshCw className="mr-1 h-2.5 w-2.5" />{task.recurrence}</Badge>}
+                </div>
+                <div className="min-w-0">
+                  <p className={cn('break-words text-[15px] font-semibold leading-snug', task.status === 'done' && 'line-through-animate text-muted-foreground')}>{task.title}</p>
+                  {splitTaskDescription(task.description).body && <p className="mt-1 line-clamp-2 break-words text-xs leading-relaxed text-muted-foreground">{splitTaskDescription(task.description).body}</p>}
+                </div>
+                <TaskRunSignals task={task} />
+                {task.tags.length > 0 && <div className="flex flex-wrap gap-1">{task.tags.slice(0, 5).map(tag => <Badge key={tag} variant="outline" className="max-w-full truncate px-1.5 py-0 text-[10px]">#{tag}</Badge>)}{task.tags.length > 5 && <span className="text-[10px] text-muted-foreground">+{task.tags.length - 5}</span>}</div>}
+                {!selectionMode && <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-2">
+                  <span className="text-[11px] text-muted-foreground">{uiText('Open task details')}</span>
+                  <div className="flex flex-wrap items-center gap-1">
+                    {onMoveTask && task.status !== 'done' && <Button variant="outline" size="sm" className="h-8" onClick={(e) => { e.stopPropagation(); onMoveTask(task.id, task.status === 'todo' ? 'in-progress' : 'done') }}>{task.status === 'todo' ? uiText('Start') : t('tasks.markComplete')}</Button>}
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); onEditTask?.(task) }} title={t('edit')} aria-label={`${t('edit')}: ${task.title}`}><Edit3 className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDeleteTask(task.id) }} title={t('delete')} aria-label={`${t('delete')}: ${task.title}`}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  </div>
+                </div>}
+              </div>
             </div>
-            {task.recurrence && task.recurrence !== 'none' && (
-              <Badge variant="secondary" className="text-[10px] shrink-0 gap-1 px-1.5">
-                <RefreshCw className="h-3 w-3" />
-                {task.recurrence}
-              </Badge>
-            )}
-            {task.dueDate && (
-              <Badge variant="outline" className={cn('text-[10px] shrink-0 border', dueStatus.className)}>
-                {dueStatus.label || task.dueDate}
-              </Badge>
-            )}
-            <Badge className={cn(
-              'text-[10px] shrink-0 rounded-full border-0',
-              task.status === 'done' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
-              task.status === 'in-progress' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'bg-slate-500/10 text-slate-600 dark:text-slate-400'
-            )}>
-              {task.status === 'in-progress' ? t('tasks.inProgress') : task.status === 'todo' ? t('tasks.todo') : t('tasks.done')}
-            </Badge>
-            {!selectionMode && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100"
-                  onClick={(e) => { e.stopPropagation(); onEditTask?.(task) }}
-                  title={t('edit')}
-                >
-                  <Edit3 className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100"
-                  onClick={(e) => { e.stopPropagation(); onDeleteTask(task.id) }}
-                  title={t('delete')}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </>
-            )}
-          </motion.div>
+          </motion.article>
         )
 
         // Always wrap in context menu for consistency
@@ -1521,7 +953,7 @@ function Listview({ tasks, selectedTaskId, celebratingTaskId, onSelectTask, onTo
                 <>
                   <ContextMenuItem onClick={() => onToggleSelect?.(task.id)}>
                     <Check className="h-3.5 w-3.5 mr-2" />
-                    {isSelected ? 'Seçimi kaldır' : 'Seç'}
+                    {isSelected ? t('tasks.selection.deselect') : t('tasks.selection.select')}
                   </ContextMenuItem>
                   <ContextMenuSeparator />
                   <ContextMenuItem 
@@ -1532,7 +964,7 @@ function Listview({ tasks, selectedTaskId, celebratingTaskId, onSelectTask, onTo
                     }}
                   >
                     <Check className="h-3.5 w-3.5 mr-2" />
-                    Seçilileri tamamla
+                    {uiText("Seçilileri tamamla")}
                   </ContextMenuItem>
                   <ContextMenuItem 
                     disabled={selectedIds.size === 0}
@@ -1543,7 +975,7 @@ function Listview({ tasks, selectedTaskId, celebratingTaskId, onSelectTask, onTo
                     className="text-destructive focus:text-destructive"
                   >
                     <Trash2 className="h-3.5 w-3.5 mr-2" />
-                    Seçilileri sil
+                    {uiText("Seçilileri sil")}
                   </ContextMenuItem>
                 </>
               ) : (
@@ -1600,10 +1032,11 @@ function Listview({ tasks, selectedTaskId, celebratingTaskId, onSelectTask, onTo
   )
 }
 
-function Boardview({ todoTasks, inProgressTasks, doneTasks, selectedTaskId, celebratingTaskId, onSelectTask, onMoveTask, onDeleteTask, onEditTask }: {
+function Boardview({ todoTasks, inProgressTasks, doneTasks, projects, selectedTaskId, celebratingTaskId, onSelectTask, onMoveTask, onDeleteTask, onEditTask }: {
   todoTasks: Task[]
   inProgressTasks: Task[]
   doneTasks: Task[]
+  projects: Project[]
   selectedTaskId: string | null
   celebratingTaskId: string | null
   onSelectTask: (id: string) => void
@@ -1611,6 +1044,7 @@ function Boardview({ todoTasks, inProgressTasks, doneTasks, selectedTaskId, cele
   onDeleteTask: (id: string) => void
   onEditTask?: (task: Task) => void
 }) {
+  useInterfaceLanguage()
   const { t } = useTranslation()
   const [activeId, setActiveId] = useState<string | null>(null)
   const [overColumn, setOverColumn] = useState<Task['status'] | null>(null)
@@ -1707,7 +1141,7 @@ function Boardview({ todoTasks, inProgressTasks, doneTasks, selectedTaskId, cele
 
     if (targetStatus && targetStatus !== currentStatus) {
       onMoveTask(taskId, targetStatus)
-      showToast.success('Task moved', `Task moved to ${targetStatus}`)
+      showToast.success(uiText("Task moved"), `Task moved to ${targetStatus}`)
     }
   }, [findColumnForTask, onMoveTask])
 
@@ -1726,7 +1160,7 @@ function Boardview({ todoTasks, inProgressTasks, doneTasks, selectedTaskId, cele
       onDragCancel={handleDragCancel}
     >
       <div className="p-4 h-full">
-        <div className="grid grid-cols-3 gap-4 h-full">
+        <div className="grid h-full grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {columns.map((col) => {
             const isOver = overColumn === col.status && activeId !== null
             const taskIds = col.tasks.map(t => t.id)
@@ -1765,6 +1199,7 @@ function Boardview({ todoTasks, inProgressTasks, doneTasks, selectedTaskId, cele
                         <SortableTaskCard
                           key={task.id}
                           task={task}
+                          projectName={projects.find(project => project.id === task.projectId)?.name}
                           selectedTaskId={selectedTaskId}
                           celebratingTaskId={celebratingTaskId}
                           onSelectTask={onSelectTask}
@@ -1784,7 +1219,7 @@ function Boardview({ todoTasks, inProgressTasks, doneTasks, selectedTaskId, cele
                               animate={{ opacity: 1, scale: 1 }}
                               className="mt-2 p-3 rounded-lg border-2 border-dashed border-primary/40 bg-primary/5 text-primary text-xs font-medium"
                             >
-                              Drop here
+                              {uiText("Drop here")}
                             </motion.div>
                           )}
                         </div>
@@ -1796,7 +1231,7 @@ function Boardview({ todoTasks, inProgressTasks, doneTasks, selectedTaskId, cele
                           animate={{ opacity: 1, height: 'auto' }}
                           className="p-2 rounded-lg border-2 border-dashed border-primary/40 bg-primary/5 text-primary text-xs font-medium text-center"
                         >
-                          Drop here
+                          {uiText("Drop here")}
                         </motion.div>
                       )}
                     </div>

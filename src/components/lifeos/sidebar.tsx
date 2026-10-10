@@ -1,11 +1,14 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
 import { useMemo } from 'react'
 import { useAppStore, type ModuleId } from '@/stores/app-store'
 import { useTranslation } from '@/lib/i18n'
 import {
   LayoutDashboard,
   CheckSquare,
+  FolderKanban,
   StickyNote,
   Repeat,
   BookOpen,
@@ -41,6 +44,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
       title: t('nav.productivity'),
       items: [
         { id: 'tasks' as ModuleId, label: t('nav.tasks'), icon: CheckSquare },
+        { id: 'projects' as ModuleId, label: t('nav.projects'), icon: FolderKanban },
         { id: 'notes' as ModuleId, label: t('nav.notes'), icon: StickyNote },
         { id: 'calendar' as ModuleId, label: t('nav.calendar'), icon: CalendarDays },
         { id: 'time' as ModuleId, label: t('nav.timeTracker'), icon: Timer },
@@ -71,7 +75,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
   const filteredSections = navSections.map(section => ({
     ...section,
     items: section.items.filter(item =>
-      enabledModules.includes(item.id) || item.id === 'dashboard'
+      enabledModules.includes(item.id) || item.id === 'dashboard' || item.id === 'projects'
     )
   })).filter(section => section.items.length > 0)
 
@@ -83,10 +87,10 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
         collapsed && 'justify-center px-2'
       )}>
         {collapsed ? (
-          <img src="/logo.svg" alt="Life OS" className="w-7 h-7 rounded-md" />
+          <img src={`${process.env.NEXT_PUBLIC_LIFEOS_BASE_PATH || ''}/logo.svg`} alt="Life OS" className="w-7 h-7 rounded-md" />
         ) : (
           <div className="flex items-center gap-2">
-            <img src="/logo.svg" alt="" aria-hidden className="w-6 h-6 rounded-md shrink-0" />
+            <img src={`${process.env.NEXT_PUBLIC_LIFEOS_BASE_PATH || ''}/logo.svg`} alt="" aria-hidden className="w-6 h-6 rounded-md shrink-0" />
             <span className="text-sm font-semibold tracking-tight">{t('appName')}</span>
           </div>
         )}
@@ -114,7 +118,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
                         onClick={() => handleNav(mod.id)}
                         className={cn(
                           'w-full flex items-center gap-2.5 rounded-md text-sm transition-colors duration-150',
-                          collapsed ? 'justify-center px-2 py-2' : 'px-2 py-1.5',
+                          collapsed ? 'justify-center px-2 py-2' : 'min-h-11 px-2 py-2',
                           isActive
                             ? 'bg-accent text-foreground font-medium'
                             : 'text-muted-foreground hover:text-foreground hover:bg-accent/60'
@@ -206,15 +210,16 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
 }
 
 export function Sidebar() {
+  useInterfaceLanguage()
   const { sidebarCollapsed, toggleSidebar, mobileSidebarOpen, setMobileSidebarOpen } = useAppStore()
   const isMobile = useIsMobile()
 
   if (isMobile) {
     return (
       <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
-        <SheetContent side="left" className="w-64 p-0 bg-background">
+        <SheetContent side="left" className="lifeos-safe-bottom w-[min(20rem,88vw)] p-0 bg-background pt-[env(safe-area-inset-top)]">
           <SheetHeader className="sr-only">
-            <SheetTitle>Navigation</SheetTitle>
+            <SheetTitle>{uiText("Navigation")}</SheetTitle>
           </SheetHeader>
           <SidebarContent collapsed={false} />
         </SheetContent>
@@ -225,7 +230,7 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'relative h-screen border-r border-border bg-background transition-all duration-200 shrink-0',
+        'relative h-full min-h-0 border-r border-border bg-background transition-all duration-200 shrink-0',
         sidebarCollapsed ? 'w-[52px]' : 'w-56'
       )}
     >

@@ -1,5 +1,9 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
+import { getDisplayLocale } from '@/lib/i18n/format'
+
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import {
   CheckSquare,
@@ -59,8 +63,10 @@ import { QuickCapture } from '@/components/lifeos/dashboard/quick-capture'
 import { DailyPlannerWidget } from '@/components/lifeos/dashboard/daily-planner-widget'
 import { ContinuityPanel } from '@/components/lifeos/dashboard/continuity-panel'
 import { OnboardingTips } from '@/components/lifeos/onboarding-tips'
-import { format, subDays, addDays } from 'date-fns'
+import { subDays, addDays } from 'date-fns'
+import { localizedFormat as format } from '@/lib/i18n/format'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { apiPath } from '@/lib/api/client'
 
 function cn(...inputs: (string | undefined | false)[]) {
   return inputs.filter(Boolean).join(' ')
@@ -145,6 +151,7 @@ function ProgressRing({ value, size = 120, strokeWidth = 8, color = 'var(--accen
 }
 
 export function DashboardPage() {
+  useInterfaceLanguage()
   const { setActiveModule, setCommandPaletteOpen, language, accentColor, dashboardWidgets, setDashboardWidgets } = useAppStore()
 
   const sensors = useSensors(
@@ -192,7 +199,6 @@ export function DashboardPage() {
       )
     }
   }, [quickValue, quickType, quickSubmitting, createTaskMut, createNoteMut, createHabitMut, t])
-
 
   // All available widget IDs in their default order
   const allWidgetIds = [
@@ -337,10 +343,9 @@ export function DashboardPage() {
     }
   }, [widgetOrder, dashboardWidgets, setDashboardWidgets])
 
-
   // Fetch profile for greeting personalization
   useEffect(() => {
-    fetch('/api/profile')
+    fetch(apiPath('/api/profile'))
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.name) setUserName(data.name)
@@ -362,7 +367,7 @@ export function DashboardPage() {
     return options[Math.floor(Math.random() * options.length)]
   }, [tArray])
 
-  const today = useMemo(() => format(new Date(), 'EEEE, MMMM d, yyyy'), [])
+  const today = useMemo(() => format(new Date(), 'EEEE, MMMM d, yyyy'), [language])
 
   // Live clock
   const [liveTime, setLiveTime] = useState(() => new Date())
@@ -542,7 +547,7 @@ export function DashboardPage() {
   })
 
   return (
-    <div className="p-5 md:p-8 max-w-6xl mx-auto space-y-[var(--lifeos-section-gap)]">
+    <div className="lifeos-dashboard p-3 sm:p-5 md:p-8 pb-[calc(1rem+env(safe-area-inset-bottom))] max-w-6xl mx-auto space-y-[var(--lifeos-section-gap)]">
 
       {/* ─── Hero bento card — greeting, KPI rail, focus pill, actions ─── */}
       <div className="relative rounded-2xl border border-border/70 bg-card overflow-hidden">
@@ -558,7 +563,7 @@ export function DashboardPage() {
           style={{ background: `radial-gradient(circle, ${ringColorLight}18, transparent 60%)`, filter: 'blur(40px)' }}
         />
 
-        <div className="relative p-5 md:p-7 flex flex-col lg:flex-row lg:items-center gap-6 lg:gap-8">
+        <div className="relative p-4 sm:p-5 md:p-7 flex flex-col lg:flex-row lg:items-center gap-5 lg:gap-8">
           {/* Greeting */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2.5">
@@ -639,7 +644,7 @@ export function DashboardPage() {
                   onClick={kpi.onClick ?? undefined}
                   disabled={!interactive}
                   className={cn(
-                    'relative rounded-xl border border-border/60 bg-background/60 backdrop-blur px-3 py-3 lg:px-4 lg:py-3.5 text-left transition-all min-w-[96px] lg:min-w-[120px]',
+                    'relative rounded-xl border border-border/60 bg-background/60 backdrop-blur px-2.5 py-3 sm:px-3 lg:px-4 lg:py-3.5 text-left transition-all min-w-0',
                     interactive && 'hover:border-transparent hover:-translate-y-0.5 hover:shadow-md',
                   )}
                   style={interactive ? { boxShadow: `0 0 0 0 ${kpi.color}` } : undefined}
@@ -728,7 +733,7 @@ export function DashboardPage() {
                 <div className="border-t border-border/60" />
 
                 <h4 className="font-medium text-sm">{t('dashboard.dashboardWidgets')}</h4>
-                <p className="text-xs text-muted-foreground">{t('dashboard.toggleSections')} · Sürükle ile sırala</p>
+                <p className="text-xs text-muted-foreground">{t('dashboard.toggleSections')} {uiText("· Sürükle ile sırala")}</p>
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleWidgetDragEnd}>
                   <SortableContext items={widgetOrder} strategy={verticalListSortingStrategy}>
                     <div className="space-y-1">
@@ -864,24 +869,24 @@ export function DashboardPage() {
         {/* Left Column (2/3) */}
         <div className="lg:col-span-2 lifeos-section-gap-y">
           {/* Stats Cards - redesigned with left border accent and hover elevation */}
-          {dashboardWidgets.includes('stats-cards') && <div className="grid grid-cols-2 gap-4">
+          {dashboardWidgets.includes('stats-cards') && <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
             <Card
               className="cursor-pointer rounded-xl shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 border-l-2 border-l-orange-400/50 group animate-fade-in-up"
               style={{ animationDelay: '0ms', animationFillMode: 'both' }}
               onClick={() => setActiveModule('tasks')}
             >
-              <CardContent className="p-5 relative overflow-hidden">
+              <CardContent className="p-3 sm:p-5 relative overflow-hidden">
                 <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent-primary) 6%, transparent), color-mix(in srgb, var(--accent-primary-light) 3%, transparent))' }} />
                 <div className="relative">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-muted-foreground/70 uppercase tracking-wider">{t('dashboard.tasks')}</span>
-                    <span className="text-xs text-muted-foreground/50">{pendingTasks} {t('dashboard.pending')}</span>
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="min-w-0 flex-1 text-[10px] sm:text-xs font-medium text-muted-foreground/70 uppercase tracking-wider truncate">{t('dashboard.tasks')}</span>
+                    <span className="shrink-0 text-[10px] sm:text-xs text-muted-foreground/50">{pendingTasks} {t('dashboard.pending')}</span>
                   </div>
-                  <div className="mt-3">
+                  <div className="mt-2 sm:mt-3">
                     {isLoading ? <Skeleton className="h-8 w-16" /> : (
-                      <div className="flex items-end gap-2">
-                        <p className="text-2xl font-bold tracking-tight">{totalTasks}</p>
-                        <span className="text-xs text-muted-foreground/50 mb-1">{t('dashboard.total')}</span>
+                      <div className="flex items-end gap-1.5">
+                        <p className="text-xl sm:text-2xl font-bold tracking-tight tabular-nums">{totalTasks}</p>
+                        <span className="text-[10px] sm:text-xs text-muted-foreground/50 mb-0.5 truncate">{t('dashboard.total')}</span>
                       </div>
                     )}
                   </div>
@@ -894,17 +899,17 @@ export function DashboardPage() {
               style={{ borderLeftColor: `${ringColor}80`, animationDelay: '60ms', animationFillMode: 'both' }}
               onClick={() => setActiveModule('habits')}
             >
-              <CardContent className="p-5 relative overflow-hidden">
+              <CardContent className="p-3 sm:p-5 relative overflow-hidden">
                 <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent-primary) 6%, transparent), color-mix(in srgb, var(--accent-primary-light) 3%, transparent))' }} />
                 <div className="relative">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-muted-foreground/70 uppercase tracking-wider">{t('dashboard.habits')}</span>
-                    <span className="text-xs" style={{ color: 'var(--accent-primary)' }}>{Math.round(habitCompletion)}%</span>
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="min-w-0 flex-1 text-[10px] sm:text-xs font-medium text-muted-foreground/70 uppercase tracking-wider truncate">{t('dashboard.habits')}</span>
+                    <span className="shrink-0 text-[10px] sm:text-xs" style={{ color: 'var(--accent-primary)' }}>{Math.round(habitCompletion)}%</span>
                   </div>
-                  <div className="mt-3">
+                  <div className="mt-2 sm:mt-3">
                     {isLoading ? <Skeleton className="h-8 w-16" /> : (
-                      <div className="flex items-end gap-2">
-                        <p className="text-2xl font-bold tracking-tight">{completedHabitsToday}<span className="text-muted-foreground/40 font-normal">/{totalHabits}</span></p>
+                      <div className="flex items-end gap-1.5">
+                        <p className="text-xl sm:text-2xl font-bold tracking-tight tabular-nums">{completedHabitsToday}<span className="text-muted-foreground/40 font-normal">/{totalHabits}</span></p>
                       </div>
                     )}
                   </div>
@@ -917,22 +922,21 @@ export function DashboardPage() {
               style={{ borderLeftColor: `${ringColorLight}80`, animationDelay: '120ms', animationFillMode: 'both' }}
               onClick={() => setActiveModule('finance')}
             >
-              <CardContent className="p-5 relative overflow-hidden">
+              <CardContent className="p-3 sm:p-5 relative overflow-hidden">
                 <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent-primary) 6%, transparent), color-mix(in srgb, var(--accent-primary-light) 3%, transparent))' }} />
                 <div className="relative">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-muted-foreground/70 uppercase tracking-wider">{t('dashboard.balance')}</span>
-                    <Wallet className="h-3.5 w-3.5 text-muted-foreground/30" />
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="min-w-0 flex-1 text-[10px] sm:text-xs font-medium text-muted-foreground/70 uppercase tracking-wider truncate">{t('dashboard.balance')}</span>
+                    <Wallet className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground/30 shrink-0" />
                   </div>
-                  <div className="mt-3">
+                  <div className="mt-2 sm:mt-3">
                     {isLoading ? <Skeleton className="h-8 w-24" /> : (
-                      <p className="text-2xl font-bold tracking-tight">${totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                      <p className="text-base sm:text-2xl font-bold tracking-tight tabular-nums break-words">${totalBalance.toLocaleString(getDisplayLocale(), { minimumFractionDigits: 2 })}</p>
                     )}
                   </div>
                 </div>
               </CardContent>
             </Card>
-
 
           </div>}
 
@@ -983,7 +987,7 @@ export function DashboardPage() {
                         (task.priority as string) === 'high' ? 'text-orange-500/70 bg-orange-500/10' :
                         (task.priority as string) === 'medium' ? 'text-amber-500/70 bg-amber-500/10' : 'text-slate-500/70 bg-slate-500/10'
                       )}>
-                        {task.priority as string}
+                        {t(`tasks.${task.priority as string}`)}
                       </Badge>
                     </div>
                   ))

@@ -53,6 +53,7 @@ const tr: TranslationKeys = {
     growth: 'Gelişim',
     dashboard: 'Panel',
     tasks: 'Görevler',
+    projects: 'Projeler',
     notes: 'Notlar',
     calendar: 'Takvim',
     timeTracker: 'Zaman Takip',
@@ -74,6 +75,7 @@ const tr: TranslationKeys = {
 
   // Header
   header: {
+    openNavigation: 'Gezinmeyi aç',
     searchEverything: 'Her şeyi ara...',
     quickCreate: 'Hızlı Oluştur',
     newTask: 'Yeni Görev',
@@ -198,7 +200,41 @@ const tr: TranslationKeys = {
   },
 
   // Tasks
+  projects: {
+    title: 'Projeler',
+    subtitle: 'İlerletmekte olduğun işler için bir alan.',
+    search: 'Projelerde ara',
+    create: 'Yeni proje',
+    createFirst: 'İlk projenizi oluşturun',
+    edit: 'Projeyi düzenle',
+    name: 'Proje adı',
+    description: 'Açıklama',
+    status: 'Durum',
+    startDate: 'Başlangıç tarihi',
+    endDate: 'Bitiş tarihi',
+    color: 'Proje rengi',
+    all: 'Tüm projeler',
+    active: 'Aktif',
+    completed: 'Tamamlandı',
+    archived: 'Arşivlendi',
+    emptyTitle: 'Projeleriniz burada görünecek',
+    emptyDescription: 'İlgili görevleri bir araya getirin ve sıradaki adımı takip edin.',
+    noResults: 'Aramanızla eşleşen proje yok.',
+    taskCount: '{count} görev',
+    noDescription: 'Henüz açıklama yok',
+    deleteTitle: 'Proje silinsin mi?',
+    deleteDescription: '“{name}” kaldırılacak. Görevleri çalışma alanında kalır ancak projeye bağlı olmaz.',
+    deleteConfirm: 'Projeyi sil',
+    loadError: 'Projeler yüklenemedi.',
+    saveError: 'Proje kaydedilemedi.',
+    deleteError: 'Proje silinemedi.',
+    retry: 'Tekrar dene',
+    statuses: { active: 'Aktif', 'on-hold': 'Beklemede', completed: 'Tamamlandı', cancelled: 'İptal edildi' },
+    actions: { edit: '{name} projesini düzenle', archive: '{name} projesini arşivle', unarchive: '{name} projesini geri yükle', delete: '{name} projesini sil' },
+  },
+
   tasks: {
+    selection: { select: 'Seç', deselect: 'Seçimi kaldır', selectAll: 'Tümünü seç', deselectAll: 'Tümünün seçimini kaldır' },
     title: 'Görevler',
     list: 'Liste',
     board: 'Pano',
@@ -419,6 +455,7 @@ const tr: TranslationKeys = {
 
   // Finance
   finance: {
+    monthlyBudget: 'Monthly budget', monthlyBudgetSubtitle: 'Set category budgets and track spending', manageBudgets: 'Manage budgets', budgetSaved: 'Budget saved', userSet: 'Custom budget',
     title: 'Finans',
     accounts: 'Hesaplar',
     transactions: 'İşlemler',
@@ -496,6 +533,7 @@ const tr: TranslationKeys = {
 
   // Goals
   goals: {
+    health: "Sağlık",
     title: 'Hedefler',
     newGoal: 'Yeni Hedef',
     goalTitle: 'Hedef başlığı',
@@ -849,6 +887,7 @@ const tr: TranslationKeys = {
     modules: {
       dashboard: { label: 'Panel', desc: 'Hayatınıza bir bakışta genel bakış' },
       tasks: { label: 'Görevler', desc: 'Görevlerinizi yönetin ve takip edin' },
+      projects: { label: 'Projeler', desc: 'İşleri ve ilgili görevleri düzenleyin' },
       notes: { label: 'Notlar', desc: 'Fikirleri ve düşünceleri yakalayın' },
       calendar: { label: 'Takvim', desc: 'Etkinlikleri planlayın ve düzenleyin' },
       time: { label: 'Zaman Takibi', desc: 'Zaman ve Pomodoro takibi' },
@@ -1004,6 +1043,7 @@ const tr: TranslationKeys = {
 
   // Toast messages
   toast: {
+    error: 'Error',
     saved: 'Kaydedildi',
     saveFailed: 'Kayıt başarısız',
     completed: 'Tamamlandı',

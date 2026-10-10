@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "sonner";
@@ -18,15 +18,22 @@ export const metadata: Metadata = {
   title: "Life OS - Personal Life Operating System",
   description: "Your personal life operating system. Manage tasks, notes, habits, finances, health, goals, and more — all in one place.",
   icons: {
-    icon: [{ url: "/logo.svg", type: "image/svg+xml" }],
-    shortcut: "/logo.svg",
-    apple: "/logo.svg",
+    icon: [{ url: `${process.env.LIFEOS_BASE_PATH || ""}/logo.svg`, type: "image/svg+xml" }],
+    shortcut: `${process.env.LIFEOS_BASE_PATH || ""}/logo.svg`,
+    apple: `${process.env.LIFEOS_BASE_PATH || ""}/logo.svg`,
   },
   openGraph: {
     title: "Life OS",
     description: "Your personal life operating system — calm, private, all in one place.",
-    images: ["/logo.svg"],
   },
+};
+
+// Cover the full screen so safe-area insets (notch / home indicator) are
+// reported and the shell can keep its header and bottom affordances reachable.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

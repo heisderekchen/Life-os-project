@@ -1,5 +1,7 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
 import { useState, useMemo, useCallback } from 'react'
 import {
   ChevronLeft, ChevronRight, Plus, CalendarDays, Clock, MapPin, Trash2, CalendarCheck, Timer, ArrowRight, RefreshCw,
@@ -20,7 +22,8 @@ import { useEvents, useCreateEvent, useUpdateEvent, useDeleteEvent } from '@/lib
 import { useAppStore } from '@/stores/app-store'
 import { showToast } from '@/lib/toast'
 import { useTranslation } from '@/lib/i18n'
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, addMonths, subMonths, addWeeks, subWeeks, addDays, subDays, isSameMonth, isSameDay, isToday } from 'date-fns'
+import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, addMonths, subMonths, addWeeks, subWeeks, addDays, subDays, isSameMonth, isSameDay, isToday } from 'date-fns'
+import { localizedFormat as format } from '@/lib/i18n/format'
 
 const eventColors = ['#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316']
 
@@ -89,6 +92,7 @@ function EventPill({ event, compact = false }: { event: CalendarEvent; compact?:
 }
 
 export function CalendarPage() {
+  useInterfaceLanguage()
   const { accentColor } = useAppStore()
   const { t } = useTranslation()
   const accentHexMap: Record<string, string> = {
@@ -396,7 +400,7 @@ export function CalendarPage() {
           {hours.map(hour => (
             <div key={hour} className="contents">
               <div className="p-1 text-[10px] text-muted-foreground text-right border-r border-border/30 pr-2">
-                {hour > 12 ? hour - 12 : hour}{hour >= 12 ? 'PM' : 'AM'}
+                {hour > 12 ? hour - 12 : hour}{hour >= 12 ? uiText('PM') : uiText('AM')}
               </div>
               {days.map(day => {
                 const dayEvents = getEventsForDate(day).filter(e => {
@@ -458,7 +462,7 @@ export function CalendarPage() {
             return (
               <div key={hour} className="flex min-h-[48px] border-b border-border/20">
                 <div className="w-16 shrink-0 py-1 text-right pr-3 text-xs text-muted-foreground border-r border-border/10">
-                  {hour > 12 ? hour - 12 : hour}{hour >= 12 ? 'PM' : 'AM'}
+                  {hour > 12 ? hour - 12 : hour}{hour >= 12 ? uiText('PM') : uiText('AM')}
                 </div>
                 <div className="flex-1 py-0.5 space-y-1">
                   {hourEvents.map(event => (
@@ -506,7 +510,7 @@ export function CalendarPage() {
       {/* Edit Event Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent aria-describedby={undefined}>
-          <DialogHeader><DialogTitle>{t('edit')} {t('calendar.title')}</DialogTitle><DialogDescription className="sr-only">Edit event</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{t('edit')} {t('calendar.title')}</DialogTitle><DialogDescription className="sr-only">{uiText("Edit event")}</DialogDescription></DialogHeader>
           {editEvent && (
             <div className="space-y-4 py-2">
               <div><label className="text-sm font-medium mb-1.5 block">{t('calendar.titleField')}</label><Input value={editEvent.title} onChange={e => setEditEvent(p => p && ({ ...p, title: e.target.value }))} /></div>
@@ -551,7 +555,7 @@ export function CalendarPage() {
               <ChevronRight className="h-4 w-4" />
             </Button>
             <h2 className="text-lg font-semibold min-w-[200px]">{headerLabel}</h2>
-            <span className="text-xs text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">W{format(currentDate, 'w')}</span>
+            <span className="text-xs text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">{uiText("W")}{format(currentDate, 'w')}</span>
             <Button variant="secondary" size="sm" className="h-7 text-xs" onClick={goToToday}>{t('calendar.today')}</Button>
           </div>
           <div className="flex items-center gap-2">
