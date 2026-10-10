@@ -64,22 +64,14 @@ export function AppShell() {
   const isMobile = useIsMobile()
   const { setTheme: setNextTheme } = useTheme()
   const latestRequest = useRef(new LatestRequestGuard())
-  const legacyPreferences = useRef<AppStatePreferences | null>(null)
-  const localSnapshotCaptured = useRef(false)
+  const [legacyPreferences] = useState<AppStatePreferences | null>(() => (
+    typeof window === 'undefined' ? null : readLegacyAppPreferences(window.localStorage.getItem('lifeos-app-store'))
+  ))
   const cloudInitialized = useRef(false)
   const revision = useRef<string | null>(null)
   const lastSyncedPreferences = useRef<AppStatePreferences>({})
   const conflictPreferences = useRef<string[]>([])
   const retrySave = useRef<(() => void) | null>(null)
-
-  // Capture a real pre-sync local setup once, before effects can persist fresh
-  // defaults on a new device. Only setupComplete=true is migration evidence.
-  if (!localSnapshotCaptured.current) {
-    localSnapshotCaptured.current = true
-    if (typeof window !== 'undefined') {
-      legacyPreferences.current = readLegacyAppPreferences(window.localStorage.getItem('lifeos-app-store'))
-    }
-  }
 
   const requestCloudState = async (signal: AbortSignal): Promise<CloudAppState> => {
     const response = await fetch(apiPath('/api/app-state'), { signal, cache: 'no-store' })
@@ -114,7 +106,7 @@ export function AppShell() {
     try {
       let state = await requestCloudState(controller.signal)
       if (!latestRequest.current.isCurrent(generation)) return
-      const legacy = legacyPreferences.current
+      const legacy = legacyPreferences
       if (shouldMigrateLegacyPreferences(state, legacy)) {
         const migration = await fetch(apiPath('/api/app-state'), {
           method: 'PUT',
