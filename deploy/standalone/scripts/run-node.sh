@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 here=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-bundle_root=$(CDPATH= cd -- "$here/../../.." && pwd)
+bundle_root=$(CDPATH= cd -- "$here/../.." && pwd)
 : "${LIFEOS_DATA_DIR:?Set LIFEOS_DATA_DIR to a private persistent directory}"
 : "${LIFEOS_PUBLIC_ORIGIN:?Set LIFEOS_PUBLIC_ORIGIN to the HTTPS origin used by the trusted reverse proxy}"
 : "${TRUSTED_PROXY_IP:?Set TRUSTED_PROXY_IP to the exact private address of the trusted reverse proxy}"
