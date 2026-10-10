@@ -1961,6 +1961,14 @@ const LIFEOS_DATA_TABLES = [
     ['calendarEvents', 'lifeos_calendar_events'], ['timeEntries', 'lifeos_time_entries'],
     ['pomodoroSessions', 'lifeos_pomodoro_sessions']
 ];
+const LIFEOS_AUXILIARY_DATA_TABLES = [
+    ['workbenchProjects', 'personal_workbench_projects'],
+    ['workbenchCheckpoints', 'personal_workbench_checkpoints'],
+    ['workbenchAuditLog', 'personal_workbench_audit_log'],
+    ['lifeosAuditLog', 'personal_workbench_lifeos_audit_log'],
+    ['recurrenceRuns', 'lifeos_task_recurrence_runs']
+];
+const LIFEOS_EXPORT_TABLES = [...LIFEOS_DATA_TABLES, ...LIFEOS_AUXILIARY_DATA_TABLES];
 const toCamel = value => value.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
 const toSnake = value => value.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
 const LIFEOS_EXPORT_FIELD_ALIASES = {
@@ -1972,7 +1980,7 @@ const LIFEOS_EXPORT_FIELD_ALIASES = {
 async function handleLifeOsDataManagement(request, env, url, actor) {
     if (url.pathname === '/api/personal-workbench/lifeos/data/export' && request.method === 'GET') {
         const data = {};
-        for (const [key, table] of LIFEOS_DATA_TABLES) {
+        for (const [key, table] of LIFEOS_EXPORT_TABLES) {
             const rows = await env.DB.prepare(`SELECT * FROM ${table}`).all();
             const aliases = LIFEOS_EXPORT_FIELD_ALIASES[key] || {};
             data[key] = (rows.results || []).map(row => Object.fromEntries(Object.entries(row)
@@ -1985,23 +1993,36 @@ async function handleLifeOsDataManagement(request, env, url, actor) {
         data.goalProjects = data.goalProjects.map(link => ({ ...link, projectId: projectIds.get(String(link.projectId)) || String(link.projectId) }));
         const stats = await handleLifeOsDataStats(request, env, new URL('https://local/api/personal-workbench/lifeos/data/stats'));
         const statsBody = await stats.json();
-        return json({ version: '1.0.0', exportedAt: nowIso(), data, stats: statsBody });
+        return json({ version: '1.1.0', exportedAt: nowIso(), data, stats: statsBody });
     }
     if (url.pathname === '/api/personal-workbench/lifeos/data/import' && request.method === 'POST') {
         const body = await bodyOf(request);
-        if (!body || typeof body.version !== 'string' || !body.data || typeof body.data !== 'object' || Array.isArray(body.data)) {
+        if (!body || body.version !== '1.1.0' || !body.data || typeof body.data !== 'object' || Array.isArray(body.data)) {
             return json({ error: "Invalid import format: expected 'version' and object 'data'" }, 400);
+        }
+        const expectedKeys = new Set(LIFEOS_EXPORT_TABLES.map(([key]) => key));
+        const suppliedKeys = Object.keys(body.data);
+        const missingKeys = [...expectedKeys].filter(key => !Object.hasOwn(body.data, key));
+        const unknownKeys = suppliedKeys.filter(key => !expectedKeys.has(key));
+        if (missingKeys.length || unknownKeys.length || LIFEOS_EXPORT_TABLES.some(([key]) => !Array.isArray(body.data[key]))) {
+            return json({ error: 'Life OS import datasets do not match export version 1.1.0', missing: missingKeys, unknown: unknownKeys }, 400);
         }
         const imported = {};
         let totalImported = 0;
         const projectIdMap = new Map();
         const maxProject = await env.DB.prepare('SELECT COALESCE(MAX(id),0) AS id FROM personal_workbench_lifeos_projects').first();
-        let nextProjectId = Number(maxProject?.id || 0) + 1;
         const currentProjects = await env.DB.prepare('SELECT id,source_id FROM personal_workbench_lifeos_projects').all();
         const existingProjectIds = new Map((currentProjects.results || []).filter(project => project.source_id != null)
             .map(project => [String(project.source_id), Number(project.id)]));
         const occupiedProjectIds = new Map((currentProjects.results || []).map(project => [Number(project.id), project.source_id == null ? null : String(project.source_id)]));
-        for (const [key, table] of LIFEOS_DATA_TABLES) {
+        const reservedNumericIds = new Set((body.data.projects || []).map(project => String(project.id ?? ''))
+            .filter(value => /^\d+$/.test(value)).map(Number).filter(value => Number.isSafeInteger(value) && value > 0));
+        let nextProjectId = Math.max(Number(maxProject?.id || 0), ...reservedNumericIds, 0) + 1;
+        const allocateProjectId = () => {
+            while (occupiedProjectIds.has(nextProjectId) || reservedNumericIds.has(nextProjectId)) nextProjectId++;
+            return nextProjectId++;
+        };
+        for (const [key, table] of LIFEOS_EXPORT_TABLES) {
             let rows = body.data[key];
             if (key === 'projects' && Array.isArray(rows)) rows = rows.map(({ name, ...row }) => {
                 const sourceId = row.id == null ? null : String(row.id);
@@ -2009,13 +2030,11 @@ async function handleLifeOsDataManagement(request, env, url, actor) {
                 const numericSourceId = sourceId && /^\d+$/.test(sourceId) ? Number(sourceId) : null;
                 const sourceIdCanUseNumericKey = numericSourceId !== null
                     && (!occupiedProjectIds.has(numericSourceId) || occupiedProjectIds.get(numericSourceId) === sourceId);
-                const numericId = existingId ?? (sourceIdCanUseNumericKey ? numericSourceId : nextProjectId++);
+                const numericId = existingId ?? (sourceIdCanUseNumericKey ? numericSourceId : allocateProjectId());
                 occupiedProjectIds.set(numericId, sourceId);
-                if (numericId >= nextProjectId) nextProjectId = numericId + 1;
                 if (sourceId) projectIdMap.set(sourceId, String(numericId));
                 return { ...row, id: numericId, sourceId, title: row.title ?? name };
             });
-            if (!Array.isArray(rows)) continue;
             const schema = await env.DB.prepare(`PRAGMA table_info(${table})`).all();
             const allowed = new Set((schema.results || []).map(column => column.name));
             const statements = [];

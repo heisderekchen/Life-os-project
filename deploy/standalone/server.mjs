@@ -20,6 +20,19 @@ const AUTH_SECRET = process.env.AUTH_SECRET || ''
 const ENTRY_KEY = process.env.PERSONAL_WORKBENCH_ENTRY_KEY || ''
 const COOKIE = 'happyspa_personal_workbench'
 const MAX_BODY = 1024 * 1024
+const PUBLIC_ORIGIN_INPUT = process.env.LIFEOS_PUBLIC_ORIGIN || ''
+let PUBLIC_ORIGIN
+try {
+  const parsedOrigin = new URL(PUBLIC_ORIGIN_INPUT)
+  if (parsedOrigin.protocol !== 'https:' || parsedOrigin.origin !== PUBLIC_ORIGIN_INPUT || parsedOrigin.pathname !== '/') throw new Error('invalid origin')
+  PUBLIC_ORIGIN = parsedOrigin.origin
+} catch {
+  throw new Error('LIFEOS_PUBLIC_ORIGIN must be the configured HTTPS origin.')
+}
+const TRUSTED_PROXY_IP = process.env.TRUSTED_PROXY_IP || ''
+if (!TRUSTED_PROXY_IP) throw new Error('TRUSTED_PROXY_IP must identify the private Caddy container address.')
+const ENVIRONMENT = process.env.ENVIRONMENT || 'development'
+const RECURRENCE_ENABLED = process.env.LIFEOS_RECURRENCE_ENABLED === 'true'
 
 if (!AUTH_SECRET || !ENTRY_KEY) throw new Error('AUTH_SECRET and PERSONAL_WORKBENCH_ENTRY_KEY are required. Set them from the approved private-workbench secret source; no private endpoint starts without authentication.')
 
@@ -46,6 +59,7 @@ const env = {
   PERSONAL_WORKBENCH_OWNER: process.env.PERSONAL_WORKBENCH_OWNER || 'lifeos-owner',
   PERSONAL_WORKBENCH_OWNER_SETUP_ENABLED: process.env.PERSONAL_WORKBENCH_OWNER_SETUP_ENABLED || 'false',
   PERSONAL_WORKBENCH_OWNER_SETUP_GRANT: process.env.PERSONAL_WORKBENCH_OWNER_SETUP_GRANT || '',
+  ENVIRONMENT,
 }
 
 function cookie(req) {
@@ -53,25 +67,35 @@ function cookie(req) {
   return match?.[1] || ''
 }
 function forwardedSecure(req) {
-  const host = String(req.headers.host || '').split(':')[0]
-  return req.headers['x-forwarded-proto'] === 'https' || host === 'localhost' || host === '127.0.0.1'
+  const remoteAddress = String(req.socket.remoteAddress || '').replace(/^::ffff:/, '')
+  return remoteAddress === TRUSTED_PROXY_IP
+    && req.headers['x-forwarded-proto'] === 'https'
+    && String(req.headers.host || '').toLowerCase() === new URL(PUBLIC_ORIGIN).host.toLowerCase()
 }
 function sameOrigin(req) {
-  const origin = req.headers.origin
-  return origin && origin === `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}`
+  return forwardedSecure(req) && req.headers.origin === PUBLIC_ORIGIN
 }
 
 function readRequest(req) {
   return new Promise((resolve, reject) => {
     const chunks = []
     let size = 0
+    let settled = false
     req.on('data', chunk => {
+      if (settled) return
       size += chunk.length
-      if (size > MAX_BODY) { reject(new Error('Request body too large')); req.destroy(); return }
+      if (size > MAX_BODY) {
+        settled = true
+        const error = new Error('BODY_TOO_LARGE')
+        error.code = 'BODY_TOO_LARGE'
+        reject(error)
+        req.resume()
+        return
+      }
       chunks.push(chunk)
     })
-    req.on('end', () => resolve(Buffer.concat(chunks)))
-    req.on('error', reject)
+    req.on('end', () => { if (!settled) { settled = true; resolve(Buffer.concat(chunks)) } })
+    req.on('error', error => { if (!settled) { settled = true; reject(error) } })
   })
 }
 async function toWebRequest(req, url) {
@@ -115,7 +139,8 @@ async function handlePublicAuth(req, res, pathname, requestUrl) {
     json(res, 404, { error: 'Private workbench entry is unavailable.' })
     return true
   }
-  const request = await toWebRequest(req, requestUrl)
+  const publicRequestUrl = new URL(`${requestUrl.pathname}${requestUrl.search}`, PUBLIC_ORIGIN)
+  const request = await toWebRequest(req, publicRequestUrl)
   if (pathname.endsWith('/entry')) {
     let body
     try { body = await request.clone().json() } catch { body = null }
@@ -210,7 +235,8 @@ async function handleAgentApi(req, res, requestUrl, auth) {
       'cache-control': 'no-store',
     })
     res.end(payload)
-  } catch {
+  } catch (error) {
+    if (error?.code === 'BODY_TOO_LARGE') { json(res, 413, { error: 'Request body too large' }); return }
     json(res, 502, { error: 'AI_SERVICE_UNAVAILABLE' })
   }
 }
@@ -232,13 +258,33 @@ function proxyToNext(req, res) {
   req.pipe(upstream)
 }
 
-const server = createServer(async (req, res) => {
+function sendLoginPage(res) {
+  res.writeHead(200, {
+    'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store',
+    'x-robots-tag': 'noindex, nofollow',
+    'content-security-policy': "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+  })
+  res.end(LOGIN_HTML)
+}
+
+const server = createServer((req, res) => {
+  void handleHttpRequest(req, res).catch(error => {
+    if (res.destroyed) return
+    if (res.headersSent) { res.destroy(); return }
+    const code = error?.code === 'BODY_TOO_LARGE' ? 'BODY_TOO_LARGE' : 'REQUEST_FAILED'
+    const status = error?.code === 'BODY_TOO_LARGE' ? 413 : 500
+    console.error('Life OS request failed', req.method || 'UNKNOWN', code)
+    json(res, status, { error: code === 'BODY_TOO_LARGE' ? 'Request body too large' : 'Internal server error' })
+  })
+})
+
+async function handleHttpRequest(req, res) {
   res.setHeader('x-content-type-options', 'nosniff')
   res.setHeader('x-frame-options', 'DENY')
   res.setHeader('referrer-policy', 'strict-origin-when-cross-origin')
   res.setHeader('permissions-policy', 'camera=(), microphone=(), geolocation=()')
   const requestUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`)
-  if (requestUrl.pathname === '/internal/health') return json(res, 200, { ok: true })
+  if (requestUrl.pathname === '/internal/health') return json(res, 200, { ok: true, recurrenceEnabled: RECURRENCE_ENABLED })
   if (requestUrl.pathname === '/' && verifySessionToken(cookie(req), AUTH_SECRET, ENTRY_KEY)) {
     res.writeHead(308, { location: `${BASE_PATH}/` }); res.end(); return
   }
@@ -259,22 +305,24 @@ const server = createServer(async (req, res) => {
       res.writeHead(204, { 'set-cookie': clearCookie(), 'cache-control': 'no-store' }); res.end(); return
     }
     try { return await handlePrivateApi(req, res, apiTarget, requestUrl, auth) }
-    catch (error) { console.error('Life OS API request failed', req.method, requestUrl.pathname, error?.message || 'unknown'); return json(res, 500, { error: 'Internal server error' }) }
+    catch (error) {
+      if (error?.code === 'BODY_TOO_LARGE') return json(res, 413, { error: 'Request body too large' })
+      console.error('Life OS API request failed', req.method, requestUrl.pathname, error?.message || 'unknown')
+      return json(res, 500, { error: 'Internal server error' })
+    }
   }
   if (requestUrl.pathname === BASE_PATH) {
     res.writeHead(308, { location: `${BASE_PATH}/` }); res.end(); return
   }
-  if (requestUrl.pathname === '/' || requestUrl.pathname === `${BASE_PATH}`) {
-    if (!verifySessionToken(cookie(req), AUTH_SECRET, ENTRY_KEY)) {
-      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex, nofollow', 'content-security-policy': "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'" })
-      return res.end(LOGIN_HTML)
-    }
-    res.writeHead(308, { location: `${BASE_PATH}/` }); res.end(); return
+  if (requestUrl.pathname === '/' || requestUrl.pathname === `${BASE_PATH}/`) {
+    if (!auth) return sendLoginPage(res)
+    if (requestUrl.pathname === '/') { res.writeHead(308, { location: `${BASE_PATH}/` }); res.end(); return }
+    return proxyToNext(req, res)
   }
   if (!auth) return json(res, 404, { error: 'Not found' })
   if (requestUrl.pathname === `${BASE_PATH}/` || requestUrl.pathname.startsWith(`${BASE_PATH}/`)) return proxyToNext(req, res)
   return json(res, 404, { error: 'Not found' })
-})
+}
 
 const next = spawn(process.execPath, ['server.js'], {
   cwd: NEXT_ROOT,
@@ -283,6 +331,8 @@ const next = spawn(process.execPath, ['server.js'], {
 })
 next.on('exit', code => process.exit(code ?? 1))
 server.listen(PORT, '0.0.0.0')
-setInterval(() => { processLifeOsRecurringTasks(env).catch(error => console.error('Life OS recurrence runner failed', error?.message || 'unknown')) }, 60_000).unref()
+if (RECURRENCE_ENABLED) {
+  setInterval(() => { processLifeOsRecurringTasks(env).catch(error => console.error('Life OS recurrence runner failed', error?.message || 'unknown')) }, 60_000).unref()
+}
 process.on('SIGTERM', () => { server.close(); next.kill('SIGTERM'); sqlite.close() })
 process.on('SIGINT', () => { server.close(); next.kill('SIGINT'); sqlite.close() })

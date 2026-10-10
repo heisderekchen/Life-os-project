@@ -15,6 +15,10 @@ services:
       BACKEND_URL: http://127.0.0.1:8081
       LIFEOS_BASE_PATH: /workbench
       NEXT_PUBLIC_LIFEOS_BASE_PATH: /workbench
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      LIFEOS_PUBLIC_ORIGIN: https://${LIFEOS_DOMAIN:?Set LIFEOS_DOMAIN to the dedicated Life OS hostname}
+      TRUSTED_PROXY_IP: 172.31.88.2
+      LIFEOS_RECURRENCE_ENABLED: ${LIFEOS_RECURRENCE_ENABLED:-false}
       HOSTNAME: 0.0.0.0
       PORT: "3000"
       AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET from the approved private-workbench secret source}
@@ -35,6 +39,7 @@ services:
       timeout: 10s
       start_period: 30s
       retries: 3
+    networks: [lifeos-proxy, lifeos-agent]
 
   gateway:
     image: caddy:2-alpine
@@ -51,6 +56,9 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
+    networks:
+      lifeos-proxy:
+        ipv4_address: 172.31.88.2
 
   db-tools:
     image: python:3.13-alpine
@@ -75,6 +83,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    networks: [lifeos-agent]
 
   agent-service:
     image: lifeos-agent:local
@@ -90,7 +99,7 @@ services:
       AGENT_SERVICE_TOKEN: ${AGENT_SERVICE_TOKEN:-}
       WORKSPACE_SUBJECT_SIGNING_SECRET: ${WORKSPACE_SUBJECT_SIGNING_SECRET:-}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-flash}
       DEEPSEEK_INPUT_USD_PER_MILLION: ${DEEPSEEK_INPUT_USD_PER_MILLION:-}
       DEEPSEEK_OUTPUT_USD_PER_MILLION: ${DEEPSEEK_OUTPUT_USD_PER_MILLION:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -103,6 +112,7 @@ services:
       agent-db:
         condition: service_healthy
     expose: ["8080"]
+    networks: [lifeos-agent]
 
   agent-worker:
     image: lifeos-agent:local
@@ -113,9 +123,17 @@ services:
     depends_on:
       agent-db:
         condition: service_healthy
+    networks: [lifeos-agent]
 
 volumes:
   lifeos-data:
   caddy-data:
   caddy-config:
   agent-data:
+
+networks:
+  lifeos-proxy:
+    ipam:
+      config:
+        - subnet: 172.31.88.0/24
+  lifeos-agent:

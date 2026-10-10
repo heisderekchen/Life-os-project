@@ -3,7 +3,7 @@
 This deployment packages the current HappySpa Life OS frontend and the
 personal-workbench API module in this folder. It does not proxy page/API traffic
 through the HappySpa Worker and does not connect to D1. Only the authenticated
-35-collection Life OS export can be imported.
+40-collection private Life OS export can be imported.
 
 ## Runtime and boundaries
 
@@ -23,6 +23,13 @@ through the HappySpa Worker and does not connect to D1. Only the authenticated
 - The app container publishes no host port. Caddy is the only public container.
   The application refuses to start without `AUTH_SECRET` and
   `PERSONAL_WORKBENCH_ENTRY_KEY`.
+- The app trusts forwarded HTTPS headers only from Caddy's fixed private
+  `172.31.88.2` address and requires the configured `LIFEOS_PUBLIC_ORIGIN`.
+  The proxy network is isolated from the optional AI service network.
+- The recurrence runner is off by default. Leave
+  `LIFEOS_RECURRENCE_ENABLED=false` through import and first acceptance so
+  preserved completion history cannot trigger duplicate scheduled tasks. Enable
+  it explicitly only after comparing the imported recurrence ledger.
 
 ## Build
 
@@ -55,12 +62,13 @@ Export from the authenticated current endpoint
 After first startup applies the isolated schema, run
 `./scripts/import-happyspa-export.sh /absolute/path/export.json`.
 
-The importer requires all 35 export arrays and no unknown fields, preserves
+The importer requires all 40 export arrays and no unknown fields, preserves
 ISO date strings and source project IDs, remaps task/project references,
 checks per-table counts and foreign keys, and commits atomically. It excludes
-owner credentials, sessions, audit logs, recurrence execution history, and
-generic checkpoint data; these are intentionally outside the current export
-contract. It also excludes all HappySpa store data. A non-empty target is
+owner credentials and session state, which must be configured separately.
+Audit logs, generic workbench project/checkpoint data, and recurrence execution
+history are included. The export scope contains only private-workbench and
+Life OS tables; it excludes all HappySpa store data. A non-empty target is
 refused. The importer prints per-collection counts for comparison with the
 source export.
 
@@ -74,14 +82,15 @@ stopped.
 
 ```sh
 node scripts/test-runtime.mjs
+node scripts/test-http.mjs
 python3 scripts/test-sqlite-tools.py
 ```
 
 These verify schema migration, session signature/expiry/key-version checks,
 app-state optimistic concurrency, project/task persistence, current export
-import/count/FK checks, and backup/restore behavior. A container build, real
-HTTPS browser run, real export comparison, and ECS memory measurement remain
-deployment acceptance gates.
+import/count/FK checks, HTTP login/auth/error behavior, and backup/restore
+behavior. A container build, real HTTPS browser run, real export comparison,
+and ECS memory measurement remain deployment acceptance gates.
 
 ## Optional AI planning service
 

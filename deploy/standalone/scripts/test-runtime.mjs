@@ -70,6 +70,31 @@ assert.equal(tasks.length, 1)
 assert.equal(tasks[0].title, 'Persist across refresh')
 assert.equal(db.prepare('PRAGMA foreign_key_check').all().length, 0)
 
+const uuidProjectIds = ['project-source-uuid-a', 'project-source-uuid-b']
+for (const [index, sourceId] of uuidProjectIds.entries()) {
+  db.prepare(`INSERT INTO personal_workbench_lifeos_projects (title,source_id,created_at,updated_at)
+    VALUES (?,?,?,?)`).run(`UUID project ${index}`, sourceId, '2026-10-10T00:00:00.000Z', '2026-10-10T00:00:00.000Z')
+}
+const sourceProjectRows = db.prepare('SELECT id FROM personal_workbench_lifeos_projects ORDER BY id').all()
+for (const [index, row] of sourceProjectRows.slice(1).entries()) {
+  db.prepare(`INSERT INTO personal_workbench_lifeos_tasks
+    (id,title,status,priority,archived,project_id,created_at,updated_at)
+    VALUES (?,?, 'todo','medium',0,?,?,?)`).run(`uuid-project-task-${index}`, `UUID linked task ${index}`, row.id,
+      '2026-10-10T00:00:00.000Z', '2026-10-10T00:00:00.000Z')
+}
+const workbenchProjectId = Number(db.prepare(`INSERT INTO personal_workbench_projects
+  (title,status,priority,next_action,resume_context,blocker,created_at,updated_at)
+  VALUES ('Private workbench project','active',1,'next','context','',?,?)`).run(
+    '2026-10-10T00:00:00.000Z', '2026-10-10T00:00:00.000Z').lastInsertRowid)
+db.prepare(`INSERT INTO personal_workbench_checkpoints(project_id,kind,content,next_action,created_at)
+  VALUES (?,'progress','private checkpoint','next checkpoint','2026-10-10T00:00:00.000Z')`).run(workbenchProjectId)
+db.prepare(`INSERT INTO personal_workbench_audit_log(action,project_id,detail_json,actor,created_at)
+  VALUES ('project.updated',?,'{"source":"fixture"}','lifeos-owner','2026-10-10T00:00:00.000Z')`).run(workbenchProjectId)
+db.prepare(`INSERT INTO personal_workbench_lifeos_audit_log(action,entity_id,detail_json,actor,created_at)
+  VALUES ('task.updated',?,'{"source":"fixture"}','lifeos-owner','2026-10-10T00:00:00.000Z')`).run(task.id)
+db.prepare(`INSERT INTO lifeos_task_recurrence_runs(id,source_task_id,completion_key,generated_task_id,created_at)
+  VALUES ('ledger-fixture',?,'2026-10-01T00:00:00.000Z','generated-history-fixture','2026-10-02T00:00:00.000Z')`).run(task.id)
+
 const exportResponse = await call('/api/personal-workbench/lifeos/data/export')
 assert.equal(exportResponse.status, 200)
 const tempDir = mkdtempSync(join(tmpdir(), 'lifeos-runtime-test-'))
@@ -77,6 +102,19 @@ try {
   const exportPath = join(tempDir, 'fixture.json')
   const targetPath = join(tempDir, 'target.db')
   writeFileSync(exportPath, JSON.stringify(await exportResponse.json()))
+  const exportData = JSON.parse(readFileSync(exportPath, 'utf8'))
+  assert.equal(exportData.version, '1.1.0')
+  assert.equal(Object.keys(exportData.data).length, 40)
+  assert.equal(exportData.data.workbenchProjects.length, 1)
+  assert.equal(exportData.data.workbenchCheckpoints.length, 1)
+  assert.equal(exportData.data.workbenchAuditLog.length, 1)
+  assert.equal(exportData.data.lifeosAuditLog.length, 4)
+  assert.equal(exportData.data.recurrenceRuns.length, 1)
+  assert.equal(Object.hasOwn(exportData.data, 'ownerCredentials'), false)
+  // Exercise UUID rows before numeric IDs; this order previously allocated a
+  // UUID into the numeric project's slot and made the import fail or collide.
+  exportData.data.projects = [exportData.data.projects[1], exportData.data.projects[0], exportData.data.projects[2]]
+  writeFileSync(exportPath, JSON.stringify(exportData))
   const target = new DatabaseSync(targetPath)
   target.exec('PRAGMA foreign_keys=ON; CREATE TABLE lifeos_schema_migrations(name TEXT PRIMARY KEY)')
   const targetMark = target.prepare('INSERT INTO lifeos_schema_migrations(name) VALUES (?)')
@@ -86,11 +124,22 @@ try {
     catch (error) { target.exec('ROLLBACK'); throw error }
   }
   target.close()
-  execFileSync('python3', [join(root, 'scripts/import-current-export.py'), targetPath, exportPath], { stdio: 'pipe' })
+  const importOutput = execFileSync('python3', [join(root, 'scripts/import-current-export.py'), targetPath, exportPath], { encoding: 'utf8' })
+  const importSummary = JSON.parse(importOutput)
+  assert.equal(importSummary.exportVersion, '1.1.0')
+  assert.equal(Object.keys(importSummary.importedRows).length, 40)
   const imported = new DatabaseSync(targetPath)
-  assert.equal(imported.prepare('SELECT COUNT(*) AS n FROM personal_workbench_lifeos_projects').get().n, 1)
-  assert.equal(imported.prepare('SELECT COUNT(*) AS n FROM personal_workbench_lifeos_tasks').get().n, 1)
-  assert.equal(imported.prepare('SELECT COUNT(*) AS n FROM lifeos_task_recurrence_runs').get().n, 0)
+  assert.equal(imported.prepare('SELECT COUNT(*) AS n FROM personal_workbench_lifeos_projects').get().n, 3)
+  assert.equal(imported.prepare('SELECT COUNT(*) AS n FROM personal_workbench_lifeos_tasks').get().n, 3)
+  assert.equal(imported.prepare('SELECT COUNT(*) AS n FROM lifeos_task_recurrence_runs').get().n, 1)
+  assert.equal(imported.prepare('SELECT completion_key FROM lifeos_task_recurrence_runs WHERE id=?').get('ledger-fixture').completion_key, '2026-10-01T00:00:00.000Z')
+  assert.equal(imported.prepare('SELECT COUNT(*) AS n FROM personal_workbench_projects').get().n, 1)
+  assert.equal(imported.prepare('SELECT COUNT(*) AS n FROM personal_workbench_checkpoints').get().n, 1)
+  assert.equal(imported.prepare('SELECT COUNT(*) AS n FROM personal_workbench_audit_log').get().n, 1)
+  assert.equal(imported.prepare('SELECT COUNT(*) AS n FROM personal_workbench_lifeos_audit_log').get().n, 4)
+  assert.equal(imported.prepare('SELECT COUNT(DISTINCT id) AS n FROM personal_workbench_lifeos_projects').get().n, 3)
+  assert.equal(imported.prepare(`SELECT COUNT(*) AS n FROM personal_workbench_lifeos_tasks t
+    JOIN personal_workbench_lifeos_projects p ON p.id=t.project_id WHERE t.title LIKE 'UUID linked task %'`).get().n, 2)
   assert.equal(imported.prepare('PRAGMA foreign_key_check').all().length, 0)
   imported.close()
 
@@ -100,7 +149,7 @@ try {
   const failed = spawnSync('python3', [join(root, 'scripts/import-current-export.py'), targetPath, exportPath], { encoding: 'utf8' })
   assert.notEqual(failed.status, 0)
   const afterFailure = new DatabaseSync(targetPath)
-  assert.equal(afterFailure.prepare('SELECT COUNT(*) AS n FROM personal_workbench_lifeos_projects').get().n, 1)
+  assert.equal(afterFailure.prepare('SELECT COUNT(*) AS n FROM personal_workbench_lifeos_projects').get().n, 3)
   afterFailure.close()
 } finally { rmSync(tempDir, { recursive: true, force: true }) }
 console.log('Migrations, private API persistence, export/import, counts, foreign keys, and refusal checks passed.')

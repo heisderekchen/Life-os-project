@@ -20,6 +20,11 @@ TABLES = {
     "budgets":"lifeos_budgets", "budgetItems":"lifeos_budget_items", "courses":"lifeos_courses",
     "courseResources":"lifeos_course_resources", "calendarEvents":"lifeos_calendar_events",
     "timeEntries":"lifeos_time_entries", "pomodoroSessions":"lifeos_pomodoro_sessions",
+    "workbenchProjects":"personal_workbench_projects",
+    "workbenchCheckpoints":"personal_workbench_checkpoints",
+    "workbenchAuditLog":"personal_workbench_audit_log",
+    "lifeosAuditLog":"personal_workbench_lifeos_audit_log",
+    "recurrenceRuns":"lifeos_task_recurrence_runs",
 }
 
 def snake(value):
@@ -30,8 +35,8 @@ def main():
         raise ValueError("Usage: import-current-export.py /data/lifeos.db /migration/export.json")
     db_path, export_path = map(Path, sys.argv[1:])
     payload = json.loads(export_path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict) or payload.get("version") != "1.0.0" or not isinstance(payload.get("data"), dict):
-        raise ValueError("Expected authenticated current Life OS export version 1.0.0")
+    if not isinstance(payload, dict) or payload.get("version") != "1.1.0" or not isinstance(payload.get("data"), dict):
+        raise ValueError("Expected authenticated current Life OS export version 1.1.0")
     data = payload["data"]
     if set(data) != set(TABLES):
         raise ValueError(f"Export contract mismatch; missing={sorted(set(TABLES)-set(data))}, extra={sorted(set(data)-set(TABLES))}")
@@ -49,17 +54,33 @@ def main():
                 raise ValueError(f"Target table {table} is not empty")
         db.execute("PRAGMA defer_foreign_keys=ON")
         existing = {int(row[0]) for row in db.execute("SELECT id FROM personal_workbench_lifeos_projects")}
-        next_id = max(existing, default=0) + 1
+        numeric_ids = []
+        for project in data["projects"]:
+            source_id = str(project.get("id", ""))
+            if source_id.isascii() and source_id.isdecimal():
+                numeric_id = int(source_id)
+                if numeric_id <= 0 or numeric_id > 9_223_372_036_854_775_807:
+                    raise ValueError(f"Numeric project id out of SQLite range: {source_id}")
+                numeric_ids.append((source_id, numeric_id))
+        reserved_numeric_ids = {numeric_id for _, numeric_id in numeric_ids}
+        if len(reserved_numeric_ids) != len(numeric_ids):
+            raise ValueError("Numeric and zero-padded project IDs collide after integer conversion")
+        next_id = max(existing | reserved_numeric_ids, default=0) + 1
+        used_ids = set(existing)
         project_map = {}
         for row in data["projects"]:
             source_id = str(row.get("id", ""))
             if not source_id or source_id in project_map:
                 raise ValueError("Project export has a missing or duplicate source id")
-            candidate = int(source_id) if source_id.isdigit() else None
-            if candidate is None or candidate in existing:
+            candidate = int(source_id) if source_id.isascii() and source_id.isdecimal() else None
+            if candidate is None:
+                while next_id in used_ids or next_id in reserved_numeric_ids:
+                    next_id += 1
                 candidate = next_id
                 next_id += 1
-            existing.add(candidate)
+            if candidate in used_ids:
+                raise ValueError(f"Project id allocation collision for source id {source_id}")
+            used_ids.add(candidate)
             project_map[source_id] = candidate
 
         schema = {table: {column[1] for column in db.execute(f'PRAGMA table_info("{table}")')} for table in TABLES.values()}
@@ -132,7 +153,8 @@ def main():
         raise
     finally:
         db.close()
-    print(json.dumps({"importedRows": counts, "excluded": ["personal_workbench_owner_credentials", "personal_workbench_audit_log", "personal_workbench_lifeos_audit_log", "lifeos_task_recurrence_runs"]}, sort_keys=True))
+    print(json.dumps({"exportVersion": "1.1.0", "importedRows": counts,
+        "excluded": ["personal_workbench_owner_credentials", "lifeos_schema_migrations"]}, sort_keys=True))
 
 if __name__ == "__main__":
     try:

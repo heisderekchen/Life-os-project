@@ -38,10 +38,16 @@ const agent = createHttpServer((req, res) => {
 })
 await new Promise(resolve => agent.listen(0, '127.0.0.1', resolve))
 const agentPort = agent.address().port
+const origin = `https://127.0.0.1:${port}`
+const setupKey = Buffer.alloc(32, 7).toString('base64url')
+const setupGrant = `v2.production.${Math.floor(Date.now() / 1000) + 1200}.${setupKey}`
 const child = spawn(process.execPath, [join(root, 'server.mjs')], {
   cwd: temp,
   env: { ...process.env, DATABASE_URL: `file:${join(temp, 'lifeos.db')}`, AUTH_SECRET: 'test-only-auth-secret',
     PERSONAL_WORKBENCH_ENTRY_KEY: 'test-only-entry-key', GATEWAY_PORT: String(port), NEXT_PORT: String(nextPort), NEXT_ROOT: nextDir,
+    ENVIRONMENT: 'production', LIFEOS_PUBLIC_ORIGIN: origin, TRUSTED_PROXY_IP: '127.0.0.1',
+    PERSONAL_WORKBENCH_OWNER_SETUP_ENABLED: 'true', PERSONAL_WORKBENCH_OWNER_SETUP_GRANT: setupGrant,
+    LIFEOS_RECURRENCE_ENABLED: 'false',
     AGENT_SERVICE_URL: `http://127.0.0.1:${agentPort}`, AGENT_SERVICE_TOKEN: 'test-service-token',
     WORKSPACE_SUBJECT_SIGNING_SECRET: 'test-signing-secret' },
   stdio: 'ignore',
@@ -58,25 +64,57 @@ async function waitReady() {
 }
 try {
   await waitReady()
+  assert.deepEqual(await fetch(`${base}/internal/health`).then(r => r.json()), { ok: true, recurrenceEnabled: false })
   const login = await fetch(`${base}/`)
   assert.equal(login.status, 200)
   assert.match(await login.text(), /私人 Life OS/)
+  const workbenchLogin = await fetch(`${base}/workbench/`)
+  assert.equal(workbenchLogin.status, 200)
+  assert.match(await workbenchLogin.text(), /私人 Life OS/)
+  const workbenchRoot = await fetch(`${base}/workbench`, { redirect: 'manual' })
+  assert.equal(workbenchRoot.status, 308)
+  assert.equal(workbenchRoot.headers.get('location'), '/workbench/')
   assert.equal((await fetch(`${base}/workbench/api/app-state`)).status, 404)
   assert.equal((await fetch(`${base}/workbench/api/agent/health`)).status, 404)
+  const spoofedEntry = await fetch(`${base}/api/personal-workbench/entry`, {
+    method: 'POST', headers: { origin: 'https://attacker.example', 'x-forwarded-proto': 'https', 'content-type': 'application/json' },
+    body: JSON.stringify({ key: 'test-only-entry-key' }),
+  })
+  assert.equal(spoofedEntry.status, 404)
+  const malformedEntry = await fetch(`${base}/api/personal-workbench/entry`, {
+    method: 'POST', headers: { origin, 'x-forwarded-proto': 'https', 'content-type': 'application/json' }, body: '{invalid json',
+  })
+  assert.equal(malformedEntry.status, 401)
+  const oversizedEntry = await fetch(`${base}/api/personal-workbench/entry`, {
+    method: 'POST', headers: { origin, 'x-forwarded-proto': 'https', 'content-type': 'application/json' },
+    body: 'x'.repeat(1024 * 1024 + 128),
+  })
+  assert.equal(oversizedEntry.status, 413)
+  assert.equal((await fetch(`${base}/internal/health`)).status, 200)
+  const setupResponse = await fetch(`${base}/api/personal-workbench/owner-credential`, {
+    method: 'POST', headers: { origin, 'x-forwarded-proto': 'https', 'content-type': 'application/json' },
+    body: JSON.stringify({ setupKey, password: 'fixture-only-strong-password', confirmPassword: 'fixture-only-strong-password' }),
+  })
+  assert.equal(setupResponse.status, 204)
   const entry = await fetch(`${base}/api/personal-workbench/entry`, {
-    method: 'POST', headers: { origin: `https://127.0.0.1:${port}`, 'x-forwarded-proto': 'https',
+    method: 'POST', headers: { origin, 'x-forwarded-proto': 'https',
       'content-type': 'application/json' }, body: JSON.stringify({ key: 'test-only-entry-key' }),
   })
   assert.equal(entry.status, 204)
   const cookie = entry.headers.get('set-cookie')
   assert.match(cookie, /HttpOnly; Secure; SameSite=Strict/)
   const headers = { cookie: cookie.split(';', 1)[0], 'x-forwarded-proto': 'https' }
+  const oversizedPrivateApi = await fetch(`${base}/workbench/api/app-state`, {
+    method: 'PUT', headers: { ...headers, origin, 'content-type': 'application/json' }, body: 'x'.repeat(1024 * 1024 + 128),
+  })
+  assert.equal(oversizedPrivateApi.status, 413)
+  assert.equal((await fetch(`${base}/internal/health`)).status, 200)
   const health = await fetch(`${base}/workbench/api/agent/health`, { headers })
   assert.equal(health.status, 200)
   assert.equal((await health.json()).taskTrigger, 'approved_worker')
   const aiRequestBody = Buffer.from(JSON.stringify({ prompt: 'my task details' }))
   const aiResponse = await fetch(`${base}/workbench/api/agent/runs`, {
-    method: 'POST', headers: { ...headers, origin: `https://127.0.0.1:${port}`, 'content-type': 'application/json', 'idempotency-key': 'test-unique' },
+    method: 'POST', headers: { ...headers, origin, 'content-type': 'application/json', 'idempotency-key': 'test-unique' },
     body: aiRequestBody,
   })
   assert.equal(aiResponse.status, 200)
@@ -102,7 +140,7 @@ try {
   assert.equal(state.setupComplete, true)
   const page = await fetch(`${base}/workbench/`, { headers })
   assert.equal(await page.text(), 'mock next /workbench/')
-  console.log('HTTP private entry, secure cookie, anonymous denial, signed AI bridge, app-state sync, and protected Next asset routing passed.')
+  console.log('HTTP private entry, /workbench login recovery, trusted HTTPS owner setup, malformed/oversize request handling, signed AI bridge, app-state sync, and recurrence-off health check passed.')
 } finally {
   child.kill('SIGTERM')
   await new Promise(resolve => agent.close(resolve))

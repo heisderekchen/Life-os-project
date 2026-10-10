@@ -25,6 +25,8 @@ jobs:
       NEXT_PUBLIC_LIFEOS_BASE_PATH: /workbench
       AUTH_SECRET: ci-only-not-a-deploy-secret
       PERSONAL_WORKBENCH_ENTRY_KEY: ci-only-not-a-deploy-key
+      LIFEOS_DOMAIN: lifeos.example
+      LIFEOS_RECURRENCE_ENABLED: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -46,6 +48,8 @@ jobs:
       - run: node deploy/standalone/scripts/test-http.mjs
       - run: python3 deploy/standalone/scripts/test-sqlite-tools.py
       - run: node deploy/standalone/scripts/test-agent-bridge.mjs
+      - name: Validate deployment Compose configuration
+        run: docker compose -f deploy/standalone/docker-compose.yml config --quiet
       - run: npm ci --prefix agent-service
       - run: npm test --prefix agent-service
       - uses: docker/setup-buildx-action@v3
