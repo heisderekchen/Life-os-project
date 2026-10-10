@@ -1,0 +1,79 @@
+name: Life OS Standalone Verification
+
+on:
+  push:
+    branches: [main, codex/standalone-deployment]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lifeos-standalone-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+      DATABASE_URL: file:./prisma/ci.db
+      LIFEOS_BASE_PATH: /workbench
+      NEXT_PUBLIC_LIFEOS_BASE_PATH: /workbench
+      AUTH_SECRET: ci-only-not-a-deploy-secret
+      PERSONAL_WORKBENCH_ENTRY_KEY: ci-only-not-a-deploy-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.4
+      - run: bun install --frozen-lockfile
+      - run: bun run db:generate
+      - run: bun run typecheck
+      - run: bun run lint
+      - run: bun run test
+      - run: bun run build
+      - run: node --check deploy/standalone/server.mjs
+      - run: node --check deploy/standalone/src/personal-workbench.mjs
+      - run: node --check deploy/standalone/agent-bridge.mjs
+      - run: node deploy/standalone/scripts/test-runtime.mjs
+      - run: node deploy/standalone/scripts/test-http.mjs
+      - run: python3 deploy/standalone/scripts/test-sqlite-tools.py
+      - run: node deploy/standalone/scripts/test-agent-bridge.mjs
+      - run: npm ci --prefix agent-service
+      - run: npm test --prefix agent-service
+      - uses: docker/setup-buildx-action@v3
+      - name: Build deployable image artifact
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: false
+          tags: lifeos-standalone:${{ github.sha }}
+          outputs: type=docker,dest=/tmp/lifeos-standalone.tar
+      - name: Build private AI service image artifact
+        uses: docker/build-push-action@v6
+        with:
+          context: ./agent-service
+          file: ./agent-service/Dockerfile
+          platforms: linux/amd64
+          push: false
+          tags: lifeos-agent:${{ github.sha }}
+          outputs: type=docker,dest=/tmp/lifeos-agent.tar
+      - name: Hash deployable image artifacts
+        run: sha256sum /tmp/lifeos-standalone.tar /tmp/lifeos-agent.tar > /tmp/lifeos-images.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lifeos-standalone-${{ github.sha }}
+          path: |
+            /tmp/lifeos-standalone.tar
+            /tmp/lifeos-agent.tar
+            /tmp/lifeos-images.sha256
+          retention-days: 7

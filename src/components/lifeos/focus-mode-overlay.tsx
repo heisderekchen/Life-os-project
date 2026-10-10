@@ -1,13 +1,16 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
 import { useState, useEffect } from 'react'
 import { useAppStore } from '@/stores/app-store'
 import { Minimize2, Maximize2, Command, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { format } from 'date-fns'
+import { localizedFormat as format } from '@/lib/i18n/format'
 import { motion, AnimatePresence } from 'framer-motion'
 
 export function FocusModeOverlay() {
+  useInterfaceLanguage()
   const { focusMode, toggleFocusMode, activeModule } = useAppStore()
   const [showControls, setShowControls] = useState(true)
   const [liveTime, setLiveTime] = useState(() => new Date())
@@ -63,10 +66,10 @@ export function FocusModeOverlay() {
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse-soft" />
-                <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Focus Mode</span>
+                <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">{uiText("Focus Mode")}</span>
               </div>
               <span className="text-sm text-muted-foreground">
-                {moduleLabels[activeModule] || 'Dashboard'}
+                {uiText(moduleLabels[activeModule] || 'Dashboard')}
               </span>
             </div>
 
@@ -81,7 +84,7 @@ export function FocusModeOverlay() {
             {/* Right: Exit focus mode */}
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground hidden sm:inline">
-                Press <kbd className="px-1.5 py-0.5 rounded bg-muted border border-border text-[10px] font-mono">Esc</kbd> to exit
+                {uiText("Press")} <kbd className="px-1.5 py-0.5 rounded bg-muted border border-border text-[10px] font-mono">Esc</kbd> {uiText("to exit")}
               </span>
               <Button
                 variant="outline"
@@ -90,7 +93,7 @@ export function FocusModeOverlay() {
                 className="h-7 text-xs gap-1.5 border-border/50 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-all duration-200"
               >
                 <Minimize2 className="h-3 w-3" />
-                Exit Focus
+                {uiText("Exit Focus")}
               </Button>
             </div>
           </motion.div>

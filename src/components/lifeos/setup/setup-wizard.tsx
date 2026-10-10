@@ -1,5 +1,7 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
 import { useState, useCallback, useEffect } from 'react'
 import {
   ChevronRight,
@@ -8,6 +10,7 @@ import {
   Database,
   LayoutDashboard,
   CheckSquare,
+  FolderKanban,
   StickyNote,
   Repeat,
   BookOpen,
@@ -48,6 +51,8 @@ import { useAppStore, type ModuleId } from '@/stores/app-store'
 import { useTranslation } from '@/lib/i18n'
 import { useTheme } from 'next-themes'
 import { motion, AnimatePresence } from 'framer-motion'
+import { apiPath } from '@/lib/api/client'
+import { showToast } from '@/lib/toast'
 
 // ─── Data Definitions ────────────────────────────────────────────────
 
@@ -96,6 +101,7 @@ const moduleCategories: { name: string; modules: WizardModule[] }[] = [
     name: 'Productivity',
     modules: [
       { id: 'tasks', icon: CheckSquare, enabled: true },
+      { id: 'projects', icon: FolderKanban, enabled: true, required: true },
       { id: 'notes', icon: StickyNote, enabled: true },
       { id: 'calendar', icon: CalendarDays, enabled: true },
       { id: 'time', icon: Timer, enabled: false },
@@ -121,12 +127,11 @@ const moduleCategories: { name: string; modules: WizardModule[] }[] = [
 const allModules = moduleCategories.flatMap(c => c.modules)
 
 const dashboardWidgetOptions = [
-  { id: 'quick-stats', icon: BarChart3, defaultOn: true },
-  { id: 'quote', icon: Quote, defaultOn: true },
+  { id: 'stats-cards', copyId: 'quick-stats', icon: BarChart3, defaultOn: true },
   { id: 'weekly-activity', icon: Activity, defaultOn: true },
   { id: 'daily-planner', icon: ClipboardList, defaultOn: false },
-  { id: 'mood-tracker', icon: Smile, defaultOn: false },
-  { id: 'activity-feed', icon: Rss, defaultOn: false },
+  { id: 'mood-logger', copyId: 'mood-tracker', icon: Smile, defaultOn: false },
+  { id: 'onboarding-tips', copyId: 'activity-feed', icon: Rss, defaultOn: false },
 ]
 
 const stepIcons = [Sparkles, Globe, Database, Palette, LayoutGrid, LayoutDashboard, PackagePlus, Rocket]
@@ -135,21 +140,26 @@ const TOTAL_STEPS = stepIcons.length
 // ─── Main Wizard Component ───────────────────────────────────────────
 
 export function SetupWizard() {
+  useInterfaceLanguage()
+  const initialStore = useAppStore.getState()
+  const initialAppearance: AppearanceModeId = initialStore.themeVariant === 'black'
+    ? 'black'
+    : initialStore.theme === 'light' ? 'light' : initialStore.theme === 'dark' ? 'dark' : 'system'
   const [step, setStep] = useState(0)
   const [direction, setDirection] = useState(1)
   const [name, setName] = useState('')
   // Default to 'system' so the wizard follows the OS theme until the user picks one
-  const [selectedMode, setSelectedMode] = useState<AppearanceModeId>('system')
-  const [selectedAccent, setSelectedAccent] = useState('emerald')
+  const [selectedMode, setSelectedMode] = useState<AppearanceModeId>(initialAppearance)
+  const [selectedAccent, setSelectedAccent] = useState(initialStore.accentColor)
   const accentHex = accentColors.find(a => a.id === selectedAccent)?.color ?? '#10b981'
-  const [selectedFontSize, setSelectedFontSize] = useState('medium')
+  const [selectedFontSize, setSelectedFontSize] = useState(initialStore.fontSize)
   const [launching, setLaunching] = useState(false)
 
   const [enabledModules, setEnabledModules] = useState<Set<string>>(
-    new Set(allModules.filter(m => m.enabled).map(m => m.id))
+    new Set([...initialStore.enabledModules, 'projects'])
   )
   const [selectedWidgets, setSelectedWidgets] = useState<Set<string>>(
-    new Set(dashboardWidgetOptions.filter(w => w.defaultOn).map(w => w.id))
+    new Set(initialStore.dashboardWidgets.filter(id => dashboardWidgetOptions.some(w => w.id === id)))
   )
   const [setupMode, setSetupMode] = useState<'fresh' | 'import'>('fresh')
 
@@ -218,10 +228,13 @@ export function SetupWizard() {
     ) as Record<string, { label: string; desc: string }>,
     widgetsIntro: t('setup.widgetsIntro'),
     widgets: Object.fromEntries(
-      ['quick-stats', 'quote', 'weekly-activity', 'daily-planner', 'mood-tracker', 'activity-feed'].map(id => [
-        id,
-        { label: t(`setup.widgets.${id}.label`), desc: t(`setup.widgets.${id}.desc`) },
-      ])
+      dashboardWidgetOptions.map(widget => {
+        const copyId = 'copyId' in widget ? widget.copyId : widget.id
+        return [widget.id, {
+          label: t(`setup.widgets.${copyId}.label`),
+          desc: t(`setup.widgets.${copyId}.desc`),
+        }]
+      })
     ) as Record<string, { label: string; desc: string }>,
     quickIntro: t('setup.quickIntro'),
     startFresh: t('setup.startFresh'),
@@ -253,15 +266,9 @@ export function SetupWizard() {
   const selectedTheme = currentMode.theme
   const selectedVariant = currentMode.variant
 
-  // Detect the browser language on first mount and pre-select it so the
-  // wizard renders in the user's language right away.
-  useEffect(() => {
-    const navLang = typeof navigator !== 'undefined' ? navigator.language : 'en'
-    const primary = navLang.split('-')[0].toLowerCase()
-    const matched = languages.find(l => l.code === primary)
-    const code = matched ? matched.code : 'en'
-    setLanguage(code)
-  }, [setLanguage])
+  // LocaleProvider picks the browser language for first-time installs. On
+  // returning devices, AppShell has already hydrated the cloud locale; do not
+  // replace it with this device's browser preference.
 
   // Apply theme + variant live as the user picks a mode, so the wizard
   // itself reflects the selection instead of waiting for launch.
@@ -344,19 +351,31 @@ export function SetupWizard() {
     setStoreEnabledModules([...Array.from(enabledModules), 'settings'] as ModuleId[])
     setNextTheme(selectedTheme)
 
-    if (name.trim()) {
-      fetch('/api/profile', {
+    try {
+      const profileResponse = await fetch(apiPath('/api/profile'), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: name.trim(),
+          name: name.trim() || 'User',
           theme: selectedTheme,
           locale: language,
+          // Completion is written by the post-setup cloud sync only after the
+          // profile and dashboard layout both save successfully.
+          setupComplete: false,
         }),
-      }).catch(() => {})
+      })
+      if (!profileResponse.ok) throw new Error('Could not save your profile')
+      const widgetsResponse = await fetch(apiPath('/api/dashboard/widgets'), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ widgets: Array.from(selectedWidgets) }),
+      })
+      if (!widgetsResponse.ok) throw new Error('Could not save your dashboard layout')
+      setTimeout(() => setSetupComplete(true), 900)
+    } catch {
+      setLaunching(false)
+      showToast.error(uiText("Setup could not be saved"), uiText("Please check your connection and try again."))
     }
-
-    setTimeout(() => setSetupComplete(true), 900)
   }
 
   // Reusable selected-state style for option cards
@@ -773,8 +792,8 @@ export function SetupWizard() {
       {/* ─── Left brand panel (desktop) ─── */}
       <aside className="hidden md:flex flex-col w-[320px] shrink-0 border-r border-border bg-muted/30 p-8">
         <div className="flex items-center gap-2.5">
-          <img src="/logo.svg" alt="" aria-hidden className="w-8 h-8 rounded-lg" />
-          <span className="font-semibold">Life OS</span>
+          <img src={`${process.env.NEXT_PUBLIC_LIFEOS_BASE_PATH || ''}/logo.svg`} alt="" aria-hidden className="w-8 h-8 rounded-lg" />
+          <span className="font-semibold">{uiText("Life OS")}</span>
         </div>
 
         <div className="mt-10">
@@ -831,8 +850,8 @@ export function SetupWizard() {
         {/* Mobile header */}
         <div className="md:hidden flex items-center justify-between px-5 h-14 border-b border-border shrink-0">
           <div className="flex items-center gap-2">
-            <img src="/logo.svg" alt="" aria-hidden className="w-7 h-7 rounded-md" />
-            <span className="font-semibold text-sm">Life OS</span>
+          <img src={`${process.env.NEXT_PUBLIC_LIFEOS_BASE_PATH || ''}/logo.svg`} alt="" aria-hidden className="w-7 h-7 rounded-md" />
+            <span className="font-semibold text-sm">{uiText("Life OS")}</span>
           </div>
           <span className="text-xs text-muted-foreground">{step + 1}/{TOTAL_STEPS}</span>
         </div>

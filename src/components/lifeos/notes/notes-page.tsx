@@ -1,5 +1,9 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
+import { sanitizeRichText, richTextExcerpt } from '@/lib/rich-text-safety'
+
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { RichTextEditor } from '@/components/ui/rich-text-editor'
 import {
@@ -21,6 +25,7 @@ import {
   Folder,
   FolderPlus,
   Link2,
+  ArrowLeft,
   Clock,
   Zap,
 } from 'lucide-react'
@@ -123,16 +128,17 @@ function RelativeTime({ dateStr }: { dateStr: string }) {
   const diffDays = Math.floor(diffHours / 24)
 
   let label = ''
-  if (diffSeconds < 60) label = 'Just now'
-  else if (diffMinutes < 60) label = `${diffMinutes}m ago`
-  else if (diffHours < 24) label = `${diffHours}h ago`
-  else if (diffDays < 7) label = `${diffDays}d ago`
+  if (diffSeconds < 60) label = uiText("Just now")
+  else if (diffMinutes < 60) label = uiText("{count}m ago").replace("{count}", String(diffMinutes))
+  else if (diffHours < 24) label = uiText("{count}h ago").replace("{count}", String(diffHours))
+  else if (diffDays < 7) label = uiText("{count}d ago").replace("{count}", String(diffDays))
   else label = date.toLocaleDateString()
 
   return <span className="text-[10px] text-muted-foreground">{label}</span>
 }
 
 export function NotesPage() {
+  useInterfaceLanguage()
   const { accentColor } = useAppStore()
   const { t } = useTranslation()
   const accentHexMap: Record<string, string> = {
@@ -195,13 +201,14 @@ export function NotesPage() {
       type: newNote.type,
       folderId: newNote.folderId || null,
       content: '',
+      tags: newNote.tags.split(',').map(tag => tag.trim()).filter(Boolean),
     }, {
       onSuccess: (data) => {
         const created = data as Record<string, unknown>
         setSelectedNoteId(created.id as string)
         setNewNote({ title: '', type: 'note', folderId: '', tags: '' })
         setCreateDialogOpen(false)
-        showToast.success('Note created')
+        showToast.success(uiText("Note created"))
       }
     })
   }, [newNote, createNoteMutation])
@@ -216,7 +223,7 @@ export function NotesPage() {
       onSuccess: (data) => {
         const created = data as Record<string, unknown>
         setSelectedNoteId(created.id as string)
-        showToast.success('Quick note created')
+        showToast.success(uiText("Quick note created"))
       }
     })
   }, [createNoteMutation])
@@ -245,7 +252,7 @@ export function NotesPage() {
   const deleteNote = useCallback((id: string) => {
     deleteNoteMutation.mutate(id)
     if (selectedNoteId === id) setSelectedNoteId(null)
-    showToast.info('Note deleted')
+    showToast.info(uiText("Note deleted"))
   }, [deleteNoteMutation, selectedNoteId])
 
   const toggleFolder = (id: string) => {
@@ -297,10 +304,10 @@ export function NotesPage() {
     const now = new Date()
     const diffMs = now.getTime() - date.getTime()
     const diffHours = diffMs / (1000 * 60 * 60)
-    if (diffHours < 1) return 'Just now'
-    if (diffHours < 24) return `${Math.floor(diffHours)}h ago`
+    if (diffHours < 1) return uiText("Just now")
+    if (diffHours < 24) return uiText("{count}h ago").replace("{count}", String(Math.floor(diffHours)))
     const diffDays = Math.floor(diffHours / 24)
-    if (diffDays < 7) return `${diffDays}d ago`
+    if (diffDays < 7) return uiText("{count}d ago").replace("{count}", String(diffDays))
     return date.toLocaleDateString()
   }
 
@@ -308,7 +315,7 @@ export function NotesPage() {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex h-full animate-page-enter">
+      <div className={cn("flex h-full min-h-0 animate-page-enter", !!selectedNoteId && "notes-has-selection")}>
         {/* Folder Sidebar */}
         <div className="w-56 border-r border-border/50 shrink-0 hidden md:flex flex-col">
           <div className="p-3 border-b border-border/50 flex items-center justify-between">
@@ -331,14 +338,14 @@ export function NotesPage() {
         </div>
 
         {/* Notes List */}
-        <div className="w-72 border-r border-border/50 shrink-0 flex flex-col">
+        <div className={cn("w-full md:w-72 md:border-r border-border/50 shrink-0 flex flex-col min-h-0", !!selectedNoteId && "notes-list-hidden-mobile")}>
           <div className="p-3 border-b border-border/50 space-y-2">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">{t('notes.title')}</h3>
               <div className="flex items-center gap-1">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-amber-50 dark:hover:bg-amber-950/30 hover:text-amber-600" onClick={handleQuickNote}>
+                    <Button size="icon" variant="ghost" className="h-10 w-10 md:h-7 md:w-7 hover:bg-amber-50 dark:hover:bg-amber-950/30 hover:text-amber-600" aria-label={t('notes.quickNotes')} onClick={handleQuickNote}>
                       <Zap className="h-3.5 w-3.5" />
                     </Button>
                   </TooltipTrigger>
@@ -346,10 +353,10 @@ export function NotesPage() {
                 </Tooltip>
                 <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:text-emerald-600"><Plus className="h-4 w-4" /></Button>
+                    <Button size="icon" variant="ghost" className="h-10 w-10 md:h-7 md:w-7 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:text-emerald-600" aria-label={t('notes.newNote')}><Plus className="h-4 w-4" /></Button>
                   </DialogTrigger>
-                  <DialogContent aria-describedby={undefined}>
-                    <DialogHeader><DialogTitle>{t('notes.newNote')}</DialogTitle><DialogDescription className="sr-only">Create a new note</DialogDescription></DialogHeader>
+                  <DialogContent aria-describedby={undefined} className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
+                    <DialogHeader><DialogTitle>{t('notes.newNote')}</DialogTitle><DialogDescription className="sr-only">{uiText("Create a new note")}</DialogDescription></DialogHeader>
                     <div className="space-y-4 py-2">
                       <div>
                         <label className="text-sm font-medium mb-1.5 block">{t('notes.noteTitle')}</label>
@@ -361,17 +368,17 @@ export function NotesPage() {
                           <Select value={newNote.type} onValueChange={v => setNewNote(p => ({ ...p, type: v as Note['type'] }))}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="note">📝 Note</SelectItem>
-                              <SelectItem value="article">📰 Article</SelectItem>
-                              <SelectItem value="reference">📎 Reference</SelectItem>
-                              <SelectItem value="idea">💡 Idea</SelectItem>
-                              <SelectItem value="daily-note">📅 Daily Note</SelectItem>
+                              <SelectItem value="note">{uiText("📝 Note")}</SelectItem>
+                              <SelectItem value="article">{uiText("📰 Article")}</SelectItem>
+                              <SelectItem value="reference">{uiText("📎 Reference")}</SelectItem>
+                              <SelectItem value="idea">{uiText("💡 Idea")}</SelectItem>
+                              <SelectItem value="daily-note">{uiText("📅 Daily Note")}</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                         <div>
                           <label className="text-sm font-medium mb-1.5 block">{t('notes.tags')}</label>
-                          <Input placeholder="tag1, tag2" value={newNote.tags} onChange={e => setNewNote(p => ({ ...p, tags: e.target.value }))} />
+                          <Input placeholder={uiText("tag1, tag2")} value={newNote.tags} onChange={e => setNewNote(p => ({ ...p, tags: e.target.value }))} />
                         </div>
                       </div>
                     </div>
@@ -439,17 +446,17 @@ export function NotesPage() {
                           )}
                           <p className="text-sm font-medium truncate">{note.title}</p>
                         </div>
-                        <p className="text-xs text-muted-foreground truncate mt-0.5">{note.content.slice(0, 60) || t('notes.emptyNote')}</p>
+                        <p dir="auto" className="text-xs text-muted-foreground truncate mt-0.5">{richTextExcerpt(note.content) || t('notes.emptyNote')}</p>
                         <div className="flex items-center gap-2 mt-1.5">
                           {/* Type badge with distinct colors */}
                           <Badge className={cn('text-[9px] px-1.5 py-0 h-4 rounded-full border-0', typeStyle?.badge)}>
-                            {typeEmojis[note.type]} {note.type}
+                            {typeEmojis[note.type]} {uiText(note.type)}
                           </Badge>
                           <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
                             <Clock className="h-2.5 w-2.5" />
                             <RelativeTime dateStr={note.updatedAt} />
                           </span>
-                          <span className="text-[10px] text-muted-foreground">{note.wordCount}w</span>
+                          <span className="text-[10px] text-muted-foreground">{note.wordCount}{uiText("w")}</span>
                           {note.backlinks.length > 0 && (
                             <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
                               <Link2 className="h-2.5 w-2.5" />{note.backlinks.length}
@@ -466,7 +473,7 @@ export function NotesPage() {
         </div>
 
         {/* Editor Area */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className={cn("flex-1 flex flex-col min-w-0 min-h-0", !selectedNoteId && "notes-editor-hidden-mobile")}>
           {isLoading ? (
             <div className="p-[var(--lifeos-card-padding)] space-y-[var(--lifeos-list-gap)]">
               <Skeleton className="h-8 w-1/2" />
@@ -474,32 +481,33 @@ export function NotesPage() {
             </div>
           ) : selectedNote ? (
             <>
-              <div className="p-3 border-b border-border/50 flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div className="p-2 sm:p-3 border-b border-border/50 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 md:hidden" aria-label={uiText("Back to notes")} onClick={() => setSelectedNoteId(null)}><ArrowLeft className="h-4 w-4" /></Button>
                   <Input
                     value={selectedNote.title}
                     onChange={e => updateNoteMutation.mutate({ id: selectedNote.id, title: e.target.value })}
                     className="font-semibold border-0 p-0 h-auto focus-visible:ring-0 text-lg"
                   />
                 </div>
-                <div className="flex items-center gap-1">
-                  <Button variant={editorMode === 'edit' ? 'secondary' : 'ghost'} size="sm" className="h-7 text-xs" onClick={() => setEditorMode('edit')}>
-                    <Edit3 className="h-3.5 w-3.5 mr-1" />{t('notes.edit')}
+                <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+                  <Button variant={editorMode === 'edit' ? 'secondary' : 'ghost'} size="sm" className="h-10 sm:h-7 text-xs px-2" onClick={() => setEditorMode('edit')}>
+                    <Edit3 className="h-3.5 w-3.5 sm:mr-1" /><span className="hidden sm:inline">{t('notes.edit')}</span>
                   </Button>
-                  <Button variant={editorMode === 'preview' ? 'secondary' : 'ghost'} size="sm" className="h-7 text-xs" onClick={() => setEditorMode('preview')}>
-                    <Eye className="h-3.5 w-3.5 mr-1" />{t('notes.preview')}
+                  <Button variant={editorMode === 'preview' ? 'secondary' : 'ghost'} size="sm" className="h-10 sm:h-7 text-xs px-2" onClick={() => setEditorMode('preview')}>
+                    <Eye className="h-3.5 w-3.5 sm:mr-1" /><span className="hidden sm:inline">{t('notes.preview')}</span>
                   </Button>
-                  <Button variant={editorMode === 'split' ? 'secondary' : 'ghost'} size="sm" className="h-7 text-xs" onClick={() => setEditorMode('split')}>
-                    <SplitSquareHorizontal className="h-3.5 w-3.5 mr-1" />{t('notes.split')}
+                  <Button variant={editorMode === 'split' ? 'secondary' : 'ghost'} size="sm" className="h-10 sm:h-7 text-xs px-2" onClick={() => setEditorMode('split')}>
+                    <SplitSquareHorizontal className="h-3.5 w-3.5 sm:mr-1" /><span className="hidden sm:inline">{t('notes.split')}</span>
                   </Button>
-                  <Separator orientation="vertical" className="h-5 mx-1" />
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => togglePin(selectedNote.id)}>
+                  <Separator orientation="vertical" className="hidden sm:block h-5 mx-1" />
+                  <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-7 sm:w-7" aria-label={uiText("Pin note")} onClick={() => togglePin(selectedNote.id)}>
                     <Pin className={cn('h-3.5 w-3.5 transition-all duration-200', selectedNote.isPinned && 'text-amber-500 drop-shadow-[0_0_4px_rgba(245,158,11,0.6)]')} />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggleFavorite(selectedNote.id)}>
+                  <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-7 sm:w-7" aria-label={uiText("Favorite note")} onClick={() => toggleFavorite(selectedNote.id)}>
                     <Star className={cn('h-3.5 w-3.5 transition-colors', selectedNote.isFavorite && 'text-amber-500 fill-amber-500')} />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => deleteNote(selectedNote.id)}>
+                  <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-7 sm:w-7 hover:text-destructive" aria-label={uiText("Delete note")} onClick={() => deleteNote(selectedNote.id)}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -521,12 +529,12 @@ export function NotesPage() {
                     <div className="h-full p-8 overflow-auto">
                       <div 
                         className="prose prose-sm dark:prose-invert max-w-none"
-                        dangerouslySetInnerHTML={{ __html: selectedNote.content }}
+                        dangerouslySetInnerHTML={{ __html: sanitizeRichText(selectedNote.content) }}
                       />
                     </div>
                   ) : (
-                    <div className="flex h-full divide-x divide-border/50">
-                      <div className="w-1/2 h-full p-4 overflow-auto">
+                    <div className="flex h-full divide-x divide-border/50 notes-split-view">
+                      <div className="w-1/2 h-full p-4 overflow-auto notes-split-pane">
                         <RichTextEditor
                           value={selectedNote.content}
                           onChange={content => updateNoteContent(selectedNote.id, content)}
@@ -534,10 +542,10 @@ export function NotesPage() {
                           placeholder={t('notes.startWriting')}
                         />
                       </div>
-                      <div className="w-1/2 h-full p-8 overflow-auto bg-muted/5">
+                      <div className="w-1/2 h-full p-8 overflow-auto bg-muted/5 notes-split-pane">
                         <div 
                           className="prose prose-sm dark:prose-invert max-w-none"
-                          dangerouslySetInnerHTML={{ __html: selectedNote.content }}
+                          dangerouslySetInnerHTML={{ __html: sanitizeRichText(selectedNote.content) }}
                         />
                       </div>
                     </div>
@@ -546,10 +554,10 @@ export function NotesPage() {
               </div>
 
               {/* Bottom bar with word count, reading time, and type badge */}
-              <div className="px-4 py-2 border-t border-border/50 flex items-center justify-between text-xs text-muted-foreground">
-                <div className="flex items-center gap-3">
+              <div className="px-3 sm:px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] border-t border-border/50 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0 overflow-x-auto">
                   <Badge className={cn('text-[9px] px-1.5 h-4 rounded-full border-0', typeColors[selectedNote.type]?.badge)}>
-                    {typeEmojis[selectedNote.type]} {selectedNote.type}
+                    {typeEmojis[selectedNote.type]} {uiText(selectedNote.type)}
                   </Badge>
                   <span className="flex items-center gap-1">
                     <FileText className="h-2.5 w-2.5" />
@@ -563,7 +571,7 @@ export function NotesPage() {
                     {t('notes.edited')} <RelativeTime dateStr={selectedNote.updatedAt} />
                   </span>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="hidden sm:flex items-center gap-1 shrink-0">
                   {selectedNote.tags.map(tag => (
                     <Badge key={tag} variant="secondary" className="text-[10px]">{tag}</Badge>
                   ))}

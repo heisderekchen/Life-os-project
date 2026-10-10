@@ -1,5 +1,9 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
+import { getDisplayLocale } from '@/lib/i18n/format'
+
 import { useActivity, type ActivityItem } from '@/lib/api/hooks'
 import { useAppStore } from '@/stores/app-store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -68,15 +72,16 @@ function formatRelativeTime(dateStr: string): string {
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
 
-  if (diffMinutes < 1) return 'Just now'
-  if (diffMinutes < 60) return `${diffMinutes}m ago`
-  if (diffHours < 24) return `${diffHours}h ago`
-  if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return `${diffDays}d ago`
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  if (diffMinutes < 1) return uiText("Just now")
+  if (diffMinutes < 60) return uiText("{count}m ago").replace("{count}", String(diffMinutes))
+  if (diffHours < 24) return uiText("{count}h ago").replace("{count}", String(diffHours))
+  if (diffDays === 1) return uiText("Yesterday")
+  if (diffDays < 7) return uiText("{count}d ago").replace("{count}", String(diffDays))
+  return date.toLocaleDateString(getDisplayLocale(), { month: 'short', day: 'numeric' })
 }
 
 export function ActivityTimeline() {
+  useInterfaceLanguage()
   const { data, isLoading } = useActivity()
   const { setActiveModule } = useAppStore()
 
@@ -86,14 +91,14 @@ export function ActivityTimeline() {
     <Card className="flex flex-col">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-semibold">Recent Activity</CardTitle>
+          <CardTitle className="text-base font-semibold">{uiText("Recent Activity")}</CardTitle>
           <Button
             variant="ghost"
             size="sm"
             className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 view-all-link"
             onClick={() => {/* Could navigate to a dedicated activity page */}}
           >
-            View All <ArrowRight className="h-3.5 w-3.5 ml-1" />
+            {uiText("View All")} <ArrowRight className="h-3.5 w-3.5 ml-1" />
           </Button>
         </div>
       </CardHeader>
@@ -113,8 +118,8 @@ export function ActivityTimeline() {
         ) : activities.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground text-sm">
             <div className="text-3xl mb-2">📋</div>
-            <p className="font-medium">No activity yet</p>
-            <p className="text-xs mt-1">Start using Life OS to see your activity here</p>
+            <p className="font-medium">{uiText("No activity yet")}</p>
+            <p className="text-xs mt-1">{uiText("Start using Life OS to see your activity here")}</p>
           </div>
         ) : (
           <div className="relative">
@@ -163,7 +168,7 @@ export function ActivityTimeline() {
 
                     {/* Module badge */}
                     <Badge variant="outline" className="text-[10px] shrink-0 hidden sm:inline-flex">
-                      {config.label}
+                      {uiText(config.label)}
                     </Badge>
                   </motion.div>
                 )

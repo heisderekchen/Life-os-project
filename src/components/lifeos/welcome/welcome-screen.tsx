@@ -163,7 +163,7 @@ export function WelcomeScreen() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1, duration: 0.4 }}
           >
-            <img src="/logo.svg" alt="" aria-hidden className="w-8 h-8 rounded-lg" />
+            <img src={`${process.env.NEXT_PUBLIC_LIFEOS_BASE_PATH || ''}/logo.svg`} alt="" aria-hidden className="w-8 h-8 rounded-lg" />
             <span className="font-semibold text-sm">{t('setup.welcomeHero.brandName')}</span>
           </motion.div>
 

@@ -40,9 +40,10 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { NotificationCenter } from '@/components/lifeos/notification-center'
 import { useTranslation } from '@/lib/i18n'
 import { useProfile } from '@/lib/api/hooks'
+import { showToast } from '@/lib/toast'
 
 export function Header() {
-  const { activeModule, setCommandPaletteOpen, setMobileSidebarOpen, setGlobalSearchOpen, setActiveModule, toggleFocusMode } = useAppStore()
+  const { activeModule, setCommandPaletteOpen, setMobileSidebarOpen, setGlobalSearchOpen, setActiveModule, toggleFocusMode, language, setLanguage } = useAppStore()
   const { theme, setTheme } = useTheme()
   const isMobile = useIsMobile()
   const { t } = useTranslation()
@@ -51,6 +52,7 @@ export function Header() {
   const moduleLabels: Record<ModuleId, string> = {
     dashboard: t('nav.dashboard'),
     tasks: t('nav.tasks'),
+    projects: t('nav.projects'),
     notes: t('nav.notes'),
     habits: t('nav.habits'),
     journal: t('nav.journal'),
@@ -65,6 +67,7 @@ export function Header() {
   const moduleGroups: Record<ModuleId, string> = {
     dashboard: t('groups.home'),
     tasks: t('groups.productivity'),
+    projects: t('groups.productivity'),
     notes: t('groups.productivity'),
     habits: t('groups.wellness'),
     journal: t('groups.wellness'),
@@ -78,6 +81,22 @@ export function Header() {
 
   const userName = profile?.name || ''
   const userEmail = profile?.email || ''
+  const isPrivateWorkbench = process.env.NEXT_PUBLIC_LIFEOS_BASE_PATH === '/workbench'
+
+  const signOut = async () => {
+    try {
+      // Session management is mounted at the Worker root, outside the Life OS
+      // `/workbench/api/*` compatibility prefix used for D1-backed module APIs.
+      const response = await fetch('/api/personal-workbench/session', {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      })
+      if (!response.ok) throw new Error('Could not end the private session')
+      window.location.replace('/workbench?login=1')
+    } catch {
+      showToast.error(t('toast.error'), t('toast.somethingWentWrong'))
+    }
+  }
 
   const initials = userName
     ? userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
@@ -86,40 +105,41 @@ export function Header() {
   const displayName = userName || 'User'
 
   return (
-    <header className="h-12 sticky top-0 z-30 bg-background border-b border-border flex items-center justify-between px-4 gap-4 shrink-0">
+    <header className="min-h-14 sm:min-h-12 z-30 bg-background/95 border-b border-border flex items-center justify-between px-2 sm:px-4 gap-1.5 sm:gap-4 shrink-0 backdrop-blur supports-[backdrop-filter]:bg-background/85">
       {/* Left — breadcrumb */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 sm:gap-2 min-w-0">
         {isMobile && (
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-10 w-10 shrink-0"
+            aria-label={t('header.openNavigation')}
             onClick={() => setMobileSidebarOpen(true)}
           >
             <Menu className="h-4 w-4" />
           </Button>
         )}
-        <Breadcrumb>
-          <BreadcrumbList>
+        <Breadcrumb className="min-w-0">
+          <BreadcrumbList className="flex-nowrap whitespace-nowrap overflow-hidden">
             <BreadcrumbItem>
               <BreadcrumbLink
-                className="cursor-pointer text-muted-foreground hover:text-foreground text-sm transition-colors"
+                className="cursor-pointer text-muted-foreground hover:text-foreground text-sm transition-colors hidden sm:inline"
                 onClick={() => setActiveModule('dashboard')}
               >
                 {t('appName')}
               </BreadcrumbLink>
             </BreadcrumbItem>
-            <BreadcrumbSeparator>
+            <BreadcrumbSeparator className="hidden sm:flex">
               <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/30" />
             </BreadcrumbSeparator>
             {activeModule !== 'dashboard' ? (
               <>
                 <BreadcrumbItem>
-                  <BreadcrumbLink className="text-muted-foreground/60 text-sm">
+                  <BreadcrumbLink className="text-muted-foreground/60 text-sm hidden sm:inline">
                     {moduleGroups[activeModule]}
                   </BreadcrumbLink>
                 </BreadcrumbItem>
-                <BreadcrumbSeparator>
+                <BreadcrumbSeparator className="hidden sm:flex">
                   <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/30" />
                 </BreadcrumbSeparator>
                 <BreadcrumbItem>
@@ -157,8 +177,9 @@ export function Header() {
 
       {/* Right */}
       <div className="flex items-center gap-1">
+          <Button variant="outline" size="sm" className="h-10 min-w-10 sm:min-w-[88px] shrink-0 px-2 text-xs" aria-label={language === 'zh' ? 'Switch to English' : '切换到中文'} title={language === 'zh' ? '切换到 English' : 'Switch to 中文'} onClick={() => setLanguage(language === 'zh' ? 'en' : 'zh')}><span className="sm:hidden">{language === 'zh' ? '中' : 'EN'}</span><span className="hidden sm:inline">中文 / English</span></Button>
         {isMobile && (
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setGlobalSearchOpen(true)}>
+          <Button variant="ghost" size="icon" className="h-10 w-10" aria-label={t('header.searchEverything')} onClick={() => setGlobalSearchOpen(true)}>
             <Search className="h-4 w-4" />
           </Button>
         )}
@@ -166,7 +187,7 @@ export function Header() {
         {/* Quick add */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-7 w-7">
+            <Button variant="ghost" size="icon" className="h-10 w-10" aria-label={t('header.quickCreate')}>
               <Plus className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -192,7 +213,8 @@ export function Header() {
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-10 w-10"
+            aria-label={t('header.focusMode')}
             onClick={toggleFocusMode}
             title={`${t('header.focusMode')} (F11)`}
           >
@@ -205,7 +227,7 @@ export function Header() {
         {/* User avatar */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-7 px-1.5 gap-1.5 rounded-md hover:bg-accent/60">
+            <Button variant="ghost" className="h-10 min-w-10 px-1.5 gap-1.5 rounded-md hover:bg-accent/60" aria-label={t('header.profile')}>
               <Avatar className="h-6 w-6">
                 <AvatarFallback className="text-[10px] font-semibold bg-foreground text-background">
                   {initials}
@@ -242,10 +264,12 @@ export function Header() {
               {theme === 'dark' ? t('header.lightMode') : t('header.darkMode')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive focus:text-destructive">
-              <LogOut className="mr-2 h-4 w-4" />
-              {t('header.signOut')}
-            </DropdownMenuItem>
+            {isPrivateWorkbench && (
+              <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={signOut}>
+                <LogOut className="mr-2 h-4 w-4" />
+                {t('header.signOut')}
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

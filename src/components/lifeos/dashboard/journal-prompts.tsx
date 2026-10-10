@@ -1,5 +1,7 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
 import { useState, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { RefreshCw, BookOpen } from 'lucide-react'
@@ -45,6 +47,7 @@ function seededIndex(seed: number, length: number): number {
 }
 
 export function JournalPrompts() {
+  useInterfaceLanguage()
   const { setActiveModule } = useAppStore()
   const dailySeed = useMemo(() => getDailySeed(), [])
   const initialIndex = useMemo(() => seededIndex(dailySeed, prompts.length), [dailySeed])
@@ -68,14 +71,14 @@ export function JournalPrompts() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-sm">✨</span>
-            <CardTitle className="text-sm font-semibold">Daily Prompt</CardTitle>
+            <CardTitle className="text-sm font-semibold">{uiText("Daily Prompt")}</CardTitle>
           </div>
           <Button
             variant="ghost"
             size="icon"
             className="h-7 w-7 text-muted-foreground/50 hover:text-foreground transition-colors duration-200"
             onClick={handleRefresh}
-            title="Next prompt"
+            title={uiText("Next prompt")}
           >
             <RefreshCw className="h-3.5 w-3.5" />
           </Button>
@@ -95,11 +98,11 @@ export function JournalPrompts() {
               className="w-full text-left group"
             >
               <p className="text-sm text-foreground/90 leading-relaxed group-hover:text-foreground transition-colors duration-200">
-                &ldquo;{currentPrompt}&rdquo;
+                &ldquo;{uiText(currentPrompt)}&rdquo;
               </p>
               <div className="flex items-center gap-1.5 mt-3 text-xs text-muted-foreground/50 group-hover:text-muted-foreground/80 transition-colors duration-200">
                 <BookOpen className="h-3 w-3" />
-                <span>Click to start writing</span>
+                <span>{uiText("Click to start writing")}</span>
               </div>
             </button>
           </motion.div>

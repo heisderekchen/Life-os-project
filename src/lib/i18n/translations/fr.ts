@@ -49,6 +49,7 @@ const fr: TranslationKeys = {
     growth: 'Croissance',
     dashboard: 'Tableau de bord',
     tasks: 'Tâches',
+    projects: 'Projets',
     notes: 'Notes',
     calendar: 'Calendrier',
     timeTracker: 'Suivi du temps',
@@ -68,6 +69,7 @@ const fr: TranslationKeys = {
   },
 
   header: {
+    openNavigation: 'Ouvrir la navigation',
     searchEverything: 'Tout rechercher...',
     quickCreate: 'Création rapide',
     newTask: 'Nouvelle tâche',
@@ -188,7 +190,41 @@ const fr: TranslationKeys = {
     midnight: '0h',
   },
 
+  projects: {
+    title: 'Projets',
+    subtitle: 'Un espace pour les projets que vous faites avancer.',
+    search: 'Rechercher des projets',
+    create: 'Nouveau projet',
+    createFirst: 'Créer votre premier projet',
+    edit: 'Modifier le projet',
+    name: 'Nom du projet',
+    description: 'Description',
+    status: 'Statut',
+    startDate: 'Date de début',
+    endDate: 'Date de fin',
+    color: 'Couleur du projet',
+    all: 'Tous les projets',
+    active: 'Actif',
+    completed: 'Terminé',
+    archived: 'Archivé',
+    emptyTitle: 'Vos projets apparaîtront ici',
+    emptyDescription: 'Regroupez les tâches liées et gardez la prochaine étape en vue.',
+    noResults: 'Aucun projet ne correspond à votre recherche.',
+    taskCount: '{count} tâches',
+    noDescription: 'Aucune description pour le moment',
+    deleteTitle: 'Supprimer le projet ?',
+    deleteDescription: '« {name} » sera supprimé. Ses tâches seront conservées sans projet associé.',
+    deleteConfirm: 'Supprimer le projet',
+    loadError: 'Impossible de charger les projets.',
+    saveError: 'Impossible d’enregistrer le projet.',
+    deleteError: 'Impossible de supprimer le projet.',
+    retry: 'Réessayer',
+    statuses: { active: 'Actif', 'on-hold': 'En pause', completed: 'Terminé', cancelled: 'Annulé' },
+    actions: { edit: 'Modifier {name}', archive: 'Archiver {name}', unarchive: 'Restaurer {name}', delete: 'Supprimer {name}' },
+  },
+
   tasks: {
+    selection: { select: 'Sélectionner', deselect: 'Désélectionner', selectAll: 'Tout sélectionner', deselectAll: 'Tout désélectionner' },
     title: 'Tâches',
     list: 'Liste',
     board: 'Tableau',
@@ -403,6 +439,7 @@ const fr: TranslationKeys = {
   },
 
   finance: {
+    monthlyBudget: 'Monthly budget', monthlyBudgetSubtitle: 'Set category budgets and track spending', manageBudgets: 'Manage budgets', budgetSaved: 'Budget saved', userSet: 'Custom budget',
     title: 'Finances',
     accounts: 'Comptes',
     transactions: 'Transactions',
@@ -479,6 +516,7 @@ const fr: TranslationKeys = {
   },
 
   goals: {
+    health: "Santé",
     title: 'Objectifs',
     newGoal: 'Nouvel objectif',
     goalTitle: "Titre de l'objectif",
@@ -810,6 +848,7 @@ const fr: TranslationKeys = {
     modules: {
       dashboard: { label: 'Tableau de bord', desc: "Aperçu de ta vie en un coup d'œil" },
       tasks: { label: 'Tâches', desc: 'Gère et suis tes tâches' },
+      projects: { label: 'Projets', desc: 'Organisez le travail et ses tâches' },
       notes: { label: 'Notes', desc: 'Capture idées et pensées' },
       calendar: { label: 'Calendrier', desc: 'Planifie et organise des événements' },
       time: { label: 'Temps', desc: 'Suivi du temps et Pomodoro' },
@@ -955,6 +994,7 @@ const fr: TranslationKeys = {
   },
 
   toast: {
+    error: 'Error',
     saved: 'Enregistré',
     saveFailed: "Échec de l'enregistrement",
     completed: 'Terminé',
