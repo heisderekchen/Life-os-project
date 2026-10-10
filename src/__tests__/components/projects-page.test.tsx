@@ -20,6 +20,7 @@ function setupProjectApi(initial: TestProject[] = []) {
       const body = await request.json() as Record<string, unknown>
       const created = {
         id: `project-${projects.length + 1}`,
+        name: typeof body.name === 'string' ? body.name : '',
         description: '',
         color: '#6b7280',
         status: 'active',
@@ -99,7 +100,7 @@ describe('ProjectsPage', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Create your first project' }))
     await user.type(screen.getByLabelText('Project name'), 'Quarterly goals')
-    await user.click(screen.getAllByRole('button', { name: 'New project', exact: true }).slice(-1)[0])
+    await user.click(screen.getAllByRole('button', { name: /^New project$/ }).slice(-1)[0])
 
     expect(await screen.findByRole('heading', { name: 'Quarterly goals' })).toBeInTheDocument()
     expect(api.projects()).toHaveLength(1)
@@ -108,7 +109,7 @@ describe('ProjectsPage', () => {
     const nameInput = screen.getByLabelText('Project name')
     await user.clear(nameInput)
     await user.type(nameInput, 'Quarterly roadmap')
-    await user.click(screen.getByRole('button', { name: 'Save', exact: true }))
+    await user.click(screen.getByRole('button', { name: /^Save$/ }))
 
     expect(await screen.findByRole('heading', { name: 'Quarterly roadmap' })).toBeInTheDocument()
     expect(api.lastPatch()?.body).toMatchObject({ name: 'Quarterly roadmap' })
@@ -129,7 +130,7 @@ describe('ProjectsPage', () => {
     expect(api.deleteCount()).toBe(0)
     expect(screen.getByText(/Its tasks will stay in your workspace/)).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Delete project', exact: true }))
+    await user.click(screen.getByRole('button', { name: /^Delete project$/ }))
     await waitFor(() => expect(api.deleteCount()).toBe(1))
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Field notes' })).not.toBeInTheDocument())
   })
