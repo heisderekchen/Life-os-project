@@ -43,6 +43,14 @@ jobs:
       - run: bun run build
       - name: Package portable Node 24 runtime
         run: bash deploy/standalone/scripts/build-node-bundle.sh /tmp/lifeos-standalone-node.tar.gz
+      - name: Publish portable Node 24 runtime artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lifeos-node-runtime-${{ github.sha }}
+          path: |
+            /tmp/lifeos-standalone-node.tar.gz
+            /tmp/lifeos-standalone-node.tar.gz.sha256
+          retention-days: 7
       - name: Run synthetic loopback acceptance on the packaged runtime
         run: bash deploy/standalone/scripts/loopback-acceptance.sh /tmp/lifeos-standalone-node.tar.gz
       - run: node --check deploy/standalone/server.mjs

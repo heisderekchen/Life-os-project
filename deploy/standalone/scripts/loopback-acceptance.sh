@@ -111,8 +111,11 @@ assert.equal(tasks.length, 1)
 assert.equal(tasks[0].title, 'Synthetic loopback task')
 let page
 for (let i = 0; i < 50; i++) {
-  page = await fetch(`${base}/workbench/`, { headers: { cookie } })
+  page = await fetch(`${base}/workbench/`, { headers: { cookie }, redirect: 'manual' })
   if (page.status === 200) break
+  if (page.status >= 300 && page.status < 400) {
+    throw new Error(`Authenticated frontend redirect ${page.status} to ${page.headers.get('location')}`)
+  }
   await new Promise(resolve => setTimeout(resolve, 100))
 }
 assert.equal(page.status, 200)
