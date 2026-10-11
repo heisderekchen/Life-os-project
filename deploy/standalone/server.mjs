@@ -9,6 +9,7 @@ import { createD1Sqlite } from './d1-sqlite.mjs'
 import { handlePersonalWorkbench, processLifeOsRecurringTasks } from './src/personal-workbench.mjs'
 import { authenticatePersonalWorkbenchPassword, createPersonalWorkbenchOwnerCredential } from './src/personal-workbench-auth.mjs'
 import { handleTaskCardApi, TASK_CARD_API_SUFFIX } from './src/task-cards.mjs'
+import { handleResearchApi, RESEARCH_API_SUFFIX } from './src/research.mjs'
 import { issueSessionToken, matchesEntryKey } from './session.mjs'
 import {
   SESSION_COOKIE_NAME, buildClearSessionCookie, buildSessionCookie, ensurePlatformBootstrap,
@@ -217,6 +218,29 @@ async function handleTaskCardRequest(req, res, requestUrl, principal) {
   const request = await toWebRequest(req, publicRequestUrl)
   const response = await handleTaskCardApi(request, env, requestUrl, principal, {
     basePath: BASE_PATH, agentHealth: await readAgentServiceHealth(),
+  })
+  if (!response) return json(res, 404, { error: 'Not found' })
+  return sendWebResponse(res, response, { 'cache-control': 'no-store' })
+}
+
+// Research state-machine + disabled-by-default Obsidian outbox API. Scope is
+// resolved per request inside the module against the exact ws_lifeos_legacy
+// grant. No executor is injected: the module keeps every start at
+// `waiting_executor` and never schedules or calls a provider. No vault path or
+// filesystem write is configured here while vault permission is pending.
+async function handleResearchRequest(req, res, requestUrl, principal) {
+  const method = req.method || 'GET'
+  if (method !== 'GET' && method !== 'HEAD') {
+    // Session, round and outbox mutations must never accept cross-origin requests.
+    if (!forwardedSecure(req) || !sameOrigin(req)) return json(res, 404, { error: 'Not found' })
+    if (method !== 'DELETE' && !/^application\/json(?:\s*;|$)/i.test(req.headers['content-type'] || '')) {
+      return json(res, 415, { error: 'JSON required' })
+    }
+  }
+  const publicRequestUrl = new URL(`${requestUrl.pathname}${requestUrl.search}`, PUBLIC_ORIGIN)
+  const request = await toWebRequest(req, publicRequestUrl)
+  const response = await handleResearchApi(request, env, requestUrl, principal, {
+    basePath: BASE_PATH,
   })
   if (!response) return json(res, 404, { error: 'Not found' })
   return sendWebResponse(res, response, { 'cache-control': 'no-store' })
@@ -439,6 +463,11 @@ async function handleHttpRequest(req, res) {
   const taskCardPrefix = BASE_PATH + TASK_CARD_API_SUFFIX
   if (pathname === taskCardPrefix || pathname.startsWith(taskCardPrefix + '/')) {
     return handleTaskCardRequest(req, res, requestUrl, principal)
+  }
+
+  const researchPrefix = BASE_PATH + RESEARCH_API_SUFFIX
+  if (pathname === researchPrefix || pathname.startsWith(researchPrefix + '/')) {
+    return handleResearchRequest(req, res, requestUrl, principal)
   }
 
   const apiTarget = mapPrivateApiPath(pathname) || directAuthPath

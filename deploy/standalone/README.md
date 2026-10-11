@@ -17,12 +17,13 @@ through the HappySpa Worker and does not connect to D1. Only the authenticated
   `/projects` uses the compatibility endpoint and `/analytics` maps to
   `/insights`. The handlers run against an SQLite adapter implementing D1's
   `prepare/bind/first/all/run/batch` calls.
-- SQLite migrations 0070–0094 contain only private-workbench/Life OS tables plus
+- SQLite migrations 0070–0095 contain only private-workbench/Life OS tables plus
   the additive `platform_*` identity/authority tables, including source project
   IDs, workspace layout, owner credential state, audit tables, durable
   per-token logout revocations, the recurring-task idempotency ledger, and the
-  additive MVP task-card/Worker-routing tables. No store schema or `config`
-  table is created.
+  additive MVP task-card/Worker-routing tables and the additive research
+  state-machine and Obsidian outbox tables. No store schema or `config` table is
+  created.
 - The app container publishes no host port. Caddy is the only public container.
   The application refuses to start without `AUTH_SECRET` and
   `PERSONAL_WORKBENCH_ENTRY_KEY`.
@@ -180,3 +181,28 @@ dump and SHA-256 file privately.
 
 No AI provider credentials are bundled. Without the optional profile and
 credentials, core Life OS remains usable and AI reports itself unavailable.
+
+## Research state machine and Obsidian sync
+
+The private Life OS research surface (`/api/research/*`) persists a bounded
+research state machine and a deduped evidence store. There is no Neo integration
+or research scheduler in this repository, so an explicit start only persists
+`waiting_executor` ("等待 Neo/研究执行器连接"); it never reports `running`, never
+schedules background work and never calls a provider. Server-owned execution
+caps bound the budget, frequency, source/action allowlists and the
+concurrent/subtask limits, and client-reported spend is never accepted. The
+budget is a finite positive cap ($1, matched to the Agent Service default);
+zero/negative is rejected and there is no "0 means unlimited". Source/action
+choices come from server-owned immutable option catalogs (abstract and inert,
+with no web fetch or model action), the minimum check interval is 60 minutes,
+and at most one subtask runs concurrently in this first slice.
+
+Obsidian sync is disabled/unconfigured. Vault root/subfolder permission is still
+pending, so no filesystem configuration is wired and no file is ever written:
+the endpoint only stages user-reviewed incremental artifacts into a separate,
+scoped outbox as `pending_sync`, read back per task through
+`/tasks/:taskId/obsidian/status`. Research history is append-only: there is no
+plan-delete endpoint and no replan-erasure. The adapter contract (explicitly
+selected folder, bounded append-only block, base-hash conflict without
+overwriting) is defined and tested with an in-memory fake only. See
+`docs/research-obsidian-sync.md`.
