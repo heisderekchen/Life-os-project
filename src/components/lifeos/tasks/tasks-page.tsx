@@ -1399,7 +1399,9 @@ export function TasksPage() {
             <SheetHeader className="sr-only">
               <SheetTitle>{t('tasks.taskDetails')}</SheetTitle>
             </SheetHeader>
-            {taskDetailContent}
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              {taskDetailContent}
+            </div>
           </SheetContent>
         </Sheet>
       )}
