@@ -71,7 +71,7 @@ try {
   const loginHtml = await login.text()
   assert.match(loginHtml, /私人 Life OS/)
   assert.match(loginHtml, /<meta name="viewport" content="width=device-width,initial-scale=1">/)
-  assert.match(loginHtml, /\.box\\{box-sizing:border-box;width:min\\(360px,calc\\(100% - 40px\\)\\)/)
+  assert.ok(loginHtml.includes('.box{box-sizing:border-box;width:min(360px,calc(100% - 40px))'))
   const workbenchLogin = await fetch(`${base}/workbench/`)
   assert.equal(workbenchLogin.status, 200)
   assert.match(await workbenchLogin.text(), /私人 Life OS/)
