@@ -17,11 +17,12 @@ through the HappySpa Worker and does not connect to D1. Only the authenticated
   `/projects` uses the compatibility endpoint and `/analytics` maps to
   `/insights`. The handlers run against an SQLite adapter implementing D1's
   `prepare/bind/first/all/run/batch` calls.
-- SQLite migrations 0070–0093 contain only private-workbench/Life OS tables plus
+- SQLite migrations 0070–0094 contain only private-workbench/Life OS tables plus
   the additive `platform_*` identity/authority tables, including source project
   IDs, workspace layout, owner credential state, audit tables, durable
-  per-token logout revocations and the recurring-task idempotency ledger. No
-  store schema or `config` table is created.
+  per-token logout revocations, the recurring-task idempotency ledger, and the
+  additive MVP task-card/Worker-routing tables. No store schema or `config`
+  table is created.
 - The app container publishes no host port. Caddy is the only public container.
   The application refuses to start without `AUTH_SECRET` and
   `PERSONAL_WORKBENCH_ENTRY_KEY`.
@@ -94,6 +95,20 @@ Auth/account/grant/session/audit metadata is excluded from the 40-collection Lif
 OS export/import/reset contract. See
 [docs/platform-auth-migration.md](docs/platform-auth-migration.md) for the apply,
 rollback, owner-mapping, credential-entry and workspace configuration details.
+
+## Task cards and Worker routing
+
+The MVP task-card slice adds durable card metadata (type, goal, expected
+artifacts, existing subtask/dependency ids, three role assignments, verification
+evidence, next step) for an existing Life OS task id, plus Worker routing by
+`type + role`. Both are served by the standalone module under
+`/workbench/api/task-cards/*`, are scoped by account + workspace + task, and
+require the stable legacy owner principal (`isLegacyOwner`) plus the exact
+`ws_lifeos_legacy` grant; routing writes require the current platform-admin
+policy. The Worker catalog is server-side, supports DeepSeek and OpenAI, labels
+Gemini as unavailable, exposes no credentials, and the UI never calls a provider.
+See
+[docs/task-card-worker-routing.md](docs/task-card-worker-routing.md).
 
 ## Data migration and recovery
 

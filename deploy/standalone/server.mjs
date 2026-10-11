@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { createD1Sqlite } from './d1-sqlite.mjs'
 import { handlePersonalWorkbench, processLifeOsRecurringTasks } from './src/personal-workbench.mjs'
 import { authenticatePersonalWorkbenchPassword, createPersonalWorkbenchOwnerCredential } from './src/personal-workbench-auth.mjs'
+import { handleTaskCardApi, TASK_CARD_API_SUFFIX } from './src/task-cards.mjs'
 import { issueSessionToken, matchesEntryKey } from './session.mjs'
 import {
   SESSION_COOKIE_NAME, buildClearSessionCookie, buildSessionCookie, ensurePlatformBootstrap,
@@ -65,6 +66,11 @@ const env = {
   PERSONAL_WORKBENCH_OWNER_SETUP_ENABLED: process.env.PERSONAL_WORKBENCH_OWNER_SETUP_ENABLED || 'false',
   PERSONAL_WORKBENCH_OWNER_SETUP_GRANT: process.env.PERSONAL_WORKBENCH_OWNER_SETUP_GRANT || '',
   PLATFORM_WORKSPACES_JSON: process.env.PLATFORM_WORKSPACES_JSON || '',
+  // Model identifiers only. The task-card catalog reads these to label each
+  // provider entry with the operator-configured model; provider credentials
+  // stay in the agent service (AGENT_SERVICE_TOKEN) and are never copied here.
+  DEEPSEEK_MODEL: process.env.DEEPSEEK_MODEL || '',
+  OPENAI_MODEL: process.env.OPENAI_MODEL || '',
   ENVIRONMENT,
 }
 
@@ -167,6 +173,54 @@ async function handlePublicAuth(req, res, pathname, requestUrl) {
   res.writeHead(204, { 'set-cookie': buildSessionCookie(issueSessionToken(AUTH_SECRET, ENTRY_KEY, env.PERSONAL_WORKBENCH_OWNER)), 'cache-control': 'no-store' }); res.end(); return true
 }
 
+
+// Read-only readiness probe for the local AI service. It reads no provider key
+// and makes no provider call; it only reports which provider profiles the
+// service has configured, so the Worker catalog can label each entry.
+let agentHealthCache = { at: 0, value: null }
+async function readAgentServiceHealth() {
+  if (Date.now() - agentHealthCache.at < 5000) return agentHealthCache.value
+  const serviceUrl = process.env.AGENT_SERVICE_URL || ''
+  if (!serviceUrl) {
+    agentHealthCache = { at: Date.now(), value: null }
+    return null
+  }
+  try {
+    const response = await fetch(new URL('/v1/health', serviceUrl.endsWith('/') ? serviceUrl : serviceUrl + '/'), {
+      method: 'GET', headers: { accept: 'application/json' }, redirect: 'error', signal: AbortSignal.timeout(3000),
+    })
+    if (!response.ok) throw new Error('AGENT_HEALTH_UNAVAILABLE')
+    const health = await response.json()
+    const value = health && typeof health === 'object' ? health : null
+    agentHealthCache = { at: Date.now(), value }
+    return value
+  } catch {
+    // A short negative cache keeps an unreachable service from adding its
+    // timeout to every card request.
+    agentHealthCache = { at: Date.now(), value: null }
+    return null
+  }
+}
+
+// Task-card + Worker-routing API (MVP). Scope is resolved per request inside
+// the module against the exact ws_lifeos_legacy grant.
+async function handleTaskCardRequest(req, res, requestUrl, principal) {
+  const method = req.method || 'GET'
+  if (method !== 'GET' && method !== 'HEAD') {
+    // Card and routing mutations must never accept cross-origin requests.
+    if (!forwardedSecure(req) || !sameOrigin(req)) return json(res, 404, { error: 'Not found' })
+    if (method !== 'DELETE' && !/^application\/json(?:\s*;|$)/i.test(req.headers['content-type'] || '')) {
+      return json(res, 415, { error: 'JSON required' })
+    }
+  }
+  const publicRequestUrl = new URL(`${requestUrl.pathname}${requestUrl.search}`, PUBLIC_ORIGIN)
+  const request = await toWebRequest(req, publicRequestUrl)
+  const response = await handleTaskCardApi(request, env, requestUrl, principal, {
+    basePath: BASE_PATH, agentHealth: await readAgentServiceHealth(),
+  })
+  if (!response) return json(res, 404, { error: 'Not found' })
+  return sendWebResponse(res, response, { 'cache-control': 'no-store' })
+}
 
 async function handleAgentApi(req, res, requestUrl, auth) {
   const target = mapAgentTarget(requestUrl.pathname, requestUrl.search, BASE_PATH)
@@ -380,6 +434,11 @@ async function handleHttpRequest(req, res) {
   if (pathname === agentPrefix || pathname.startsWith(agentPrefix + '/')) {
     if (!moduleAuth) return json(res, 404, { error: 'Not found' })
     return handleAgentApi(req, res, requestUrl, moduleAuth)
+  }
+
+  const taskCardPrefix = BASE_PATH + TASK_CARD_API_SUFFIX
+  if (pathname === taskCardPrefix || pathname.startsWith(taskCardPrefix + '/')) {
+    return handleTaskCardRequest(req, res, requestUrl, principal)
   }
 
   const apiTarget = mapPrivateApiPath(pathname) || directAuthPath
