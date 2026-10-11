@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, codex/standalone-deployment]
   pull_request:
-    branches: [main]
+    branches: [main, codex/standalone-deployment]
   workflow_dispatch:
 
 permissions:
