@@ -8,25 +8,22 @@ services:
     restart: unless-stopped
     init: true
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       NODE_ENV: production
       NEXT_TELEMETRY_DISABLED: "1"
-      DATABASE_URL: "file:/app/data/prod.db"
+      DATABASE_URL: "file:/app/data/lifeos.db"
       BACKEND_URL: "http://localhost:8080"
-      # Optional: set API_KEY to require Bearer token on all /api/* requests
-      # API_KEY: ""
-      # Optional: restrict CORS to a specific origin
-      # ALLOWED_ORIGIN: "https://yourdomain.com"
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in the local ignored .env}
+      PERSONAL_WORKBENCH_ENTRY_KEY: ${PERSONAL_WORKBENCH_ENTRY_KEY:?Set PERSONAL_WORKBENCH_ENTRY_KEY in the local ignored .env}
+      PERSONAL_WORKBENCH_OWNER: ${PERSONAL_WORKBENCH_OWNER:-lifeos-owner}
     volumes:
       - life-os-data:/app/data
     healthcheck:
-      test: >
-        wget -qO- http://localhost:3000/ > /dev/null &&
-        wget -qO- http://localhost:8080/health > /dev/null
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/internal/health >/dev/null"]
       interval: 30s
       timeout: 10s
-      start_period: 60s
+      start_period: 30s
       retries: 3
 
 volumes:

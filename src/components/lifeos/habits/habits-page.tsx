@@ -1,5 +1,7 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
 import { useState, useMemo, useCallback } from 'react'
 import {
   Plus,
@@ -41,6 +43,8 @@ import { HabitStreakCalendar } from './habit-streak-calendar'
 import { useAppStore } from '@/stores/app-store'
 import { useTranslation } from '@/lib/i18n'
 import { showToast } from '@/lib/toast'
+
+function displayHabitIcon(icon: string) { return icon === 'BookOpen' ? '📖' : icon }
 
 const habitColors = [
   'bg-emerald-500', 'bg-amber-500', 'bg-teal-500', 'bg-rose-500',
@@ -260,6 +264,7 @@ function MotivationalBanner({ show, habitCount }: { show: boolean; habitCount: n
 }
 
 export function HabitsPage() {
+  useInterfaceLanguage()
   const { accentColor } = useAppStore()
   const { t } = useTranslation()
   const accentHexMap: Record<string, string> = {
@@ -435,7 +440,7 @@ export function HabitsPage() {
                 </div>
               )}
             </div>
-            {longestStreakHabit && <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{longestStreakHabit.icon} {longestStreakHabit.name}</p>}
+            {longestStreakHabit && <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{displayHabitIcon(longestStreakHabit.icon)} {longestStreakHabit.name}</p>}
           </CardContent>
         </Card>
         <Card className="overflow-hidden relative micro-hover">
@@ -471,7 +476,7 @@ export function HabitsPage() {
       {/* Edit Habit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent aria-describedby={undefined}>
-          <DialogHeader><DialogTitle>{t('edit')} {t('habits.title')}</DialogTitle><DialogDescription className="sr-only">Edit habit</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{t('edit')} {t('habits.title')}</DialogTitle><DialogDescription className="sr-only">{uiText("Edit habit")}</DialogDescription></DialogHeader>
           {editHabit && (
             <div className="space-y-4 py-2">
               <div><label className="text-sm font-medium mb-1.5 block">{t('habits.name')}</label><Input value={editHabit.name} onChange={e => setEditHabit(p => p && ({ ...p, name: e.target.value }))} /></div>
@@ -482,7 +487,7 @@ export function HabitsPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium mb-1.5 flex items-center gap-1.5"><Hash className="h-3.5 w-3.5 text-muted-foreground" />Günlük Hedef</label>
+                  <label className="text-sm font-medium mb-1.5 flex items-center gap-1.5"><Hash className="h-3.5 w-3.5 text-muted-foreground" />{uiText("Günlük Hedef")}</label>
                   <div className="flex items-center gap-2">
                     <button className="w-7 h-7 rounded border border-border flex items-center justify-center hover:bg-accent" onClick={() => setEditHabit(p => p && ({ ...p, targetCount: Math.max(1, p.targetCount - 1) }))}><Minus className="h-3 w-3" /></button>
                     <span className="text-sm font-medium w-8 text-center">{editHabit.targetCount}</span>
@@ -490,8 +495,8 @@ export function HabitsPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium mb-1.5 block">Birim</label>
-                  <Input placeholder="glass, km, min..." value={editHabit.unit} onChange={e => setEditHabit(p => p && ({ ...p, unit: e.target.value }))} />
+                  <label className="text-sm font-medium mb-1.5 block">{uiText("Birim")}</label>
+                  <Input placeholder={uiText("glass, km, min...")} value={editHabit.unit} onChange={e => setEditHabit(p => p && ({ ...p, unit: e.target.value }))} />
                 </div>
               </div>
               {/* Gap forgiveness: how many missed days the streak survives */}
@@ -537,7 +542,7 @@ export function HabitsPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium mb-1.5 flex items-center gap-1.5"><Hash className="h-3.5 w-3.5 text-muted-foreground" />Günlük Hedef</label>
+                  <label className="text-sm font-medium mb-1.5 flex items-center gap-1.5"><Hash className="h-3.5 w-3.5 text-muted-foreground" />{uiText("Günlük Hedef")}</label>
                   <div className="flex items-center gap-2">
                     <button className="w-7 h-7 rounded border border-border flex items-center justify-center hover:bg-accent" onClick={() => setNewHabit(p => ({ ...p, targetCount: Math.max(1, p.targetCount - 1) }))}><Minus className="h-3 w-3" /></button>
                     <span className="text-sm font-medium w-8 text-center">{newHabit.targetCount}</span>
@@ -545,8 +550,8 @@ export function HabitsPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium mb-1.5 block">Birim</label>
-                  <Input placeholder="glass, km, min..." value={newHabit.unit} onChange={e => setNewHabit(p => ({ ...p, unit: e.target.value }))} />
+                  <label className="text-sm font-medium mb-1.5 block">{uiText("Birim")}</label>
+                  <Input placeholder={uiText("glass, km, min...")} value={newHabit.unit} onChange={e => setNewHabit(p => ({ ...p, unit: e.target.value }))} />
                 </div>
               </div>
               {/* Gap forgiveness for new habit */}
@@ -637,7 +642,7 @@ export function HabitsPage() {
                       )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm">{habit.icon}</span>
+                          <span className="text-sm">{displayHabitIcon(habit.icon)}</span>
                           <h3 className={cn('font-medium text-sm', habit.isCompletedToday && 'line-through text-muted-foreground')}>{habit.name}</h3>
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">{habit.description}</p>
@@ -742,9 +747,9 @@ export function HabitsPage() {
                 <div className={cn('h-1', habit.color)} />
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <span>{habit.icon}</span>
+                    <span>{displayHabitIcon(habit.icon)}</span>
                     <h3 className="font-medium text-sm">{habit.name}</h3>
-                    <Badge variant="outline" className="text-[10px] ml-auto">{habit.frequency}</Badge>
+                    <Badge variant="outline" className="text-[10px] ml-auto">{uiText(habit.frequency)}</Badge>
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between text-xs"><span className="text-muted-foreground">{t('habits.completionRate')}</span><span className="font-semibold" style={{ color }}>{habit.completionRate}%</span></div>

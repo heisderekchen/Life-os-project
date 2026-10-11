@@ -7,6 +7,7 @@
  * aggressively to keep the UI snappy and to be kind to the upstream API.
  */
 
+import { getDisplayLocale } from '@/lib/i18n/format'
 import { useQuery } from '@tanstack/react-query'
 
 // ─── Catalog ──────────────────────────────────────────────────────────
@@ -52,7 +53,7 @@ export function formatCurrency(amount: number, code: string | null | undefined):
   const sym = symbolFor(upper)
   const sign = safe < 0 ? '-' : ''
   const abs = Math.abs(safe)
-  const formatted = abs.toLocaleString('en-US', {
+  const formatted = abs.toLocaleString(getDisplayLocale(), {
     minimumFractionDigits: fractionDigits,
     maximumFractionDigits: fractionDigits,
   })

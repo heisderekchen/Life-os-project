@@ -88,6 +88,46 @@ export function useProjects() {
   })
 }
 
+export function useCreateProject() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: Record<string, unknown>) => apiPost('/api/projects', data),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['projects'] }),
+        qc.invalidateQueries({ queryKey: ['tasks'] }),
+      ])
+    },
+  })
+}
+
+export function useUpdateProject() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string } & Record<string, unknown>) =>
+      apiPatch(`/api/projects/${id}`, data),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['projects'] }),
+        qc.invalidateQueries({ queryKey: ['tasks'] }),
+      ])
+    },
+  })
+}
+
+export function useDeleteProject() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => apiDelete(`/api/projects/${id}`),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['projects'] }),
+        qc.invalidateQueries({ queryKey: ['tasks'] }),
+      ])
+    },
+  })
+}
+
 // ============================================
 // Notes
 // ============================================
@@ -277,7 +317,11 @@ export function useDeleteTransaction() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => apiDelete(`/api/finance/transactions/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['finance-transactions'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['finance-transactions'] })
+      qc.invalidateQueries({ queryKey: ['finance-accounts'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
   })
 }
 

@@ -22,6 +22,7 @@ describe('Calendar Store', () => {
       allDay: false,
       color: 'red',
       location: null,
+      recurrence: null,
       taskId: null,
       createdAt: new Date().toISOString(),
     }

@@ -1,10 +1,13 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
 import { useEffect } from 'react'
 import { useAppStore, type ModuleId } from '@/stores/app-store'
 import {
   LayoutDashboard,
   CheckSquare,
+  FolderKanban,
   StickyNote,
   Repeat,
   BookOpen,
@@ -30,6 +33,7 @@ import {
 const modules: { id: ModuleId; label: string; icon: React.ElementType }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'tasks', label: 'Tasks', icon: CheckSquare },
+  { id: 'projects', label: 'Projects', icon: FolderKanban },
   { id: 'notes', label: 'Notes', icon: StickyNote },
   { id: 'habits', label: 'Habits', icon: Repeat },
   { id: 'journal', label: 'Journal', icon: BookOpen },
@@ -50,6 +54,7 @@ const quickActions = [
 ]
 
 export function CommandPalette() {
+  useInterfaceLanguage()
   const { commandPaletteOpen, setCommandPaletteOpen, setActiveModule } = useAppStore()
 
   useEffect(() => {
@@ -69,31 +74,31 @@ export function CommandPalette() {
   }
 
   return (
-    <CommandDialog open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen}>
-      <CommandInput placeholder="Type a command or search..." />
+    <CommandDialog title={uiText("Command Palette")} description={uiText("Search for a command to run...")} open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen}>
+      <CommandInput placeholder={uiText("Type a command or search...")} />
       <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
-        <CommandGroup heading="Quick Actions">
+        <CommandEmpty>{uiText("No results found.")}</CommandEmpty>
+        <CommandGroup heading={uiText("Quick Actions")}>
           {quickActions.map((action) => (
             <CommandItem
               key={action.label}
               onSelect={() => runCommand(() => setActiveModule(action.module))}
             >
               <action.icon className="mr-2 h-4 w-4" />
-              <span>{action.label}</span>
-              <span className="ml-auto text-xs text-muted-foreground">{action.description}</span>
+              <span>{uiText(action.label)}</span>
+              <span className="ml-auto text-xs text-muted-foreground">{uiText(action.description)}</span>
             </CommandItem>
           ))}
         </CommandGroup>
         <CommandSeparator />
-        <CommandGroup heading="Navigation">
+        <CommandGroup heading={uiText("Navigation")}>
           {modules.map((mod) => (
             <CommandItem
               key={mod.id}
               onSelect={() => runCommand(() => setActiveModule(mod.id))}
             >
               <mod.icon className="mr-2 h-4 w-4" />
-              <span>{mod.label}</span>
+              <span>{uiText(mod.label)}</span>
             </CommandItem>
           ))}
         </CommandGroup>

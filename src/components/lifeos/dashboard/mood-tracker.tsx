@@ -1,5 +1,7 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
 import { useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -7,7 +9,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useJournal } from '@/lib/api/hooks'
 import { MoodLogger } from '@/components/lifeos/dashboard/mood-logger'
 import { motion } from 'framer-motion'
-import { format, subDays } from 'date-fns'
+import { subDays } from 'date-fns'
+import { localizedFormat as format } from '@/lib/i18n/format'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
 
 const moodEmojis: Record<number, string> = {
@@ -27,6 +30,7 @@ const moodColors: Record<number, string> = {
 }
 
 export function MoodTracker() {
+  useInterfaceLanguage()
   const { data: journalData, isLoading } = useJournal()
 
   // Build 7-day mood map
@@ -127,11 +131,11 @@ export function MoodTracker() {
     <Card className="flex flex-col">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-semibold">Mood & Wellness</CardTitle>
+          <CardTitle className="text-base font-semibold">{uiText("Mood & Wellness")}</CardTitle>
           {avgMood !== null && (
             <div className="flex items-center gap-1.5">
               <Badge variant="outline" className="text-xs">
-                Avg: {avgMood.toFixed(1)}/5
+                {uiText("Avg:")} {avgMood.toFixed(1)}/5
               </Badge>
               {moodTrend === 'improving' && (
                 <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
@@ -207,7 +211,7 @@ export function MoodTracker() {
             {last7Days.every((d) => d.moodScore === null) && (
               <div className="text-center py-3">
                 <p className="text-xs text-muted-foreground">
-                  No mood data yet. Log your mood below!
+                  {uiText("No mood data yet. Log your mood below!")}
                 </p>
               </div>
             )}
@@ -217,7 +221,7 @@ export function MoodTracker() {
         {/* Quick mood logging */}
         <div className="border-t pt-3">
           <p className="text-xs font-medium text-muted-foreground mb-2">
-            How are you feeling right now?
+            {uiText("How are you feeling right now?")}
           </p>
           <MoodLogger
             compact={false}

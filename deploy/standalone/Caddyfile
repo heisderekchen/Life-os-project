@@ -1,0 +1,4 @@
+{$LIFEOS_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy life-os:3000
+}

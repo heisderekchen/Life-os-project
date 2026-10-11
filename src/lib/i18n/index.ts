@@ -2,6 +2,7 @@
 
 import { useAppStore } from '@/stores/app-store'
 import en from './translations/en'
+import zh from './translations/zh'
 import tr from './translations/tr'
 import es from './translations/es'
 import de from './translations/de'
@@ -22,6 +23,7 @@ export type TranslationKey = NestedKeyOf<TranslationKeys>
 
 const translations: Record<string, TranslationKeys> = {
   en,
+  zh,
   tr,
   es,
   de,
@@ -30,6 +32,7 @@ const translations: Record<string, TranslationKeys> = {
 
 // Available languages for the UI
 export const availableLanguages = [
+  { code: 'zh', label: 'Simplified Chinese', nativeLabel: '简体中文', flag: '🇨🇳' },
   { code: 'en', label: 'English', nativeLabel: 'English', flag: '🇬🇧' },
   { code: 'tr', label: 'Turkish', nativeLabel: 'Türkçe', flag: '🇹🇷' },
   { code: 'es', label: 'Spanish', nativeLabel: 'Español', flag: '🇪🇸' },
@@ -37,7 +40,7 @@ export const availableLanguages = [
   { code: 'fr', label: 'French', nativeLabel: 'Français', flag: '🇫🇷' },
 ] as const
 
-export type LanguageCode = 'en' | 'tr' | 'es' | 'de' | 'fr'
+export type LanguageCode = 'zh' | 'en' | 'tr' | 'es' | 'de' | 'fr'
 
 // Get a nested value from an object using a dot-separated path
 function getNestedValue(obj: Record<string, unknown>, path: string): string | readonly string[] {
@@ -99,5 +102,5 @@ export function getTranslation(language: string) {
   return t
 }
 
-export { en, tr, es, de, fr }
+export { en, zh, tr, es, de, fr }
 export type { TranslationKeys }

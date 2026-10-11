@@ -1,5 +1,7 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Zap, Keyboard, BarChart3, Moon, Maximize, Search, X, ChevronRight } from 'lucide-react'
@@ -82,6 +84,7 @@ const tipDefinitions: TipData[] = [
 ]
 
 export function OnboardingTips() {
+  useInterfaceLanguage()
   const [dismissed, setDismissed] = useState(getInitialDismissed)
   const [currentTip, setCurrentTip] = useState(0)
   const [isVisible, setIsVisible] = useState(true)
@@ -180,7 +183,7 @@ export function OnboardingTips() {
         <button
           onClick={handleDismissForever}
           className="absolute top-2.5 right-2.5 p-1 rounded-md hover:bg-accent/50 transition-colors duration-200 text-muted-foreground/50 hover:text-foreground"
-          title="Don't show tips again"
+          title={uiText("Don't show tips again")}
         >
           <X className="h-3.5 w-3.5" />
         </button>
@@ -209,9 +212,9 @@ export function OnboardingTips() {
 
                 {/* Text content */}
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-semibold text-foreground">{tip.title}</h4>
+                  <h4 className="text-sm font-semibold text-foreground">{uiText(tip.title)}</h4>
                   <p className="text-xs text-muted-foreground/70 mt-0.5 leading-relaxed">
-                    {tip.description}
+                    {uiText(tip.description)}
                   </p>
                 </div>
               </div>
@@ -225,7 +228,7 @@ export function OnboardingTips() {
                   className="h-7 px-2.5 text-xs font-medium rounded-lg hover:bg-accent/50"
                   style={{ color: 'var(--accent-primary, #10b981)' }}
                 >
-                  {tip.actionLabel}
+                  {uiText(tip.actionLabel)}
                   <ChevronRight className="h-3 w-3 ml-1" />
                 </Button>
 
@@ -259,7 +262,7 @@ export function OnboardingTips() {
             onClick={handleDismissForever}
             className="text-[10px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors duration-200"
           >
-            Don&apos;t show tips again
+            {uiText("Don't show tips again")}
           </button>
         </div>
       </CardContent>

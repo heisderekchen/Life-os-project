@@ -1,0 +1,19 @@
+{
+  "name": "@happyspa/lifeos-agent-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "smoke:provider": "node scripts/provider-smoke.mjs",
+    "start": "node src/server.js",
+    "worker:once": "node src/worker-once.js"
+  },
+  "dependencies": {
+    "postgres": "^3.4.7"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8"
+  }
+}

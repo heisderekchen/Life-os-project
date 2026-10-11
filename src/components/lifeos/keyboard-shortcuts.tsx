@@ -1,5 +1,7 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
 import { useEffect, useCallback } from 'react'
 import {
   Command,
@@ -61,11 +63,12 @@ function Kbd({ children }: { children: React.ReactNode }) {
 }
 
 function ShortcutRow({ keys, label, icon: Icon }: { keys: string[]; label: string; icon: React.ElementType }) {
+  useInterfaceLanguage()
   return (
     <div className="flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors">
       <div className="flex items-center gap-2.5">
         <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
-        <span className="text-sm">{label}</span>
+        <span className="text-sm">{uiText(label)}</span>
       </div>
       <div className="flex items-center gap-1">
         {keys.map((key, i) => (
@@ -80,19 +83,20 @@ function ShortcutRow({ keys, label, icon: Icon }: { keys: string[]; label: strin
 }
 
 export function KeyboardShortcutsHelp({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  useInterfaceLanguage()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <HelpCircle className="h-5 w-5 text-cyan-500" />
-            Keyboard Shortcuts
+            {uiText("Keyboard Shortcuts")}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-6 py-2">
           {/* General */}
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 px-3">General</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 px-3">{uiText("General")}</h3>
             <div className="space-y-0.5">
               {generalShortcuts.map(s => (
                 <ShortcutRow key={s.label} keys={s.keys} label={s.label} icon={s.icon} />
@@ -102,7 +106,7 @@ export function KeyboardShortcutsHelp({ open, onOpenChange }: { open: boolean; o
 
           {/* Navigation */}
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 px-3">Navigation</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 px-3">{uiText("Navigation")}</h3>
             <div className="space-y-0.5">
               {navigationShortcuts.map(s => (
                 <ShortcutRow key={s.label} keys={s.keys} label={s.label} icon={s.icon} />

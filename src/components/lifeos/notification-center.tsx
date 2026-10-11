@@ -1,5 +1,7 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
 import { useState, useCallback, useEffect } from 'react'
 import {
   Bell,
@@ -137,11 +139,11 @@ function formatRelativeTime(dateStr: string): string {
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
 
-  if (diffMinutes < 1) return 'Just now'
-  if (diffMinutes < 60) return `${diffMinutes}m ago`
-  if (diffHours < 24) return `${diffHours}h ago`
-  if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return `${diffDays}d ago`
+  if (diffMinutes < 1) return uiText("Just now")
+  if (diffMinutes < 60) return uiText("{count}m ago").replace("{count}", String(diffMinutes))
+  if (diffHours < 24) return uiText("{count}h ago").replace("{count}", String(diffHours))
+  if (diffDays === 1) return uiText("Yesterday")
+  if (diffDays < 7) return uiText("{count}d ago").replace("{count}", String(diffDays))
   return date.toLocaleDateString()
 }
 
@@ -156,6 +158,7 @@ function NotificationCard({
   onMarkRead: (id: string) => void
   onNavigate: (module: string) => void
 }) {
+  useInterfaceLanguage()
   const category = typeToCategory[notification.type] || 'system'
   const config = categoryConfig[category]
   const Icon = config.icon
@@ -207,7 +210,7 @@ function NotificationCard({
             variant="outline"
             className={cn('text-[9px] h-4 px-1.5 border-0 font-medium', config.bgColor, config.color)}
           >
-            {config.label}
+            {uiText(config.label)}
           </Badge>
         </div>
       </div>
@@ -230,6 +233,7 @@ function CategoryGroup({
   onNavigate: (module: string) => void
   defaultExpanded: boolean
 }) {
+  useInterfaceLanguage()
   const config = categoryConfig[category]
   const Icon = config.icon
   const [expanded, setExpanded] = useState(defaultExpanded)
@@ -243,7 +247,7 @@ function CategoryGroup({
         onClick={() => setExpanded(!expanded)}
       >
         <Icon className={cn('h-3 w-3', config.color)} />
-        <span className="flex-1 text-left">{config.label}</span>
+        <span className="flex-1 text-left">{uiText(config.label)}</span>
         {unreadCount > 0 && (
           <span className={cn(
             'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
@@ -289,13 +293,14 @@ function CategoryGroup({
 // ─── Empty State ────────────────────────────────────────────────────
 
 function EmptyState() {
+  useInterfaceLanguage()
   return (
     <div className="text-center py-10 px-4">
       <div className="mx-auto w-14 h-14 rounded-full bg-emerald-100 dark:bg-emerald-950/40 flex items-center justify-center mb-3">
         <CheckCheck className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
       </div>
-      <p className="text-sm font-medium text-muted-foreground">All caught up!</p>
-      <p className="text-xs text-muted-foreground/60 mt-1">No pending notifications</p>
+      <p className="text-sm font-medium text-muted-foreground">{uiText("All caught up!")}</p>
+      <p className="text-xs text-muted-foreground/60 mt-1">{uiText("No pending notifications")}</p>
     </div>
   )
 }
@@ -312,6 +317,7 @@ const READ_STORAGE_KEY = 'lifeos-notif-read'
 const READ_MAX_KEEP = 200 // cap stored entries to avoid unbounded growth
 
 export function NotificationCenter() {
+  useInterfaceLanguage()
   const { data, isLoading } = useNotifications()
   const { setActiveModule } = useAppStore()
   // Read state is stored as a content-key set, persisted to localStorage so
@@ -412,24 +418,24 @@ export function NotificationCenter() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8 relative hover:scale-105 transition-transform duration-150">
+        <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-8 sm:w-8 relative hover:scale-105 transition-transform duration-150" aria-label={uiText("Notifications")}>
           <Bell className="h-4 w-4" />
           {unreadCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 flex items-center justify-center rounded-full bg-orange-500 text-white text-[10px] font-bold px-1 ring-2 ring-background animate-pulse">
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
-          <span className="sr-only">Notifications</span>
+          <span className="sr-only">{uiText("Notifications")}</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[360px] p-0 gap-0 overflow-hidden shadow-lg">
+      <PopoverContent align="end" className="w-[min(22.5rem,calc(100vw-1rem))] p-0 gap-0 overflow-hidden shadow-lg">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold">Notifications</h3>
+            <h3 className="text-sm font-semibold">{uiText("Notifications")}</h3>
             {unreadCount > 0 && (
               <Badge variant="secondary" className="text-[10px] h-5 bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-400 border-0">
-                {unreadCount} new
+                {unreadCount} {uiText("new")}
               </Badge>
             )}
           </div>
@@ -441,7 +447,7 @@ export function NotificationCenter() {
               onClick={markAllRead}
             >
               <CheckCheck className="h-3.5 w-3.5" />
-              Mark all read
+              {uiText("Mark all read")}
             </Button>
           )}
         </div>
@@ -497,7 +503,7 @@ export function NotificationCenter() {
                 setOpen(false)
               }}
             >
-              Go to Dashboard
+              {uiText("Go to Dashboard")}
             </Button>
             <Button
               variant="ghost"
@@ -509,7 +515,7 @@ export function NotificationCenter() {
                   : 'text-muted-foreground/40 hover:text-muted-foreground',
               )}
               onClick={() => setSoundEnabled(!soundEnabled)}
-              title={soundEnabled ? 'Mute notification sounds' : 'Unmute notification sounds'}
+              title={soundEnabled ? uiText('Mute notification sounds') : uiText('Unmute notification sounds')}
             >
               {soundEnabled ? (
                 <Volume2 className="h-3.5 w-3.5" />

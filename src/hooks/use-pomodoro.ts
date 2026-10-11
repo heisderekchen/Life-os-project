@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { apiPath } from '@/lib/api/client'
 
 // ============================================
 // Types
@@ -99,7 +100,7 @@ function sendBrowserNotification(title: string, body: string) {
   if ('Notification' in window && Notification.permission === 'granted') {
     new Notification(title, {
       body,
-      icon: '/favicon.ico',
+      icon: `${process.env.NEXT_PUBLIC_LIFEOS_BASE_PATH || ''}/logo.svg`,
     })
   }
 }
@@ -153,7 +154,7 @@ export function usePomodoro() {
     const duration = getTotalDuration(m, settingsRef.current)
     
     try {
-      const res = await fetch('/api/pomodoro-sessions', {
+      const res = await fetch(apiPath('/api/pomodoro-sessions'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -192,7 +193,7 @@ export function usePomodoro() {
 
     // Mark current session as completed if exists
     if (sessionId) {
-      fetch(`/api/pomodoro-sessions/${sessionId}`, {
+      fetch(apiPath(`/api/pomodoro-sessions/${sessionId}`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ completed: true, completedAt: new Date().toISOString() }),

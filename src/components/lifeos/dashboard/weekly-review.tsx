@@ -1,5 +1,9 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
+import { getDisplayLocale } from '@/lib/i18n/format'
+
 import { useState } from 'react'
 import {
   CheckSquare,
@@ -33,7 +37,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Progress } from '@/components/ui/progress'
 import { useWeeklyReview, type WeeklyReviewData } from '@/lib/api/hooks'
 import { useAppStore } from '@/stores/app-store'
-import { format } from 'date-fns'
+import { localizedFormat as format } from '@/lib/i18n/format'
 import { motion, AnimatePresence } from 'framer-motion'
 
 function cn(...inputs: (string | undefined | false)[]) {
@@ -42,6 +46,7 @@ function cn(...inputs: (string | undefined | false)[]) {
 
 // Large circular progress ring for the week score
 function WeekScoreRing({ value, size = 140, strokeWidth = 10 }: { value: number; size?: number; strokeWidth?: number }) {
+  useInterfaceLanguage()
   const radius = (size - strokeWidth) / 2
   const circumference = radius * 2 * Math.PI
   const offset = circumference - (value / 100) * circumference
@@ -67,7 +72,7 @@ function WeekScoreRing({ value, size = 140, strokeWidth = 10 }: { value: number;
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-4xl font-bold" style={{ color }}>{value}</span>
-        <span className="text-xs text-muted-foreground uppercase tracking-wider mt-0.5">Week Score</span>
+        <span className="text-xs text-muted-foreground uppercase tracking-wider mt-0.5">{uiText("Week Score")}</span>
       </div>
     </div>
   )
@@ -100,7 +105,7 @@ function StatCard({
         <div className="p-1.5 rounded-md" style={{ backgroundColor: `${color}15` }}>
           <Icon className="h-3.5 w-3.5" style={{ color }} />
         </div>
-        <span className="text-xs text-muted-foreground font-medium">{label}</span>
+        <span className="text-xs text-muted-foreground font-medium">{uiText(label)}</span>
       </div>
       <p className="text-xl font-bold">{value}</p>
       {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
@@ -117,7 +122,8 @@ function TrendIcon({ trend }: { trend: 'improving' | 'stable' | 'declining' }) {
 
 // Mini sparkline chart
 function MiniSparkline({ data, color = '#10b981', height = 40 }: { data: number[]; color?: string; height?: number }) {
-  if (data.length < 2) return <div style={{ height }} className="flex items-center justify-center text-xs text-muted-foreground">No data</div>
+  useInterfaceLanguage()
+  if (data.length < 2) return <div style={{ height }} className="flex items-center justify-center text-xs text-muted-foreground">{uiText("No data")}</div>
   const max = Math.max(...data)
   const min = Math.min(...data)
   const range = max - min || 1
@@ -141,6 +147,7 @@ function MiniSparkline({ data, color = '#10b981', height = 40 }: { data: number[
 
 // Mini bar chart for finance
 function MiniBarChart({ income, expenses, height = 50 }: { income: number; expenses: number; height?: number }) {
+  useInterfaceLanguage()
   const max = Math.max(income, expenses, 1)
   const incomeHeight = (income / max) * (height - 20)
   const expenseHeight = (expenses / max) * (height - 20)
@@ -148,7 +155,7 @@ function MiniBarChart({ income, expenses, height = 50 }: { income: number; expen
   return (
     <div className="flex items-end gap-3 justify-center" style={{ height }}>
       <div className="flex flex-col items-center gap-1">
-        <span className="text-[10px] text-muted-foreground">Income</span>
+        <span className="text-[10px] text-muted-foreground">{uiText("Income")}</span>
         <motion.div
           initial={{ height: 0 }}
           animate={{ height: incomeHeight }}
@@ -157,7 +164,7 @@ function MiniBarChart({ income, expenses, height = 50 }: { income: number; expen
         />
       </div>
       <div className="flex flex-col items-center gap-1">
-        <span className="text-[10px] text-muted-foreground">Expenses</span>
+        <span className="text-[10px] text-muted-foreground">{uiText("Expenses")}</span>
         <motion.div
           initial={{ height: 0 }}
           animate={{ height: expenseHeight }}
@@ -223,6 +230,7 @@ interface WeeklyReviewProps {
 }
 
 export function WeeklyReview({ open, onOpenChange }: WeeklyReviewProps) {
+  useInterfaceLanguage()
   const { data, isLoading, isError, refetch } = useWeeklyReview()
   const { setActiveModule } = useAppStore()
 
@@ -240,8 +248,8 @@ export function WeeklyReview({ open, onOpenChange }: WeeklyReviewProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto custom-scrollbar">
         <DialogHeader>
-          <DialogTitle className="sr-only">Weekly Review</DialogTitle>
-          <DialogDescription className="sr-only">Your comprehensive weekly summary</DialogDescription>
+          <DialogTitle className="sr-only">{uiText("Weekly Review")}</DialogTitle>
+          <DialogDescription className="sr-only">{uiText("Your comprehensive weekly summary")}</DialogDescription>
         </DialogHeader>
 
         {isLoading ? (
@@ -249,9 +257,9 @@ export function WeeklyReview({ open, onOpenChange }: WeeklyReviewProps) {
         ) : isError ? (
           <div className="text-center py-12">
             <Brain className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground mb-3">Unable to generate weekly review</p>
+            <p className="text-sm text-muted-foreground mb-3">{uiText("Unable to generate weekly review")}</p>
             <Button variant="outline" size="sm" onClick={() => refetch()}>
-              Try Again
+              {uiText("Try Again")}
             </Button>
           </div>
         ) : !review ? null : (
@@ -272,7 +280,7 @@ export function WeeklyReview({ open, onOpenChange }: WeeklyReviewProps) {
               >
                 <WeekScoreRing value={review.weekScore} />
                 <div className="space-y-1">
-                  <h2 className="text-2xl font-bold gradient-text">Weekly Review</h2>
+                  <h2 className="text-2xl font-bold gradient-text">{uiText("Weekly Review")}</h2>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <CalendarDays className="h-4 w-4" />
                     <span className="text-sm">
@@ -282,7 +290,7 @@ export function WeeklyReview({ open, onOpenChange }: WeeklyReviewProps) {
                   <div className="flex items-center gap-2 mt-2">
                     <Sparkles className="h-4 w-4 text-emerald-500" />
                     <span className="text-sm text-muted-foreground">
-                      {review.weekScore >= 80 ? 'Amazing week!' : review.weekScore >= 60 ? 'Good progress this week' : review.weekScore >= 40 ? 'Room for improvement' : 'Challenging week — next week will be better'}
+                      {review.weekScore >= 80 ? uiText('Amazing week!') : review.weekScore >= 60 ? uiText('Good progress this week') : review.weekScore >= 40 ? uiText('Room for improvement') : uiText('Challenging week — next week will be better')}
                     </span>
                   </div>
                 </div>
@@ -294,49 +302,49 @@ export function WeeklyReview({ open, onOpenChange }: WeeklyReviewProps) {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <StatCard
                   icon={CheckSquare}
-                  label="Tasks Completed"
+                  label={uiText("Tasks Completed")}
                   value={review.tasksCompleted}
-                  subtitle={`${review.taskCompletionRate}% rate`}
+                  subtitle={`${review.taskCompletionRate}% ${uiText("rate")}`}
                   color="#f97316"
                   delay={0.05}
                 />
                 <StatCard
                   icon={Repeat}
-                  label="Habit Rate"
+                  label={uiText("Habit Rate")}
                   value={`${review.habitCompletionRate}%`}
-                  subtitle={`${review.habitsCompleted} logs`}
+                  subtitle={`${review.habitsCompleted} ${uiText("logs")}`}
                   color="#10b981"
                   delay={0.1}
                 />
                 <StatCard
                   icon={Clock}
-                  label="Focus Time"
+                  label={uiText("Focus Time")}
                   value={review.totalFocusTime > 0 ? `${(review.totalFocusTime / 60).toFixed(1)}h` : '0h'}
-                  subtitle={`${review.pomodoroSessions} pomodoros`}
+                  subtitle={`${review.pomodoroSessions} ${uiText("pomodoros")}`}
                   color="#0d9488"
                   delay={0.15}
                 />
                 <StatCard
                   icon={Brain}
-                  label="Mood"
+                  label={uiText("Mood")}
                   value={review.avgMoodScore > 0 ? `${review.avgMoodScore}/5` : 'N/A'}
-                  subtitle={review.moodTrend}
+                  subtitle={uiText(review.moodTrend)}
                   color="#8b5cf6"
                   delay={0.2}
                 />
                 <StatCard
                   icon={Flame}
-                  label="Energy"
+                  label={uiText("Energy")}
                   value={review.avgEnergyScore > 0 ? `${review.avgEnergyScore}/5` : 'N/A'}
-                  subtitle="average"
+                  subtitle={uiText("average")}
                   color="#f59e0b"
                   delay={0.25}
                 />
                 <StatCard
                   icon={Target}
-                  label="Best Streak"
+                  label={uiText("Best Streak")}
                   value={review.longestHabitStreak.streak > 0 ? `${review.longestHabitStreak.streak}d` : '0d'}
-                  subtitle={review.longestHabitStreak.name || 'No streaks'}
+                  subtitle={review.longestHabitStreak.name || uiText('No streaks')}
                   color="#ef4444"
                   delay={0.4}
                 />
@@ -348,7 +356,7 @@ export function WeeklyReview({ open, onOpenChange }: WeeklyReviewProps) {
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <Sparkles className="h-4 w-4 text-emerald-500" />
-                  <h3 className="text-sm font-semibold">Week Highlights</h3>
+                  <h3 className="text-sm font-semibold">{uiText("Week Highlights")}</h3>
                 </div>
                 <div className="space-y-2">
                   {review.highlights.map((highlight, idx) => (
@@ -366,21 +374,21 @@ export function WeeklyReview({ open, onOpenChange }: WeeklyReviewProps) {
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <Brain className="h-4 w-4 text-violet-500" />
-                      <h3 className="text-sm font-semibold">Mood & Energy Trend</h3>
+                      <h3 className="text-sm font-semibold">{uiText("Mood & Energy Trend")}</h3>
                     </div>
                     <TrendIcon trend={review.moodTrend} />
                   </div>
                   <div className="space-y-3">
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs text-muted-foreground">Mood</span>
+                        <span className="text-xs text-muted-foreground">{uiText("Mood")}</span>
                         <span className="text-xs font-medium">{review.avgMoodScore > 0 ? `${review.avgMoodScore}/5` : 'No data'}</span>
                       </div>
                       <Progress value={review.avgMoodScore * 20} className="h-2 [&>div]:bg-violet-500" />
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs text-muted-foreground">Energy</span>
+                        <span className="text-xs text-muted-foreground">{uiText("Energy")}</span>
                         <span className="text-xs font-medium">{review.avgEnergyScore > 0 ? `${review.avgEnergyScore}/5` : 'No data'}</span>
                       </div>
                       <Progress value={review.avgEnergyScore * 20} className="h-2 [&>div]:bg-amber-500" />
@@ -393,28 +401,28 @@ export function WeeklyReview({ open, onOpenChange }: WeeklyReviewProps) {
                 <div className="p-4 rounded-xl border border-border/50 bg-muted/30">
                   <div className="flex items-center gap-2 mb-3">
                     <Wallet className="h-4 w-4 text-teal-500" />
-                    <h3 className="text-sm font-semibold">Financial Summary</h3>
+                    <h3 className="text-sm font-semibold">{uiText("Financial Summary")}</h3>
                   </div>
                   <MiniBarChart income={review.financialSummary.income} expenses={review.financialSummary.expenses} />
                   <div className="space-y-2 mt-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">Income</span>
-                      <span className="text-sm font-semibold text-emerald-600">+${review.financialSummary.income.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                      <span className="text-xs text-muted-foreground">{uiText("Income")}</span>
+                      <span className="text-sm font-semibold text-emerald-600">+${review.financialSummary.income.toLocaleString(getDisplayLocale(), { minimumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">Expenses</span>
-                      <span className="text-sm font-semibold text-orange-600">-${review.financialSummary.expenses.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                      <span className="text-xs text-muted-foreground">{uiText("Expenses")}</span>
+                      <span className="text-sm font-semibold text-orange-600">-${review.financialSummary.expenses.toLocaleString(getDisplayLocale(), { minimumFractionDigits: 2 })}</span>
                     </div>
                     <Separator />
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">Net Savings</span>
+                      <span className="text-xs text-muted-foreground">{uiText("Net Savings")}</span>
                       <span className={cn('text-sm font-bold', review.financialSummary.netSavings >= 0 ? 'text-emerald-600' : 'text-red-500')}>
-                        {review.financialSummary.netSavings >= 0 ? '+' : ''}${review.financialSummary.netSavings.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        {review.financialSummary.netSavings >= 0 ? '+' : ''}${review.financialSummary.netSavings.toLocaleString(getDisplayLocale(), { minimumFractionDigits: 2 })}
                       </span>
                     </div>
                     {review.financialSummary.topExpenseCategory !== 'N/A' && (
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">Top Category</span>
+                        <span className="text-xs text-muted-foreground">{uiText("Top Category")}</span>
                         <Badge variant="outline" className="text-[10px]">{review.financialSummary.topExpenseCategory}</Badge>
                       </div>
                     )}
@@ -429,7 +437,7 @@ export function WeeklyReview({ open, onOpenChange }: WeeklyReviewProps) {
                   <div>
                     <div className="flex items-center gap-2 mb-3">
                       <Target className="h-4 w-4 text-violet-500" />
-                      <h3 className="text-sm font-semibold">Goals Progress</h3>
+                      <h3 className="text-sm font-semibold">{uiText("Goals Progress")}</h3>
                     </div>
                     <div className="space-y-2">
                       {review.goalsProgress.map((goal, idx) => (
@@ -472,7 +480,7 @@ export function WeeklyReview({ open, onOpenChange }: WeeklyReviewProps) {
                   <div>
                     <div className="flex items-center gap-2 mb-3">
                       <CheckSquare className="h-4 w-4 text-orange-500" />
-                      <h3 className="text-sm font-semibold">Top Completed Tasks</h3>
+                      <h3 className="text-sm font-semibold">{uiText("Top Completed Tasks")}</h3>
                     </div>
                     <div className="space-y-1">
                       {review.topCompletedTasks.map((task, idx) => (
@@ -490,7 +498,7 @@ export function WeeklyReview({ open, onOpenChange }: WeeklyReviewProps) {
                             task.priority === 'medium' ? 'bg-amber-500' : 'bg-slate-400'
                           )} />
                           <span className="text-sm flex-1 truncate">{task.title}</span>
-                          <Badge variant="outline" className="text-[10px] shrink-0">{task.priority}</Badge>
+                          <Badge variant="outline" className="text-[10px] shrink-0">{uiText(task.priority)}</Badge>
                         </motion.div>
                       ))}
                     </div>
@@ -506,7 +514,7 @@ export function WeeklyReview({ open, onOpenChange }: WeeklyReviewProps) {
                   onClick={() => onOpenChange(false)}
                   className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-sm px-8"
                 >
-                  Close Review
+                  {uiText("Close Review")}
                 </Button>
               </div>
             </motion.div>

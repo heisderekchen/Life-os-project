@@ -22,12 +22,15 @@ describe('App Store', () => {
     expect(state.theme).toBe('dark')
     expect(state.uiDensity).toBe('comfortable')
     expect(state.animationsEnabled).toBe(true)
+    expect(state.enabledModules).toContain('projects')
   })
 
   it('should update active module', () => {
     const { setActiveModule } = useAppStore.getState()
     setActiveModule('tasks')
     expect(useAppStore.getState().activeModule).toBe('tasks')
+    setActiveModule('projects')
+    expect(useAppStore.getState().activeModule).toBe('projects')
   })
 
   it('should toggle sidebar', () => {

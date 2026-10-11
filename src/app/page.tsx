@@ -1,14 +1,7 @@
 import { AppShell } from '@/components/lifeos/app-shell'
-import { cookies } from 'next/headers'
-import { notFound } from 'next/navigation'
 
-export default async function Home() {
-  const entryKey = process.env.LIFEOS_ENTRY_KEY
-  const cookieStore = await cookies()
-
-  if (!entryKey || cookieStore.get('lifeos_session')?.value !== entryKey) {
-    notFound()
-  }
-
+export default function Home() {
+  // The HappySpa Worker protects every /workbench/* request with its scoped
+  // private-workbench session before this static shell or its assets are served.
   return <AppShell />
 }

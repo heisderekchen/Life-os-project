@@ -1,10 +1,13 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
 import { useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Flame } from 'lucide-react'
 import { useAppStore } from '@/stores/app-store'
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns'
+import { startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns'
+import { localizedFormat as format } from '@/lib/i18n/format'
 
 interface HabitStreakCalendarProps {
   habitLogs: Array<{ date: string; count?: number }>
@@ -12,6 +15,7 @@ interface HabitStreakCalendarProps {
 }
 
 export function HabitStreakCalendar({ habitLogs, streak }: HabitStreakCalendarProps) {
+  useInterfaceLanguage()
   const { accentColor } = useAppStore()
   const accentColorMap: Record<string, string> = {
     emerald: '#10b981', teal: '#14b8a6', amber: '#f59e0b',
@@ -43,11 +47,11 @@ export function HabitStreakCalendar({ habitLogs, streak }: HabitStreakCalendarPr
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <Flame className="h-4 w-4" style={{ color: accentHex }} />
-            Streak Calendar
+            {uiText("Streak Calendar")}
           </CardTitle>
           <div className="flex items-center gap-1.5">
             <span className="text-lg font-bold" style={{ color: accentHex }}>{streak}</span>
-            <span className="text-[10px] text-muted-foreground">days</span>
+            <span className="text-[10px] text-muted-foreground">{uiText("days")}</span>
           </div>
         </div>
         <p className="text-[10px] text-muted-foreground">{format(today, 'MMMM yyyy')}</p>
@@ -56,7 +60,7 @@ export function HabitStreakCalendar({ habitLogs, streak }: HabitStreakCalendarPr
         {/* Week day headers */}
         <div className="grid grid-cols-7 gap-1 mb-1">
           {weekDays.map(day => (
-            <div key={day} className="text-center text-[9px] font-medium text-muted-foreground/60">{day}</div>
+            <div key={day} className="text-center text-[9px] font-medium text-muted-foreground/60">{uiText(day)}</div>
           ))}
         </div>
         {/* Calendar grid */}
@@ -102,11 +106,11 @@ export function HabitStreakCalendar({ habitLogs, streak }: HabitStreakCalendarPr
         <div className="flex items-center gap-3 mt-2 pt-2 border-t border-border/30">
           <div className="flex items-center gap-1.5">
             <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: `${accentHex}30` }} />
-            <span className="text-[9px] text-muted-foreground">Completed</span>
+            <span className="text-[9px] text-muted-foreground">{uiText("Completed")}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-2.5 h-2.5 rounded-sm border" style={{ borderColor: accentHex }} />
-            <span className="text-[9px] text-muted-foreground">Today</span>
+            <span className="text-[9px] text-muted-foreground">{uiText("Today")}</span>
           </div>
         </div>
       </CardContent>

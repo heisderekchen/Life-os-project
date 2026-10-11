@@ -1,5 +1,9 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
+import { getDisplayLocale } from '@/lib/i18n/format'
+
 import { useState, useEffect, useRef } from 'react'
 import {
   User, Palette, Database, Info, Download, Upload, Moon, Sun, Monitor, ChevronRight, Check, Shield, HardDrive, Code2,
@@ -25,6 +29,7 @@ import { motion } from 'framer-motion'
 import { KeyboardShortcutsHelp } from '@/components/lifeos/keyboard-shortcuts'
 import { useTranslation, availableLanguages } from '@/lib/i18n'
 import type { LanguageCode } from '@/lib/i18n'
+import { apiPath } from '@/lib/api/client'
 
 type SettingsTab = 'profile' | 'appearance' | 'data' | 'shortcuts' | 'notifications' | 'about'
 
@@ -67,6 +72,7 @@ function setNotifPref(key: string, value: unknown) {
 }
 
 export function SettingsPage() {
+  useInterfaceLanguage()
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile')
   const { theme, setTheme } = useTheme()
@@ -113,7 +119,7 @@ export function SettingsPage() {
 
   // Fetch profile data on mount
   useEffect(() => {
-    fetch('/api/profile')
+    fetch(apiPath('/api/profile'))
       .then(res => res.json())
       .then(data => {
         if (data.name) setProfileName(data.name)
@@ -125,25 +131,43 @@ export function SettingsPage() {
   // Fetch storage info
   useEffect(() => {
     if (activeTab === 'data') {
-      fetch('/api/data/stats')
+      fetch(apiPath('/api/data/stats'))
         .then(res => res.json())
         .then(data => setStorageInfo(data))
         .catch(() => {})
     }
   }, [activeTab])
 
+  const handleSaveProfile = async () => {
+    try {
+      const response = await fetch(apiPath('/api/profile'), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: profileName, email: profileEmail }),
+      })
+      if (!response.ok) throw new Error('Profile save failed')
+      showToast.success(t('toast.profileUpdated'), t('toast.changesSaved'))
+    } catch {
+      showToast.error(t('toast.saveFailed'), t('toast.profileUpdateFailed'))
+    }
+  }
+
   const handleExport = async () => {
     setIsExporting(true)
     try {
-      const response = await fetch('/api/data/export')
+      const response = await fetch(apiPath('/api/data/export'))
+      if (!response.ok) throw new Error('Export failed')
       const data = await response.json()
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
       a.download = `lifeos-backup-${new Date().toISOString().split('T')[0]}.json`
+      document.body.appendChild(a)
       a.click()
-      URL.revokeObjectURL(url)
+      a.remove()
+      // Keep the blob alive until mobile browsers have consumed the download.
+      window.setTimeout(() => URL.revokeObjectURL(url), 30000)
       showToast.success(t('toast.exported'), t('toast.dataDownloaded'))
     } catch {
       showToast.error(t('toast.exportFailed'), t('toast.somethingWentWrong'))
@@ -157,7 +181,7 @@ export function SettingsPage() {
     try {
       const text = await file.text()
       const data = JSON.parse(text)
-      const response = await fetch('/api/data/import', {
+      const response = await fetch(apiPath('/api/data/import'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -166,7 +190,7 @@ export function SettingsPage() {
       if (result.success) {
         showToast.success(t('toast.imported'), `${result.totalImported} ${t('toast.recordsRestored')}`)
         // Refresh storage info
-        const statsRes = await fetch('/api/data/stats')
+        const statsRes = await fetch(apiPath('/api/data/stats'))
         const statsData = await statsRes.json()
         setStorageInfo(statsData)
       } else {
@@ -182,13 +206,13 @@ export function SettingsPage() {
   const handleReset = async () => {
     setIsResetting(true)
     try {
-      const response = await fetch('/api/data/reset', { method: 'DELETE' })
+      const response = await fetch(apiPath('/api/data/reset'), { method: 'DELETE' })
       const result = await response.json()
       if (result.success) {
         showToast.success(t('toast.dataReset'), t('toast.dataCleared'))
         setStorageInfo(null)
         // Refresh storage info
-        const statsRes = await fetch('/api/data/stats')
+        const statsRes = await fetch(apiPath('/api/data/stats'))
         const statsData = await statsRes.json()
         setStorageInfo(statsData)
       } else {
@@ -214,6 +238,8 @@ export function SettingsPage() {
     calendarEvents: `${t('calendar.title')} ${t('calendar.newEvent').replace(t('calendar.newEvent').split(' ')[0], '').trim() || t('calendar.title')}`,
     timeEntries: `${t('timeTracker.title')} ${t('timeTracker.newEntry')}`,
     projects: 'Projects',
+    widgets: 'Widgets',
+    'finance/categories': 'Finance Categories',
     tags: 'Tags',
   }
 
@@ -248,7 +274,7 @@ export function SettingsPage() {
               <div className="flex gap-2 mt-2">
                 {!profileEmail.includes('example') && <Badge variant="secondary" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600"><Check className="h-2.5 w-2.5 mr-1" />{t('settings.email')}</Badge>}
                 {profileName !== 'User' && <Badge variant="secondary" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600"><Check className="h-2.5 w-2.5 mr-1" />{t('settings.displayName')}</Badge>}
-                <Badge variant="outline" className="text-[10px]">Avatar</Badge>
+                <Badge variant="outline" className="text-[10px]">{uiText("Avatar")}</Badge>
               </div>
             </div>
           </div>
@@ -287,7 +313,7 @@ export function SettingsPage() {
                   <Separator />
                   <div><label className="text-sm font-medium mb-1.5 block">{t('settings.displayName')}</label><Input value={profileName} onChange={e => setProfileName(e.target.value)} /></div>
                   <div><label className="text-sm font-medium mb-1.5 block">{t('settings.email')}</label><Input type="email" value={profileEmail} onChange={e => setProfileEmail(e.target.value)} /></div>
-                  <Button size="sm" className="text-white shadow-sm" style={{ background: `linear-gradient(to right, ${activeAccentHex}, ${activeAccentHex}cc)` }} onClick={async () => { try { await fetch('/api/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: profileName, email: profileEmail }) }); showToast.success(t('toast.profileUpdated'), t('toast.changesSaved')); } catch { showToast.error(t('toast.saveFailed'), t('toast.profileUpdateFailed')); } }}><span className="animate-save-flash rounded px-2 -mx-2 -py-1 my-1">{t('settings.saveChanges')}</span></Button>
+                  <Button size="sm" className="text-white shadow-sm" style={{ background: `linear-gradient(to right, ${activeAccentHex}, ${activeAccentHex}cc)` }} onClick={handleSaveProfile}><span className="animate-save-flash rounded px-2 -mx-2 -py-1 my-1">{t('settings.saveChanges')}</span></Button>
                 </CardContent>
               </Card>
               <Card className="border-red-200 dark:border-red-900/30">
@@ -346,27 +372,27 @@ export function SettingsPage() {
                           'text-muted-foreground mt-auto',
                           fontSize === 'small' ? 'text-[6px]' : fontSize === 'large' ? 'text-[10px]' : 'text-[8px]'
                         )} style={{ color: theme === 'dark' ? '#71717a' : '#a1a1aa' }}>
-                          The quick brown fox jumps over the lazy dog
+                          {uiText("The quick brown fox jumps over the lazy dog")}
                         </p>
                       </div>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2 mt-3">
                     <Badge variant="secondary" className="text-[10px]" style={{ backgroundColor: `${activeAccentHex}20`, color: activeAccentHex }}>
-                      {accentColor.charAt(0).toUpperCase() + accentColor.slice(1)} accent
+                      {uiText(accentColor.charAt(0).toUpperCase() + accentColor.slice(1))} {uiText("accent")}
                     </Badge>
                     <Badge variant="secondary" className="text-[10px]">
-                      {(theme ?? '').charAt(0).toUpperCase() + (theme ?? '').slice(1)} {t('settings.theme').toLowerCase()}
+                      {uiText((theme ?? '').charAt(0).toUpperCase() + (theme ?? '').slice(1))} {t('settings.theme').toLowerCase()}
                     </Badge>
                     <Badge variant="secondary" className="text-[10px]">
-                      {fontSize.charAt(0).toUpperCase() + fontSize.slice(1)} {t('settings.fontSize').toLowerCase()}
+                      {uiText(fontSize.charAt(0).toUpperCase() + fontSize.slice(1))} {t('settings.fontSize').toLowerCase()}
                     </Badge>
                     <Badge variant="secondary" className="text-[10px]">
-                      {uiDensity.charAt(0).toUpperCase() + uiDensity.slice(1)} {t('settings.density').toLowerCase()}
+                      {uiText(uiDensity.charAt(0).toUpperCase() + uiDensity.slice(1))} {t('settings.density').toLowerCase()}
                     </Badge>
                     {themeVariant !== 'default' && (
                       <Badge variant="secondary" className="text-[10px]" style={{ backgroundColor: '#818cf820', color: '#818cf8' }}>
-                        {themeVariant.charAt(0).toUpperCase() + themeVariant.slice(1)} variant
+                        {uiText(themeVariant.charAt(0).toUpperCase() + themeVariant.slice(1))} {uiText("variant")}
                       </Badge>
                     )}
                   </div>
@@ -450,7 +476,7 @@ export function SettingsPage() {
                               </div>
                             </div>
                           </div>
-                          <span className="text-xs font-medium">{option.label}</span>
+                          <span className="text-xs font-medium">{uiText(option.label)}</span>
                           {isActive && (
                             <div className="absolute top-2 right-2 rounded-full p-0.5" style={{ backgroundColor: activeAccentHex }}>
                               <Check className="h-2.5 w-2.5 text-white" />
@@ -505,8 +531,8 @@ export function SettingsPage() {
                             <div className="absolute top-4 left-1.5 h-1.5 w-6 rounded-sm opacity-15" style={{ backgroundColor: preset.mode === 'dark' ? '#ffffff' : '#000000' }} />
                           </div>
                           <div className="text-center">
-                            <p className="text-xs font-medium">{preset.name}</p>
-                            <p className="text-[9px] text-muted-foreground leading-tight">{preset.desc}</p>
+                            <p className="text-xs font-medium">{uiText(preset.name)}</p>
+                            <p className="text-[9px] text-muted-foreground leading-tight">{uiText(preset.desc)}</p>
                           </div>
                           {isMatching && (
                             <div className="absolute top-2 right-2 rounded-full p-0.5" style={{ backgroundColor: preset.accentHex }}>
@@ -561,7 +587,7 @@ export function SettingsPage() {
                               </motion.div>
                             )}
                           </div>
-                          <span className="text-[11px] font-medium">{color.label}</span>
+                          <span className="text-[11px] font-medium">{uiText(color.label)}</span>
                         </button>
                       )
                     })}
@@ -674,8 +700,8 @@ export function SettingsPage() {
                             </div>
                           </div>
                           <div className="text-center">
-                            <p className="text-xs font-medium">{variant.label}</p>
-                            <p className="text-[9px] text-muted-foreground leading-tight">{variant.desc}</p>
+                            <p className="text-xs font-medium">{uiText(variant.label)}</p>
+                            <p className="text-[9px] text-muted-foreground leading-tight">{uiText(variant.desc)}</p>
                           </div>
                           {isActive && (
                             <div className="absolute top-2 right-2 rounded-full p-0.5" style={{ backgroundColor: activeAccentHex }}>
@@ -717,7 +743,7 @@ export function SettingsPage() {
                           <span className={cn(option.sample, 'font-medium text-foreground')}>
                             Aa
                           </span>
-                          <span className="text-[10px] text-muted-foreground">{option.label}</span>
+                          <span className="text-[10px] text-muted-foreground">{uiText(option.label)}</span>
                           {isActive && (
                             <Check className="h-3 w-3" style={{ color: activeAccentHex }} />
                           )}
@@ -760,7 +786,7 @@ export function SettingsPage() {
                             <div className={cn('w-1/2 h-2 rounded-sm bg-muted/20', option.value === 'compact' ? 'h-1.5' : option.value === 'spacious' ? 'h-3' : 'h-2')} />
                           </div>
                           <div className="px-3 pb-3 text-center">
-                            <p className="text-xs font-medium">{option.label}</p>
+                            <p className="text-xs font-medium">{uiText(option.label)}</p>
                             <p className="text-[10px] text-muted-foreground">{option.desc}</p>
                           </div>
                           {isActive && (
@@ -1119,7 +1145,7 @@ export function SettingsPage() {
                       </div>
                       <p className="text-sm font-bold text-violet-600 dark:text-violet-400">
                         {storageInfo?.accountCreated
-                          ? new Date(storageInfo.accountCreated).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+                          ? new Date(storageInfo.accountCreated).toLocaleDateString(getDisplayLocale(), { month: 'short', year: 'numeric' })
                           : '—'}
                       </p>
                     </div>
@@ -1153,7 +1179,7 @@ export function SettingsPage() {
                             }
                             return (
                               <div key={module} className="flex items-center gap-3">
-                                <span className="text-xs text-muted-foreground w-20 shrink-0 text-right">{module}</span>
+                                <span className="text-xs text-muted-foreground w-20 shrink-0 text-right">{uiText(moduleLabels[module] || module)}</span>
                                 <div className="flex-1 h-5 bg-muted/30 rounded-full overflow-hidden">
                                   <motion.div
                                     initial={{ width: 0 }}
@@ -1189,7 +1215,7 @@ export function SettingsPage() {
                           .sort(([_, a], [__, b]) => b - a)
                           .map(([key, count]) => (
                             <div key={key} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/50">
-                              <span className="text-xs text-muted-foreground">{moduleLabels[key] || key}</span>
+                              <span className="text-xs text-muted-foreground">{uiText(moduleLabels[key] || key)}</span>
                               <span className="text-xs font-semibold">{count}</span>
                             </div>
                           ))}
@@ -1472,7 +1498,7 @@ export function SettingsPage() {
 
           {activeTab === 'about' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-              <Card className="overflow-hidden hover-lift"><div className="h-1" style={{ background: `linear-gradient(to right, ${activeAccentHex}, ${activeAccentHex}cc)` }} /><CardHeader><CardTitle className="text-base">{t('settings.aboutTitle')}</CardTitle><CardDescription>{t('settings.aboutDesc')}</CardDescription></CardHeader><CardContent className="space-y-4"><div className="flex items-center gap-4"><img src="/logo.svg" alt="Life OS" className="w-14 h-14 rounded-xl shadow-lg" /><div><h3 className="font-semibold">{t('appName')}</h3><p className="text-sm text-muted-foreground">{t('settings.version')} 1.0.0</p></div></div><Separator /><div className="space-y-2.5 text-sm">{[{ label: 'Framework', value: 'Next.js 16' }, { label: 'UI Library', value: 'shadcn/ui' }, { label: 'State Management', value: 'Zustand' }, { label: 'Database', value: 'SQLite + Prisma' }, { label: 'Styling', value: 'Tailwind CSS 4' }, { label: 'Language', value: 'TypeScript 5' }].map(item => (<div key={item.label} className="flex items-center justify-between"><span className="text-muted-foreground">{item.label}</span><span className="font-medium">{item.value}</span></div>))}</div><Separator /><div className="flex items-center gap-2"><Code2 className="h-4 w-4 text-emerald-500" /><p className="text-xs text-muted-foreground">{t('settings.builtWith')} ❤️. {t('settings.aboutDesc')}</p></div></CardContent></Card>
+              <Card className="overflow-hidden hover-lift"><div className="h-1" style={{ background: `linear-gradient(to right, ${activeAccentHex}, ${activeAccentHex}cc)` }} /><CardHeader><CardTitle className="text-base">{t('settings.aboutTitle')}</CardTitle><CardDescription>{t('settings.aboutDesc')}</CardDescription></CardHeader><CardContent className="space-y-4"><div className="flex items-center gap-4"><img src={`${process.env.NEXT_PUBLIC_LIFEOS_BASE_PATH || ""}/logo.svg`} alt="Life OS" className="w-14 h-14 rounded-xl shadow-lg" /><div><h3 className="font-semibold">{t('appName')}</h3><p className="text-sm text-muted-foreground">{t('settings.version')} 1.0.0</p></div></div><Separator /><div className="space-y-2.5 text-sm">{[{ label: 'Framework', value: 'Next.js 16' }, { label: 'UI Library', value: 'shadcn/ui' }, { label: 'State Management', value: 'Zustand' }, { label: 'Database', value: 'SQLite + Prisma' }, { label: 'Styling', value: 'Tailwind CSS 4' }, { label: 'Language', value: 'TypeScript 5' }].map(item => (<div key={item.label} className="flex items-center justify-between"><span className="text-muted-foreground">{uiText(item.label)}</span><span className="font-medium">{item.value}</span></div>))}</div><Separator /><div className="flex items-center gap-2"><Code2 className="h-4 w-4 text-emerald-500" /><p className="text-xs text-muted-foreground">{t('settings.builtWith')} ❤️. {t('settings.aboutDesc')}</p></div></CardContent></Card>
             </motion.div>
           )}
         </div>

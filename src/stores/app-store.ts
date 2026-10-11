@@ -4,6 +4,7 @@ import { persist } from 'zustand/middleware'
 export type ModuleId = 
   | 'dashboard'
   | 'tasks'
+  | 'projects'
   | 'notes'
   | 'habits'
   | 'journal'
@@ -143,7 +144,7 @@ export const useAppStore = create<AppState>()(
       currencyConverterEnabled: process.env.NEXT_PUBLIC_ENABLE_CURRENCY_CONVERTER !== 'false',
       setCurrencyConverterEnabled: (enabled) => set({ currencyConverterEnabled: enabled }),
 
-      enabledModules: ['dashboard', 'tasks', 'notes', 'habits', 'journal', 'finance', 'goals', 'learning', 'calendar', 'time', 'settings'],
+      enabledModules: ['dashboard', 'tasks', 'projects', 'notes', 'habits', 'journal', 'finance', 'goals', 'learning', 'calendar', 'time', 'settings'],
       setEnabledModules: (modules) => set({ enabledModules: modules }),
     }),
     {

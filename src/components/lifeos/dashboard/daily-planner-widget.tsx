@@ -1,12 +1,15 @@
 'use client'
 
+import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
+
 import { useState, useMemo } from 'react'
 import { CalendarCheck, Clock, Plus } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useAppStore } from '@/stores/app-store'
 import { useTasks, useEvents } from '@/lib/api/hooks'
-import { format, addDays } from 'date-fns'
+import { addDays } from 'date-fns'
+import { localizedFormat as format } from '@/lib/i18n/format'
 
 const timeSlots = [
   { label: 'Morning', hours: '6:00 - 9:00', emoji: '🌅' },
@@ -17,6 +20,7 @@ const timeSlots = [
 ]
 
 export function DailyPlannerWidget() {
+  useInterfaceLanguage()
   const { accentColor, setActiveModule } = useAppStore()
   const accentColorMap: Record<string, string> = {
     emerald: '#10b981', teal: '#14b8a6', amber: '#f59e0b',
@@ -74,11 +78,11 @@ export function DailyPlannerWidget() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CalendarCheck className="h-4 w-4" style={{ color: accentHex }} />
-            <CardTitle className="text-sm font-semibold">Today&apos;s Plan</CardTitle>
+            <CardTitle className="text-sm font-semibold">{uiText("Today's Plan")}</CardTitle>
           </div>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="sm" className="text-xs h-6" onClick={() => setIsCollapsed(!isCollapsed)}>
-              {isCollapsed ? 'Expand' : 'Collapse'}
+              {isCollapsed ? uiText('Expand') : uiText('Collapse')}
             </Button>
           </div>
         </div>
@@ -90,7 +94,7 @@ export function DailyPlannerWidget() {
               <div key={slot.label} className="flex items-start gap-2.5">
                 <div className="w-16 shrink-0 text-right">
                   <span className="text-[10px]">{slot.emoji}</span>
-                  <p className="text-[10px] font-medium text-muted-foreground">{slot.label}</p>
+                  <p className="text-[10px] font-medium text-muted-foreground">{uiText(slot.label)}</p>
                   <p className="text-[9px] text-muted-foreground/50">{slot.hours}</p>
                 </div>
                 <div className="flex-1 min-w-0">
@@ -105,7 +109,7 @@ export function DailyPlannerWidget() {
             className="w-full mt-2 text-xs h-7"
             onClick={() => setActiveModule('calendar')}
           >
-            <Plus className="h-3 w-3 mr-1" /> Add event
+            <Plus className="h-3 w-3 mr-1" /> {uiText("Add event")}
           </Button>
         </CardContent>
       )}

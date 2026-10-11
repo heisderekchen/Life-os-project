@@ -1,30 +1,12 @@
 # syntax=docker/dockerfile:1
 
-# ---------- Rust Builder ----------
-FROM rust:1-slim AS rust-builder
-WORKDIR /app/backend
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    pkg-config \
-    libsqlite3-dev \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY backend/Cargo.toml backend/Cargo.lock* ./
-RUN mkdir src \
-    && echo "fn main() {}" > src/main.rs \
-    && echo "pub fn dummy() {}" > src/lib.rs \
-    && cargo build --release \
-    && rm -rf src
-
-COPY backend/src ./src
-RUN touch src/lib.rs src/main.rs && cargo build --release
-
 # ---------- Next.js Builder ----------
-FROM oven/bun:1 AS builder
+FROM oven/bun:1.3.4 AS builder
 WORKDIR /app
+ARG LIFEOS_BASE_PATH=/workbench
 ENV BACKEND_URL="http://localhost:8081"
-ENV LIFEOS_BASE_PATH="/workbench"
+ENV LIFEOS_BASE_PATH=${LIFEOS_BASE_PATH}
+ENV NEXT_PUBLIC_LIFEOS_BASE_PATH=${LIFEOS_BASE_PATH}
 
 ENV NEXT_TELEMETRY_DISABLED=1 \
     DATABASE_URL="file:/app/data/prod.db"
@@ -37,8 +19,9 @@ RUN bun run db:generate
 RUN bun run build
 
 # ---------- Runner ----------
-FROM node:22-slim AS runner
+FROM node:24-slim AS runner
 WORKDIR /app
+ARG LIFEOS_BASE_PATH=/workbench
 
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
@@ -46,10 +29,11 @@ ENV NODE_ENV=production \
     PORT=3000 \
     DATABASE_URL="file:/app/data/prod.db" \
     BACKEND_URL="http://localhost:8081" \
-    LIFEOS_BASE_PATH="/workbench"
+    LIFEOS_BASE_PATH=${LIFEOS_BASE_PATH} \
+    NEXT_PUBLIC_LIFEOS_BASE_PATH=${LIFEOS_BASE_PATH}
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends openssl ca-certificates wget curl libsqlite3-0 \
+    && apt-get install -y --no-install-recommends ca-certificates wget curl libsqlite3-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # 1. Next.js standalone server + assets
@@ -66,13 +50,13 @@ COPY --from=builder /app/node_modules ./node_modules
 # 3. Prisma schema + migration files (needed by migrate deploy at runtime)
 COPY --from=builder /app/prisma ./prisma
 
-# 4. Rust backend binary
-COPY --from=rust-builder /app/backend/target/release/lifeos-backend /usr/local/bin/lifeos-backend
+# 4. Current private Worker API ported to Node/SQLite, plus private-only schema migrations
+COPY deploy/standalone ./deploy/standalone
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh /usr/local/bin/lifeos-backend \
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
     && mkdir -p /app/data \
-    && chown -R node:node /app /usr/local/bin/lifeos-backend
+    && chown -R node:node /app
 
 # Railway mounts persistent volumes as root. Keep the entrypoint running as
 # root so Prisma can initialize the SQLite file inside /app/data on first boot.
@@ -80,7 +64,6 @@ USER root
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -sf http://localhost:3000/ > /dev/null && \
-        curl -sf http://localhost:8081/health > /dev/null || exit 1
+    CMD curl -sf http://localhost:3000/internal/health > /dev/null || exit 1
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
