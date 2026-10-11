@@ -127,20 +127,20 @@ provider.
 Both use SQLite fixtures and a fake AI service only: no real credentials and no
 provider network call.
 
-## Follow-up contract (research / Obsidian, next pass)
+## Research state machine and Obsidian sync interface
 
-Not implemented in this slice. When it is taken up it must, at minimum:
+Implemented in a later, separately reviewed slice under
+`/api/research/*`. It reuses the same authorization order above (fresh
+principal, `isLegacyOwner`, exact `ws_lifeos_legacy` grant, account+workspace+task
+scoping) through `resolveLifeOsScope`, stays outside platform-auth/session files
+and the 40-collection export/import/reset contract, and adds its own additive,
+idempotent migration `0095_lifeos_research_state.sql` plus in-process and loopback
+tests. It keeps provenance (source, date, confidence) in deduped evidence rows
+separate from the task card.
 
-* keep the same authorization order above (fresh principal, `isLegacyOwner`,
-  exact `ws_lifeos_legacy` grant, account+workspace+task scoping) and reuse
-  `workspacePageState` rather than re-deriving authority;
-* keep all provider/model selection inside the existing server catalog and
-  server-side keys, and keep Gemini labelled unavailable unless it is genuinely
-  configured server-side;
-* stay outside platform-auth/session files, outside the 40-collection
-  export/import/reset contract, and outside production data/secrets;
-* separate research provenance (source, date, confidence) from the task card so
-  a card can cite evidence without embedding private notes;
-* add its own migration (additive, idempotent) plus in-process and loopback
-  tests, and label a UI regression check honestly when the Next.js toolchain is
-  not installed.
+The current executor and vault boundaries are stated honestly in
+`docs/research-obsidian-sync.md`: there is no Neo integration or research
+scheduler, so an explicit start only persists `waiting_executor`
+("等待 Neo/研究执行器连接") and never reports `running`; and there is no
+filesystem/vault access, so Obsidian reports disabled/unconfigured and only
+stages `pending_sync` outbox rows.

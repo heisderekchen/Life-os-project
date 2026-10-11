@@ -59,12 +59,15 @@ jobs:
       - run: node --check deploy/standalone/src/personal-workbench.mjs
       - run: node --check deploy/standalone/agent-bridge.mjs
       - run: node --check deploy/standalone/src/task-cards.mjs
+      - run: node --check deploy/standalone/src/research.mjs
       - run: node deploy/standalone/scripts/test-runtime.mjs
       - run: node deploy/standalone/scripts/test-platform-migration.mjs
       - run: node deploy/standalone/scripts/test-http.mjs
       - run: node deploy/standalone/scripts/test-platform-http.mjs
       - run: node deploy/standalone/scripts/test-task-cards.mjs
       - run: node deploy/standalone/scripts/test-task-cards-http.mjs
+      - run: node deploy/standalone/scripts/test-research.mjs
+      - run: node deploy/standalone/scripts/test-research-http.mjs
       - run: sh deploy/standalone/scripts/test-run-node-path.sh
       - run: python3 deploy/standalone/scripts/test-sqlite-tools.py
       - run: node deploy/standalone/scripts/test-agent-bridge.mjs
