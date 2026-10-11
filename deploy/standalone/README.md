@@ -8,18 +8,20 @@ through the HappySpa Worker and does not connect to D1. Only the authenticated
 ## Runtime and boundaries
 
 - Caddy owns HTTPS ports 80/443 and forwards traffic to the app container.
-- The Node adapter verifies the existing `happyspa_personal_workbench` signed
-  cookie and keeps the existing `/workbench` route, entry-key exchange, eight
-  hour expiry, key-version invalidation and `Secure; HttpOnly; SameSite=Strict`
-  cookie properties.
+- The Node adapter serves a unified account login shell (`username` + `password`,
+  no self-signup) and verifies the signed `happyspa_personal_workbench` cookie.
+  It keeps the existing `/workbench` route, legacy entry-key exchange, eight hour
+  expiry, key-version invalidation and `Secure; HttpOnly; SameSite=Strict` cookie
+  properties. Legacy entry-key sessions remain account A's Life OS access only.
 - `/workbench/api/*` maps to the extracted current private Life OS handlers;
   `/projects` uses the compatibility endpoint and `/analytics` maps to
   `/insights`. The handlers run against an SQLite adapter implementing D1's
   `prepare/bind/first/all/run/batch` calls.
-- SQLite migrations 0070–0091 contain only private-workbench/Life OS tables,
-  including source project IDs, workspace layout, owner credential state,
-  audit tables and the recurring-task idempotency ledger. No store schema or
-  `config` table is created.
+- SQLite migrations 0070–0093 contain only private-workbench/Life OS tables plus
+  the additive `platform_*` identity/authority tables, including source project
+  IDs, workspace layout, owner credential state, audit tables, durable
+  per-token logout revocations and the recurring-task idempotency ledger. No
+  store schema or `config` table is created.
 - The app container publishes no host port. Caddy is the only public container.
   The application refuses to start without `AUTH_SECRET` and
   `PERSONAL_WORKBENCH_ENTRY_KEY`.
@@ -73,6 +75,26 @@ Set DNS and allow ports 80/443 through the normal deployment process. Then run
 `docker compose up -d` in this directory. Caddy provisions HTTPS; the app and
 SQLite database remain private to the compose network.
 
+## Unified login and platform admin
+
+First-version unified login adds account A as the legacy Life OS owner/platform
+admin and lets A create regular accounts and grant configured internal
+workspaces. Account B cannot see any A data or any ungranted workspace. Security
+principals are the immutable `platform_accounts.account_id` and
+`platform_workspaces.workspace_id`; usernames and slugs are never owners.
+
+Additive migration `0092` is applied once on startup and is rerunnable. It seeds
+only the deterministic Life OS workspace; the owner account is bound at startup
+from `PERSONAL_WORKBENCH_OWNER` and is password-free (no account B, no secret).
+Additive migration `0093` stores only SHA-256 digests of revoked session tokens
+so logout is durable and per-token, not just a cookie clear.
+Additional internal workspaces are operator metadata via `PLATFORM_WORKSPACES_JSON`
+and stay in a safe not-configured state until an implementation target is set.
+Auth/account/grant/session/audit metadata is excluded from the 40-collection Life
+OS export/import/reset contract. See
+[docs/platform-auth-migration.md](docs/platform-auth-migration.md) for the apply,
+rollback, owner-mapping, credential-entry and workspace configuration details.
+
 ## Data migration and recovery
 
 Export from the authenticated current endpoint
@@ -101,6 +123,8 @@ stopped.
 ```sh
 node scripts/test-runtime.mjs
 node scripts/test-http.mjs
+node scripts/test-platform-migration.mjs
+node scripts/test-platform-http.mjs
 python3 scripts/test-sqlite-tools.py
 sh scripts/loopback-acceptance.sh /path/to/lifeos-standalone-node.tar.gz
 ```
@@ -108,8 +132,15 @@ sh scripts/loopback-acceptance.sh /path/to/lifeos-standalone-node.tar.gz
 These verify schema migration, session signature/expiry/key-version checks,
 app-state optimistic concurrency, project/task persistence, current export
 import/count/FK checks, HTTP login/auth/error behavior, and backup/restore
-behavior. A container build, real HTTPS browser run, real export comparison,
-and ECS memory measurement remain deployment acceptance gates.
+behavior. The platform tests additionally cover migration idempotency, the
+legacy owner mapping, account/workspace/grant authority and immediate session
+invalidation, durable per-token logout revocation (account, legacy, old-format
+and isolated-session cases), the auth/export boundary, append-only audit, and
+account B's denial across every private Life OS prefix/alias, agent endpoints,
+and header/origin/host spoof attempts. `test-http.mjs` and
+`test-platform-http.mjs` need loopback sockets. A container build, real HTTPS
+browser run, real export comparison, and ECS memory measurement remain
+deployment acceptance gates.
 
 ## Optional AI planning service
 
