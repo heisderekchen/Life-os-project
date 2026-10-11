@@ -62,6 +62,7 @@ import { showToast } from '@/lib/toast'
 import { useTasks, useProjects, useCreateTask, useUpdateTask, useDeleteTask } from '@/lib/api/hooks'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { AgentRunPanel } from '@/components/lifeos/tasks/agent-run-panel'
+import { TaskCardPanel } from '@/components/lifeos/tasks/task-card-panel'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   DndContext,
@@ -668,6 +669,7 @@ export function TasksPage() {
         <TaskRunSignals task={selectedTask} />
         <AgentRunPanel task={{ id: selectedTask.id, title: selectedTask.title, description: splitTaskDescription(selectedTask.description).body }} />
       </section>
+      <TaskCardPanel taskId={selectedTask.id} />
       <section className="space-y-2 rounded-xl border border-border/60 bg-card p-3.5">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{uiText('Result and acceptance')}</p>
         <p className="text-sm font-medium">{selectedTask.status === 'done' ? uiText('This task is marked complete.') : uiText('Results will appear here after execution.')}</p>
