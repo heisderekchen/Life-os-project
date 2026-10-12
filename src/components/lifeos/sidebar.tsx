@@ -47,32 +47,27 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
 
   const navSections = useMemo(() => [
     {
-      title: t('nav.overview'),
+      title: uiText('Plan'),
       items: [
         { id: 'dashboard' as ModuleId, label: t('nav.dashboard'), icon: LayoutDashboard },
+        { id: 'projects' as ModuleId, label: t('nav.projects'), icon: FolderKanban },
+        { id: 'calendar' as ModuleId, label: t('nav.calendar'), icon: CalendarDays },
+        { id: 'goals' as ModuleId, label: t('nav.goals'), icon: Target },
       ],
     },
     {
-      title: t('nav.productivity'),
+      title: uiText('Do'),
       items: [
         { id: 'tasks' as ModuleId, label: t('nav.tasks'), icon: CheckSquare },
-        { id: 'projects' as ModuleId, label: t('nav.projects'), icon: FolderKanban },
         { id: 'notes' as ModuleId, label: t('nav.notes'), icon: StickyNote },
-        { id: 'calendar' as ModuleId, label: t('nav.calendar'), icon: CalendarDays },
         { id: 'time' as ModuleId, label: t('nav.timeTracker'), icon: Timer },
       ],
     },
     {
-      title: t('nav.wellness'),
+      title: uiText('Life'),
       items: [
         { id: 'habits' as ModuleId, label: t('nav.habits'), icon: Repeat },
         { id: 'journal' as ModuleId, label: t('nav.journal'), icon: BookOpen },
-      ],
-    },
-    {
-      title: t('nav.growth'),
-      items: [
-        { id: 'goals' as ModuleId, label: t('nav.goals'), icon: Target },
         { id: 'learning' as ModuleId, label: t('nav.learning'), icon: GraduationCap },
         { id: 'finance' as ModuleId, label: t('nav.finance'), icon: Wallet },
       ],
@@ -117,7 +112,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
         <nav className="px-2 space-y-4">
           <TooltipProvider delayDuration={0}>
             {filteredSections.map((section) => {
-              const primaryGroup = section.title === t('nav.overview') || section.title === t('nav.productivity')
+              const primaryGroup = section.title === uiText('Plan') || section.title === uiText('Do')
               const links = (
                 <div className="space-y-px">
                   {section.items.map((mod) => {

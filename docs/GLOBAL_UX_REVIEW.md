@@ -24,18 +24,19 @@ Before these modules, `AppShell` can render the welcome or setup experience. Tho
 
 ## Highest-value changes
 
-1. **Make frequent navigation easy on phones.** Keep Dashboard, Tasks, and Projects in a persistent four-slot bottom bar; put all remaining modules in the existing navigation sheet under named groups. Preserve the existing profile and settings entry points. Reserve layout space for both the bar and fixed task form actions.
-2. **Keep the desktop rail legible without letting it dominate.** Keep Overview and Productivity visible, group Wellness, Growth, and Administration behind keyboard-operable native disclosure controls, retain Settings at the bottom, and mark the active module semantically.
+1. **Make phone navigation a destination of its own.** Keep Dashboard, Tasks, and Projects in the bottom bar. More opens a full-height module directory in the app's main area, organized as Common, Work, Life, and Settings, with search and all authorized modules reachable without a side drawer.
+2. **Group the desktop rail around work flow.** Keep Plan and Do visible, place Life modules in a keyboard-operable disclosure group, retain Settings at the bottom, and mark the active module semantically.
 3. **Give content pages a common heading and action rhythm.** Use one responsive heading component for title, supporting text, and the primary action. Apply it to Projects and Settings first; retain their module-specific controls and screens.
 4. **Review every module's content and state patterns.** After shell adoption, inspect title/action placement, mobile overflow, loading/empty/error states, form feedback, keyboard return, and bilingual labels across Dashboard, Tasks, Projects, Notes, Calendar, Time, Habits, Journal, Goals, Learning, Finance, Settings, and the role-gated Accounts screen. Repair by screen in follow-up commits without changing APIs, authorization, persisted data, or business behavior.
 
 ## This change batch
 
-- Added a mobile primary nav for Dashboard, Tasks, Projects, and More. More opens the existing complete navigation sheet. The sheet keeps every module, including Settings; role-gated Accounts remains role-gated.
+- Added a mobile primary nav for Dashboard, Tasks, Projects, and More. More opens an independent, searchable module directory in the main content area; it is not the desktop sidebar in a sheet. The directory groups Common, Work, Life, and Settings; role-gated Accounts remains role-gated.
 - Removed the duplicate hamburger from the mobile header after adding More, leaving the active module breadcrumb and existing search, language, quick-add, notification, and profile controls.
-- Kept Overview and Productivity visible in the sidebar. Wellness, Growth, and Administration now use native `details` disclosure groups when the rail is expanded. The collapsed desktop rail still exposes all module icons.
+- Reorganized desktop navigation as Plan (Dashboard, Projects, Calendar, Goals), Do (Tasks, Notes, Time), and Life (Habits, Journal, Learning, Finance). Plan and Do remain visible; Life uses a native `details` disclosure. The collapsed desktop rail still exposes all module icons.
 - Added `ModulePageHeader` and applied it to Projects and Settings. Project filters, search, and primary create action meet the 44px touch target design target; settings tabs become a horizontally scrollable row on narrow screens and remain a vertical rail on larger screens.
 - The task edit workspace now uses a separate bottom action area, so the content scroller ends above Return/Save controls and inputs do not scroll underneath them.
+- Replaced the task status-chip row with a prominent, low-box-count work queue: In progress, Needs attention (overdue), Next up, and All tasks. Fine-grained status filters remain available in a disclosure.
 - The global store emits a cancellable pre-navigation event before changing modules. An edited task can prevent navigation when the user declines the unsaved-changes prompt, regardless of which app navigation entry they used.
 - Mobile form fields and comboboxes across the app receive a 44px minimum touch target and 16px text to avoid the narrow-target / iOS zoom pattern. The small child-task add control follows the same target.
 - Replaced Settings' hard-coded 75% profile-completion display and unconditional avatar badge with a percentage derived from the two actual editable fields (display name and a non-placeholder email). No completion is attributed to an avatar that the page does not configure.
@@ -43,6 +44,7 @@ Before these modules, `AppShell` can render the welcome or setup experience. Tho
 ## Validation scope and limits
 
 - Source inventory: all 13 registered module components, the two setup gates, sidebar group definitions, and header module labels were inspected.
-- Browser visual validation: task list/detail/edit (including 390px and 375px), Projects, and Settings in Chromium using the actual Next app and locally intercepted API responses. Browser previews use fixture data and do not contact a production account.
-- The entire module set has not yet received individual interaction and visual regression checks. Dashboard, Notes, Calendar, Time, Habits, Journal, Goals, Learning, Finance, and Accounts remain to be exercised module by module. Safari/iOS soft keyboard, VoiceOver, and real device safe-area behavior were not tested in this environment.
+- Browser smoke validation: all 12 modules available to a non-admin session (Dashboard, Tasks, Projects, Notes, Calendar, Time, Habits, Journal, Goals, Learning, Finance, Settings) loaded in the actual Next app under Chromium with local API fixtures. No page errors or app error boundaries appeared. The mobile More navigation and desktop navigation were also visually inspected. These checks validate screen mounting and shell navigation, not every module-specific interaction.
+- Browser visual validation: the mobile module directory and task queue at 390px, desktop navigation and Projects at 1440px, Settings on desktop/mobile, and task list/detail/edit (including 390px and 375px), using the actual Next app with locally intercepted API responses. Browser previews use fixture data and do not contact a production account.
+- Accounts is role-gated and remained unavailable with the non-admin preview session; authorization was not bypassed. Safari/iOS soft keyboard, VoiceOver, and real device safe-area behavior were not tested in this environment.
 - No API, authorization, account data, deployment, or HappySpa surface is changed by this review batch.

@@ -88,4 +88,24 @@ describe.each([
     expect(screen.getByRole('button', { name: '保存' })).toBeInTheDocument()
     confirmDiscard.mockRestore()
   })
+
+  it('prioritizes work queues while keeping detailed status filters available', async () => {
+    useAppStore.setState({ language: 'zh', activeModule: 'tasks' })
+    viewport.mobile = mobile
+    const user = userEvent.setup()
+    const queryClient = new QueryClient()
+    render(<QueryClientProvider client={queryClient}><TasksPage /></QueryClientProvider>)
+
+    const queue = screen.getByRole('group', { name: '任务队列' })
+    expect(within(queue).getByRole('button', { name: /进行中/ })).toBeInTheDocument()
+    expect(within(queue).getByRole('button', { name: /待处理/ })).toBeInTheDocument()
+    expect(within(queue).getByRole('button', { name: /下一步/ })).toBeInTheDocument()
+    await user.click(within(queue).getByRole('button', { name: /待处理/ }))
+    expect(screen.queryByText('Selected task')).not.toBeInTheDocument()
+    await user.click(within(queue).getByRole('button', { name: /下一步/ }))
+    expect(screen.getByText('Selected task')).toBeInTheDocument()
+
+    await user.click(screen.getByText('按状态筛选'))
+    expect(screen.getByRole('button', { name: /^完成/ })).toBeInTheDocument()
+  })
 })

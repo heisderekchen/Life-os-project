@@ -103,6 +103,15 @@ function splitTaskDescription(description: string) {
   }
 }
 
+function isOverdueOpenTask(task: Task) {
+  if (!task.dueDate || (task.status !== 'todo' && task.status !== 'in-progress')) return false
+  const due = new Date(task.dueDate)
+  const today = new Date()
+  due.setHours(0, 0, 0, 0)
+  today.setHours(0, 0, 0, 0)
+  return due < today
+}
+
 export function TaskRunSignals({ task }: { task: Task }) {
   const { handoff } = splitTaskDescription(task.description)
   return (
@@ -397,6 +406,7 @@ const accentHexMap: Record<string, string> = {
 export function TasksPage() {
   useInterfaceLanguage()
   const { taskView, setTaskView, taskFilter, setTaskFilter } = useTaskStore()
+  const [queueFilter, setQueueFilter] = useState<'all' | 'in-progress' | 'attention' | 'todo'>('all')
   const accentColor = useAppStore((s) => s.accentColor)
   const { t } = useTranslation()
   const statusLabels: Record<string, string> = useMemo(() => ({
@@ -498,7 +508,11 @@ export function TasksPage() {
 
   const filteredTasks = useMemo(() => {
     let result = tasks
-    if (taskFilter !== 'all') {
+    if (queueFilter === 'attention') {
+      result = result.filter(isOverdueOpenTask)
+    } else if (queueFilter !== 'all') {
+      result = result.filter(t => t.status === queueFilter && !isOverdueOpenTask(t))
+    } else if (taskFilter !== 'all') {
       result = result.filter(t => t.status === taskFilter)
     }
     if (searchQuery) {
@@ -506,7 +520,7 @@ export function TasksPage() {
       result = result.filter(t => t.title.toLowerCase().includes(q) || t.description.toLowerCase().includes(q))
     }
     return result
-  }, [tasks, taskFilter, searchQuery])
+  }, [tasks, taskFilter, queueFilter, searchQuery])
 
   const todoTasks = filteredTasks.filter(t => t.status === 'todo')
   const inProgressTasks = filteredTasks.filter(t => t.status === 'in-progress')
@@ -515,10 +529,7 @@ export function TasksPage() {
   // Productivity Score & Completion Progress
   const taskCompletionPct = tasks.length > 0 ? Math.round((tasks.filter(t => t.status === 'done').length / tasks.length) * 100) : 0
   const overdueTasks = tasks.filter(t => {
-    if (!t.dueDate || t.status === 'done') return false
-    const due = new Date(t.dueDate)
-    due.setHours(0, 0, 0, 0)
-    return due < new Date(new Date().toISOString().split('T')[0])
+    return isOverdueOpenTask(t)
   })
 
   const handleAddTask = useCallback(() => {
@@ -846,17 +857,31 @@ export function TasksPage() {
           </div>
         </div>
 
-        {/* Overdue Section */}
-        {overdueTasks.length > 0 && (
-          <div className="px-4 py-2">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/30">
-              <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse-red" />
-              <span className="text-xs font-medium text-red-600 dark:text-red-400">{overdueTasks.length} {overdueTasks.length > 1 ? t('tasks.overdueTasksPlural') : t('tasks.overdueTasks')}</span>
-              <div className="flex-1" />
-              <span className="text-[10px] text-red-500/70">{t('tasks.reviewDueDates')}</span>
-            </div>
+        <div role="group" aria-label={uiText('Task queue')} className="px-4 pt-4">
+          <div className="mb-2 flex items-baseline justify-between">
+            <h2 className="text-sm font-semibold">{uiText('Your work')}</h2>
+            <span className="text-xs text-muted-foreground">{tasks.length} {uiText('tasks in view')}</span>
           </div>
-        )}
+          <div className="grid grid-cols-2 divide-x divide-y divide-border/70 overflow-hidden border-y border-border/70 sm:grid-cols-4 sm:divide-y-0">
+            {([
+              { id: 'in-progress', label: uiText('In progress'), count: tasks.filter(task => task.status === 'in-progress' && !isOverdueOpenTask(task)).length, note: uiText('Being worked on') },
+              { id: 'attention', label: uiText('Needs attention'), count: overdueTasks.length, note: uiText('Overdue') },
+              { id: 'todo', label: uiText('Next up'), count: tasks.filter(task => task.status === 'todo' && !isOverdueOpenTask(task)).length, note: uiText('Ready to start') },
+              { id: 'all', label: uiText('All tasks'), count: tasks.length, note: uiText('Every status') },
+            ] as const).map((queue) => {
+              const selected = queueFilter === queue.id && taskFilter === 'all'
+              return (
+                <button key={queue.id} type="button" aria-pressed={selected} onClick={() => { setQueueFilter(queue.id); setTaskFilter('all') }} className={cn('min-h-[76px] px-3 py-3 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:min-h-[84px] sm:px-4', selected && 'bg-accent/45')}>
+                  <span className="flex items-baseline justify-between gap-2">
+                    <span className="truncate text-xs font-semibold sm:text-sm">{queue.label}</span>
+                    <span className="text-lg font-semibold tabular-nums">{queue.count}</span>
+                  </span>
+                  <span className="mt-1 block truncate text-[11px] text-muted-foreground">{queue.note}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
 
         {/* Toolbar */}
         <div className="p-4 border-b border-border/50 space-y-3">
@@ -886,35 +911,23 @@ export function TasksPage() {
                   {selectionMode ? t('cancel') : t('tasks.selection.select')}
                 </Button>
               )}
-              <div className="flex min-w-0 flex-wrap items-center gap-1">
-                {(['all', 'todo', 'in-progress', 'done'] as const).map((filter) => {
-                  const count = filter === 'all' ? tasks.length : tasks.filter(t => t.status === filter).length
-                  const isActive = taskFilter === filter
-                  return (
-                    <Button
-                      key={filter}
-                      variant={isActive ? 'secondary' : 'ghost'}
-                      size="sm"
-                      className={cn('h-7 text-xs gap-1.5 tab-transition', isActive && 'border-l-2')}
-                      style={isActive ? { borderLeftColor: accentHex } : undefined}
-                      onClick={() => setTaskFilter(filter)}
-                    >
-                      {filter === 'all' ? t('tasks.all') : filter === 'in-progress' ? t('tasks.inProgress') : filter === 'todo' ? t('tasks.todo') : t('tasks.done')}
-                      <motion.span
-                        key={`${filter}-${count}`}
-                        initial={{ scale: 0.8, opacity: 0.5 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        className={cn(
-                          'inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full text-[10px] font-medium transition-colors',
-                          taskFilter === filter ? (filterBadgeColors[filter] || filterBadgeColors.all) : 'bg-muted text-muted-foreground'
-                        )}
-                      >
-                        {count}
-                      </motion.span>
-                    </Button>
-                  )
-                })}
-              </div>
+              <details className="group/status relative">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-md border px-3 text-xs font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground [&::-webkit-details-marker]:hidden">
+                  {uiText('Status filters')}<ChevronDown className="ml-2 h-3.5 w-3.5 transition-transform group-open/status:rotate-180" />
+                </summary>
+                <div className="absolute left-0 top-full z-20 mt-1 flex min-w-44 flex-col rounded-lg border bg-popover p-1 shadow-lg">
+                  {(['all', 'todo', 'in-progress', 'done'] as const).map((filter) => {
+                    const count = filter === 'all' ? tasks.length : tasks.filter(t => t.status === filter).length
+                    const isActive = taskFilter === filter && queueFilter === 'all'
+                    return (
+                      <button key={filter} type="button" className={cn('flex min-h-11 items-center justify-between gap-4 rounded-md px-3 text-left text-sm hover:bg-accent', isActive && 'bg-accent font-medium')} onClick={() => { setQueueFilter('all'); setTaskFilter(filter) }}>
+                        <span>{filter === 'all' ? t('tasks.all') : filter === 'in-progress' ? t('tasks.inProgress') : filter === 'todo' ? t('tasks.todo') : t('tasks.done')}</span>
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs tabular-nums">{count}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </details>
             </div>
             <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
               <Popover>

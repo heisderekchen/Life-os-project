@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useAppStore } from '@/stores/app-store'
+import { useAppStore, type ModuleId } from '@/stores/app-store'
 import { useTheme } from 'next-themes'
 import { apiPath } from '@/lib/api/client'
 import {
@@ -35,6 +35,7 @@ import { CalendarPage } from './calendar/calendar-page'
 import { TimePage } from './time/time-page'
 import { SettingsPage } from './settings/settings-page'
 import { PlatformAccountsPage } from './admin/platform-accounts-page'
+import { MobileModuleDirectory } from './mobile-module-directory'
 import { KeyboardShortcutsHelp, useKeyboardShortcuts } from './keyboard-shortcuts'
 import { FocusModeOverlay } from './focus-mode-overlay'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -60,7 +61,7 @@ const moduleComponents: Record<string, React.ComponentType> = {
 }
 
 export function AppShell() {
-  const { activeModule, welcomeSeen, setupComplete, focusMode, setActiveModule } = useAppStore()
+  const { activeModule, welcomeSeen, setupComplete, focusMode, mobileSidebarOpen, setMobileSidebarOpen, setActiveModule } = useAppStore()
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false)
   const [cloudState, setCloudState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [cloudError, setCloudError] = useState('')
@@ -298,6 +299,10 @@ export function AppShell() {
   }
 
   const ActiveComponent = moduleComponents[activeModule] || DashboardPage
+  const selectMobileModule = (module: ModuleId) => {
+    setMobileSidebarOpen(false)
+    setActiveModule(module)
+  }
 
   // Page transition variants
   const pageVariants = {
@@ -319,30 +324,31 @@ export function AppShell() {
         {!focusMode && !isMobile && <Sidebar />}
 
         <div className="lifeos-column">
-          {!focusMode && <Header />}
+          {!focusMode && !(isMobile && mobileSidebarOpen) && <Header />}
           <main className="lifeos-main relative">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeModule}
-                variants={pageVariants}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-                className="h-full"
-              >
-                <ActiveComponent />
-              </motion.div>
-            </AnimatePresence>
+            {isMobile && mobileSidebarOpen ? (
+              <MobileModuleDirectory onSelect={selectMobileModule} />
+            ) : (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeModule}
+                  variants={pageVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                  className="h-full"
+                >
+                  <ActiveComponent />
+                </motion.div>
+              </AnimatePresence>
+            )}
             {focusMode && <FocusModeOverlay />}
           </main>
         </div>
       </div>
 
-      {!focusMode && isMobile && <MobilePrimaryNav activeModule={activeModule} onSelect={setActiveModule} />}
-
-      {/* Mobile sidebar Sheet — rendered outside the layout flow */}
-      {!focusMode && isMobile && <Sidebar />}
+      {!focusMode && isMobile && <MobilePrimaryNav activeModule={activeModule} directoryOpen={mobileSidebarOpen} onSelect={selectMobileModule} />}
 
       <CommandPalette />
       <GlobalSearchPanel />
@@ -351,12 +357,13 @@ export function AppShell() {
   )
 }
 
-function MobilePrimaryNav({ activeModule, onSelect }: {
-  activeModule: ReturnType<typeof useAppStore.getState>['activeModule']
-  onSelect: (module: ReturnType<typeof useAppStore.getState>['activeModule']) => void
+function MobilePrimaryNav({ activeModule, directoryOpen, onSelect }: {
+  activeModule: ModuleId
+  directoryOpen: boolean
+  onSelect: (module: ModuleId) => void
 }) {
   const { t } = useTranslation()
-  const { setMobileSidebarOpen, mobileSidebarOpen } = useAppStore()
+  const { setMobileSidebarOpen } = useAppStore()
   const primary = [
     { id: 'dashboard' as const, label: t('nav.dashboard'), icon: Home },
     { id: 'tasks' as const, label: t('nav.tasks'), icon: CheckSquare },
@@ -371,7 +378,7 @@ function MobilePrimaryNav({ activeModule, onSelect }: {
           <span className="text-[11px] font-medium">{label}</span>
         </button>
       ))}
-      <button type="button" aria-expanded={mobileSidebarOpen} aria-current={!inPrimary ? 'page' : undefined} onClick={() => setMobileSidebarOpen(true)} className={!inPrimary ? 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md bg-accent text-foreground' : 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md text-muted-foreground'}>
+      <button type="button" aria-expanded={directoryOpen} aria-current={directoryOpen || !inPrimary ? 'page' : undefined} onClick={() => setMobileSidebarOpen(!directoryOpen)} className={directoryOpen || !inPrimary ? 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md bg-accent text-foreground' : 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md text-muted-foreground'}>
         <MoreHorizontal className="h-4 w-4" />
         <span className="text-[11px] font-medium">{uiText('More')}</span>
       </button>
