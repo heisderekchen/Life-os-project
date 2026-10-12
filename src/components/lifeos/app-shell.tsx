@@ -40,7 +40,7 @@ import { KeyboardShortcutsHelp, useKeyboardShortcuts } from './keyboard-shortcut
 import { FocusModeOverlay } from './focus-mode-overlay'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { Home, CheckSquare, Repeat, GraduationCap, Settings } from 'lucide-react'
+import { Home, CheckSquare, Repeat, GraduationCap } from 'lucide-react'
 import { uiText } from '@/lib/i18n/interface-copy'
 import { useTranslation } from '@/lib/i18n'
 
@@ -63,7 +63,7 @@ const moduleComponents: Record<string, React.ComponentType> = {
 export function AppShell() {
   const { activeModule, welcomeSeen, setupComplete, focusMode, mobileSidebarOpen, setMobileSidebarOpen, setActiveModule } = useAppStore()
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false)
-  const [mobileCategory, setMobileCategory] = useState<'overview' | 'productivity' | 'wellness' | 'growth' | 'settings'>('overview')
+  const [mobileCategory, setMobileCategory] = useState<'overview' | 'productivity' | 'wellness' | 'growth'>('overview')
   const [cloudState, setCloudState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [cloudError, setCloudError] = useState('')
   const [saveError, setSaveError] = useState(false)
@@ -325,7 +325,7 @@ export function AppShell() {
         {!focusMode && !isMobile && <Sidebar />}
 
         <div className="lifeos-column">
-          {!focusMode && !(isMobile && mobileSidebarOpen) && <Header />}
+          {!focusMode && <Header />}
           <main className="lifeos-main relative">
             {isMobile && mobileSidebarOpen ? (
             <MobileModuleDirectory category={mobileCategory} onSelect={selectMobileModule} onClose={() => setMobileSidebarOpen(false)} />
@@ -350,7 +350,6 @@ export function AppShell() {
       </div>
 
       {!focusMode && isMobile && <MobilePrimaryNav activeModule={activeModule} directoryOpen={mobileSidebarOpen} browseCategory={mobileCategory} onCategory={category => {
-        if (category === 'settings') { setMobileSidebarOpen(false); setActiveModule('settings'); return }
         if (mobileSidebarOpen && mobileCategory === category) { setMobileSidebarOpen(false); return }
         setMobileCategory(category)
         setMobileSidebarOpen(true)
@@ -366,8 +365,8 @@ export function AppShell() {
 export function MobilePrimaryNav({ activeModule, directoryOpen, browseCategory, onCategory }: {
   activeModule: ModuleId
   directoryOpen: boolean
-  browseCategory: 'overview' | 'productivity' | 'wellness' | 'growth' | 'settings'
-  onCategory: (category: 'overview' | 'productivity' | 'wellness' | 'growth' | 'settings') => void
+  browseCategory: 'overview' | 'productivity' | 'wellness' | 'growth'
+  onCategory: (category: 'overview' | 'productivity' | 'wellness' | 'growth') => void
 }) {
   const { t } = useTranslation()
   const primary = [
@@ -378,17 +377,13 @@ export function MobilePrimaryNav({ activeModule, directoryOpen, browseCategory, 
   ]
   const activeCategory = directoryOpen ? browseCategory : primary.find(item => item.modules.includes(activeModule))?.id
   return (
-    <nav aria-label={uiText('Primary navigation')} className="grid min-h-14 shrink-0 grid-cols-5 gap-1 border-t border-border bg-background/95 px-2 pt-1 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+    <nav aria-label={uiText('Primary navigation')} className="grid min-h-14 shrink-0 grid-cols-4 gap-1 border-t border-border bg-background/95 px-2 pt-1 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
       {primary.map(({ id, label, icon: Icon }) => (
         <button key={id} type="button" aria-current={activeCategory === id ? 'page' : undefined} aria-pressed={activeCategory === id} onClick={() => onCategory(id)} className={activeCategory === id ? 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md bg-accent text-foreground' : 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md text-muted-foreground'}>
           <Icon className="h-4 w-4" />
           <span className="text-[11px] font-medium">{label}</span>
         </button>
       ))}
-      <button type="button" aria-current={activeModule === 'settings' ? 'page' : undefined} aria-pressed={activeModule === 'settings'} onClick={() => onCategory('settings')} className={activeModule === 'settings' ? 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md bg-accent text-foreground' : 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md text-muted-foreground'}>
-        <Settings className="h-4 w-4" />
-        <span className="text-[11px] font-medium">{t('nav.settings')}</span>
-      </button>
     </nav>
   )
 }

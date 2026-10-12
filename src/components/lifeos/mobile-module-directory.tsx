@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   ArrowRight,
   BookOpen,
@@ -11,8 +11,6 @@ import {
   LayoutDashboard,
   Repeat,
   Search,
-  Settings,
-  ShieldCheck,
   StickyNote,
   Timer,
   Target,
@@ -27,21 +25,11 @@ import { useTranslation } from '@/lib/i18n'
 type DirectoryModule = { id: ModuleId; label: string; icon: LucideIcon }
 type DirectoryGroup = { title: string; items: DirectoryModule[] }
 
-export function MobileModuleDirectory({ onSelect, onClose, category = 'productivity' }: { onSelect: (module: ModuleId) => void; onClose?: () => void; category?: 'overview' | 'productivity' | 'wellness' | 'growth' | 'settings' }) {
+export function MobileModuleDirectory({ onSelect, onClose, category = 'productivity' }: { onSelect: (module: ModuleId) => void; onClose?: () => void; category?: 'overview' | 'productivity' | 'wellness' | 'growth' }) {
   useInterfaceLanguage()
   const { t } = useTranslation()
   const enabledModules = useAppStore((state) => state.enabledModules)
   const [query, setQuery] = useState('')
-  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
-
-  useEffect(() => {
-    let active = true
-    fetch('/api/platform/session', { cache: 'no-store' })
-      .then(async response => response.ok ? response.json() : null)
-      .then(session => { if (active) setIsPlatformAdmin(session?.principal?.role === 'platform_admin') })
-      .catch(() => { if (active) setIsPlatformAdmin(false) })
-    return () => { active = false }
-  }, [])
   const groups = useMemo<DirectoryGroup[]>(() => {
     const dashboard: DirectoryModule = { id: 'dashboard', label: t('nav.dashboard'), icon: LayoutDashboard }
     const tasks: DirectoryModule = { id: 'tasks', label: t('nav.tasks'), icon: CheckSquare }
@@ -54,25 +42,22 @@ export function MobileModuleDirectory({ onSelect, onClose, category = 'productiv
     const goals: DirectoryModule = { id: 'goals', label: t('nav.goals'), icon: Target }
     const learning: DirectoryModule = { id: 'learning', label: t('nav.learning'), icon: GraduationCap }
     const finance: DirectoryModule = { id: 'finance', label: t('nav.finance'), icon: Wallet }
-    const settings: DirectoryModule = { id: 'settings', label: t('nav.settings'), icon: Settings }
     const workItems = [tasks, projects, notes, calendar, time]
     const wellnessItems = [habits, journal]
     const growthItems = [goals, learning, finance]
-    const settingItems = isPlatformAdmin ? [settings, { id: 'accounts' as ModuleId, label: t('nav.accounts'), icon: ShieldCheck }] : [settings]
     const groups: DirectoryGroup[] = [
       { title: t('nav.overview'), items: [dashboard] },
       { title: t('nav.productivity'), items: workItems },
       { title: t('nav.wellness'), items: wellnessItems },
       { title: t('nav.growth'), items: growthItems },
-      { title: t('nav.settings'), items: settingItems },
     ]
     return groups.map((group) => ({
       ...group,
-      items: group.items.filter((item) => item.id === 'dashboard' || item.id === 'projects' || item.id === 'settings' || enabledModules.includes(item.id)),
+      items: group.items.filter((item) => item.id === 'dashboard' || item.id === 'projects' || enabledModules.includes(item.id)),
     })).filter((group) => group.items.length > 0)
-  }, [enabledModules, isPlatformAdmin, t])
+  }, [enabledModules, t])
 
-  const selectedGroup = groups.find(group => group.title === ({ overview: t('nav.overview'), productivity: t('nav.productivity'), wellness: t('nav.wellness'), growth: t('nav.growth'), settings: t('nav.settings') }[category]))
+  const selectedGroup = groups.find(group => group.title === ({ overview: t('nav.overview'), productivity: t('nav.productivity'), wellness: t('nav.wellness'), growth: t('nav.growth') }[category]))
   const categoryGroups = selectedGroup ? [selectedGroup] : []
   const visibleGroups = query.trim()
     ? categoryGroups.map((group) => ({
@@ -86,7 +71,7 @@ export function MobileModuleDirectory({ onSelect, onClose, category = 'productiv
       <div className="mb-6 border-b border-border/70 pb-5 sm:mb-8">
         <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary">Life OS</p>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{selectedGroup?.title}</h1>
-        <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{category === 'settings' ? '个人资料与应用偏好' : uiText('Choose a place by what you want to do next.')}</p>
+        <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{uiText('Choose a place by what you want to do next.')}</p>
         {onClose && <button type="button" onClick={onClose} className="mt-4 min-h-11 rounded-md px-3 text-sm font-medium text-primary hover:bg-accent" aria-label="返回当前页面">返回当前页面</button>}
         <label className="relative mt-5 block">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

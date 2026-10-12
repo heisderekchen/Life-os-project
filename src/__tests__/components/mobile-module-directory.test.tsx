@@ -31,7 +31,7 @@ describe('mobile module directory', () => {
     expect(screen.getByRole('button', { name: /笔记/ })).toBeInTheDocument()
   })
 
-  it('keeps one of the four registered primary categories current, with settings separate', () => {
+  it('shows exactly four primary categories and only the browsed category as current', () => {
     useAppStore.setState({ language: 'zh' })
     render(<MobilePrimaryNav activeModule="dashboard" directoryOpen browseCategory="productivity" onCategory={vi.fn()} />)
     const nav = screen.getByRole('navigation', { name: '主导航' })
@@ -39,7 +39,8 @@ describe('mobile module directory', () => {
     expect(current).toHaveLength(1)
     expect(current[0]).toHaveTextContent('效率')
     expect(within(nav).getAllByRole('button').filter(button => button.className.includes('bg-accent'))).toHaveLength(1)
-    expect(within(nav).getByRole('button', { name: '设置' })).not.toHaveAttribute('aria-current', 'page')
+    expect(within(nav).getAllByRole('button')).toHaveLength(4)
+    expect(within(nav).queryByRole('button', { name: '设置' })).not.toBeInTheDocument()
   })
 
   it('closes the category directory back to the current page', async () => {

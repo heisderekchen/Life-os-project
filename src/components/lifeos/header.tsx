@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useAppStore, type ModuleId } from '@/stores/app-store'
 import {
   Search,
@@ -13,6 +14,7 @@ import {
   ChevronRight,
   User,
   Settings,
+  ShieldCheck,
   LogOut,
   Maximize2,
 } from 'lucide-react'
@@ -47,6 +49,16 @@ export function Header() {
   const isMobile = useIsMobile()
   const { t } = useTranslation()
   const { data: profile } = useProfile()
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    fetch('/api/platform/session', { cache: 'no-store' })
+      .then(async response => response.ok ? response.json() : null)
+      .then(session => { if (active) setIsPlatformAdmin(session?.principal?.role === 'platform_admin') })
+      .catch(() => { if (active) setIsPlatformAdmin(false) })
+    return () => { active = false }
+  }, [])
 
   const moduleLabels: Record<ModuleId, string> = {
     dashboard: t('nav.dashboard'),
@@ -83,6 +95,12 @@ export function Header() {
   const userName = profile?.name || ''
   const userEmail = profile?.email || ''
   const isPrivateWorkbench = process.env.NEXT_PUBLIC_LIFEOS_BASE_PATH === '/workbench'
+
+  const navigateFromProfile = (module: ModuleId) => {
+    const store = useAppStore.getState()
+    store.setMobileSidebarOpen(false)
+    store.setActiveModule(module)
+  }
 
   const signOut = async () => {
     try {
@@ -236,14 +254,18 @@ export function Header() {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => useAppStore.getState().setActiveModule('settings')}>
+            <DropdownMenuItem onClick={() => navigateFromProfile('settings')}>
               <User className="mr-2 h-4 w-4" />
               {t('header.profile')}
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => useAppStore.getState().setActiveModule('settings')}>
+            <DropdownMenuItem onClick={() => navigateFromProfile('settings')}>
               <Settings className="mr-2 h-4 w-4" />
               {t('header.preferences')}
             </DropdownMenuItem>
+            {isPlatformAdmin && <DropdownMenuItem onClick={() => navigateFromProfile('accounts')}>
+              <ShieldCheck className="mr-2 h-4 w-4" />
+              {t('nav.accounts')}
+            </DropdownMenuItem>}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
               {theme === 'dark' ? (
