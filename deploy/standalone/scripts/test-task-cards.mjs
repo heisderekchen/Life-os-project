@@ -356,10 +356,11 @@ try {
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM lifeos_task_worker_routing').get().n, routingBeforeReset)
 
   // ---- View contract. The Next toolchain is not installed in this
-  // environment, so this is a source/payload contract: the detail view mounts
-  // the responsive Chinese panel, and the panel only talks to the standalone
-  // task-card API (never to /api/agent or a provider). ----
+  // environment, so this is a source/payload contract: selected task details
+  // mount the shared task-card/research extension, and the task-card panel only
+  // talks to the standalone API (never to /api/agent or a provider). ----
   const pageSource = readFileSync(join(repoRoot, 'src/components/lifeos/tasks/tasks-page.tsx'), 'utf8')
+  const detailsSource = readFileSync(join(repoRoot, 'src/components/lifeos/tasks/task-detail-extensions.tsx'), 'utf8')
   const panelSource = readFileSync(join(repoRoot, 'src/components/lifeos/tasks/task-card-panel.tsx'), 'utf8')
   // Static wiring check for server.mjs (the loopback HTTP suite covers this
   // dynamically where sockets are available).
@@ -375,7 +376,9 @@ try {
   assert.match(serverSource, /DEEPSEEK_MODEL: process\.env\.DEEPSEEK_MODEL/, 'deepseek model id must be forwarded to the module env')
   assert.match(serverSource, /OPENAI_MODEL: process\.env\.OPENAI_MODEL/, 'openai model id must be forwarded to the module env')
   assert.equal(/DEEPSEEK_API_KEY|OPENAI_API_KEY|apiKey/.test(serverSource), false, 'provider keys must stay out of the standalone server')
-  assert.match(pageSource, /TaskCardPanel/, 'task detail must mount the task-card panel')
+  assert.match(pageSource, /TaskDetailExtensions/, 'selected task detail must mount the task extensions')
+  assert.match(detailsSource, /TaskCardPanel/, 'task detail extensions must mount the task-card panel')
+  assert.match(detailsSource, /ResearchPanel/, 'task detail extensions must mount the research panel')
   assert.match(panelSource, /sm:grid-cols/, 'panel must keep a responsive layout')
   assert.match(panelSource, /任务卡/)
   // The stable task id is shown as the card/task number in the header, reusing

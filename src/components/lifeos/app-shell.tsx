@@ -34,6 +34,7 @@ import { LearningPage } from './learning/learning-page'
 import { CalendarPage } from './calendar/calendar-page'
 import { TimePage } from './time/time-page'
 import { SettingsPage } from './settings/settings-page'
+import { PlatformAccountsPage } from './admin/platform-accounts-page'
 import { KeyboardShortcutsHelp, useKeyboardShortcuts } from './keyboard-shortcuts'
 import { FocusModeOverlay } from './focus-mode-overlay'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -52,6 +53,7 @@ const moduleComponents: Record<string, React.ComponentType> = {
   calendar: CalendarPage,
   time: TimePage,
   settings: SettingsPage,
+  accounts: PlatformAccountsPage,
 }
 
 export function AppShell() {

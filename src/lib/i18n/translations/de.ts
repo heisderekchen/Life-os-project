@@ -59,7 +59,25 @@ const de: TranslationKeys = {
     learning: 'Lernen',
     finance: 'Finanzen',
     settings: 'Einstellungen',
+    accounts: 'Konten und Zugriffe',
+    administration: 'Administration',
     focusMode: 'Fokusmodus',
+  },
+
+  platformAdmin: {
+    title: 'Konten und Arbeitsbereichzugriff', description: 'Konten erstellen und Zugriff auf konfigurierte Arbeitsbereiche vergeben.',
+    loading: 'Administratorzugriff wird geprüft…', accessDenied: 'Diese Seite ist nur für Plattformadministratoren verfügbar.',
+    refresh: 'Aktualisieren', loadFailed: 'Konten konnten nicht geladen werden.', actionFailed: 'Änderung konnte nicht gespeichert werden.',
+    createAccount: 'Konto erstellen', createAccountDescription: 'Erstellt ein normales Konto. Passwort und Arbeitsbereiche lassen sich anschließend festlegen.',
+    username: 'Benutzername', displayName: 'Anzeigename', create: 'Konto erstellen', accountCreated: 'Konto erstellt.',
+    passwordUpdated: 'Passwort aktualisiert. Bestehende Sitzungen wurden beendet.', accountEnabled: 'Konto aktiviert.',
+    accountDisabled: 'Konto deaktiviert.', permissionsUpdated: 'Arbeitsbereichzugriff aktualisiert.', accounts: 'Konten',
+    enabled: 'Aktiviert', disabled: 'Deaktiviert', accountStatus: 'Kontostatus', workspaceAccess: 'Arbeitsbereichzugriff',
+    confirmDisable: 'Dieses Konto deaktivieren?', disableSessionsNotice: 'Aktive Sitzungen werden sofort ungültig.', confirmRevoke: 'Zugriff widerrufen auf',
+    configured: 'konfiguriert', notConfigured: 'nicht konfiguriert', adminWorkspaceNotice: 'Administratorzugriff wird über die Serverkonfiguration verwaltet.',
+    newPassword: 'Temporäres Passwort', confirmPassword: 'Passwort bestätigen', passwordMismatch: 'Die Passwörter stimmen nicht überein.',
+    passwordRequirements: '14–128 Zeichen. Die Felder werden nach dem Speichern geleert.',
+    savePassword: 'Passwort speichern', cancel: 'Abbrechen', setOrResetPassword: 'Passwort festlegen oder zurücksetzen', noAccounts: 'Keine Konten gefunden.',
   },
 
   sidebarStats: {

@@ -62,6 +62,7 @@ export function Header() {
     calendar: t('nav.calendar'),
     time: t('nav.timeTracker'),
     settings: t('nav.settings'),
+    accounts: t('nav.accounts'),
   }
 
   const moduleGroups: Record<ModuleId, string> = {
@@ -77,6 +78,7 @@ export function Header() {
     calendar: t('groups.productivity'),
     time: t('groups.productivity'),
     settings: t('groups.settings'),
+    accounts: t('groups.settings'),
   }
 
   const userName = profile?.name || ''

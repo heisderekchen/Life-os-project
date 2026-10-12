@@ -59,7 +59,25 @@ const fr: TranslationKeys = {
     learning: 'Apprentissage',
     finance: 'Finances',
     settings: 'Paramètres',
+    accounts: 'Comptes et accès',
+    administration: 'Administration',
     focusMode: 'Mode focus',
+  },
+
+  platformAdmin: {
+    title: 'Comptes et accès aux espaces', description: 'Créez des comptes et accordez l’accès aux espaces configurés.',
+    loading: 'Vérification des droits administrateur…', accessDenied: 'Cette page est réservée aux administrateurs de la plateforme.',
+    refresh: 'Actualiser', loadFailed: 'Impossible de charger les comptes.', actionFailed: 'La modification n’a pas pu être enregistrée.',
+    createAccount: 'Créer un compte', createAccountDescription: 'Crée un compte standard. Définissez ensuite son mot de passe et ses accès.',
+    username: 'Nom d’utilisateur', displayName: 'Nom affiché', create: 'Créer le compte', accountCreated: 'Compte créé.',
+    passwordUpdated: 'Mot de passe modifié. Les sessions existantes ont été fermées.', accountEnabled: 'Compte activé.',
+    accountDisabled: 'Compte désactivé.', permissionsUpdated: 'Accès aux espaces mis à jour.', accounts: 'Comptes',
+    enabled: 'Activé', disabled: 'Désactivé', accountStatus: 'État du compte', workspaceAccess: 'Accès aux espaces',
+    confirmDisable: 'Désactiver ce compte ?', disableSessionsNotice: 'Ses sessions actives seront immédiatement invalidées.', confirmRevoke: 'Révoquer l’accès à',
+    configured: 'configuré', notConfigured: 'non configuré', adminWorkspaceNotice: 'Les accès administrateur sont gérés par la configuration serveur.',
+    newPassword: 'Mot de passe temporaire', confirmPassword: 'Confirmer le mot de passe', passwordMismatch: 'Les mots de passe ne correspondent pas.',
+    passwordRequirements: '14 à 128 caractères. Les champs sont effacés après enregistrement.',
+    savePassword: 'Enregistrer le mot de passe', cancel: 'Annuler', setOrResetPassword: 'Définir ou réinitialiser le mot de passe', noAccounts: 'Aucun compte.',
   },
 
   sidebarStats: {
