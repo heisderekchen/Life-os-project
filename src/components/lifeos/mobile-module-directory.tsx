@@ -27,7 +27,7 @@ import { useTranslation } from '@/lib/i18n'
 type DirectoryModule = { id: ModuleId; label: string; icon: LucideIcon }
 type DirectoryGroup = { title: string; items: DirectoryModule[] }
 
-export function MobileModuleDirectory({ onSelect }: { onSelect: (module: ModuleId) => void }) {
+export function MobileModuleDirectory({ onSelect, onClose, category = 'productivity' }: { onSelect: (module: ModuleId) => void; onClose?: () => void; category?: 'overview' | 'productivity' | 'wellness' | 'growth' | 'settings' }) {
   useInterfaceLanguage()
   const { t } = useTranslation()
   const enabledModules = useAppStore((state) => state.enabledModules)
@@ -37,12 +37,11 @@ export function MobileModuleDirectory({ onSelect }: { onSelect: (module: ModuleI
   useEffect(() => {
     let active = true
     fetch('/api/platform/session', { cache: 'no-store' })
-      .then(async (response) => response.ok ? response.json() : null)
-      .then((session) => { if (active) setIsPlatformAdmin(session?.principal?.role === 'platform_admin') })
+      .then(async response => response.ok ? response.json() : null)
+      .then(session => { if (active) setIsPlatformAdmin(session?.principal?.role === 'platform_admin') })
       .catch(() => { if (active) setIsPlatformAdmin(false) })
     return () => { active = false }
   }, [])
-
   const groups = useMemo<DirectoryGroup[]>(() => {
     const dashboard: DirectoryModule = { id: 'dashboard', label: t('nav.dashboard'), icon: LayoutDashboard }
     const tasks: DirectoryModule = { id: 'tasks', label: t('nav.tasks'), icon: CheckSquare }
@@ -56,34 +55,39 @@ export function MobileModuleDirectory({ onSelect }: { onSelect: (module: ModuleI
     const learning: DirectoryModule = { id: 'learning', label: t('nav.learning'), icon: GraduationCap }
     const finance: DirectoryModule = { id: 'finance', label: t('nav.finance'), icon: Wallet }
     const settings: DirectoryModule = { id: 'settings', label: t('nav.settings'), icon: Settings }
-    const workItems = [notes, calendar, time]
-    const lifeItems = [habits, journal, goals, learning, finance]
+    const workItems = [tasks, projects, notes, calendar, time]
+    const wellnessItems = [habits, journal]
+    const growthItems = [goals, learning, finance]
+    const settingItems = isPlatformAdmin ? [settings, { id: 'accounts' as ModuleId, label: t('nav.accounts'), icon: ShieldCheck }] : [settings]
     const groups: DirectoryGroup[] = [
-      { title: uiText('Common'), items: [dashboard, tasks, projects] },
-      { title: uiText('Work'), items: workItems },
-      { title: uiText('Life'), items: lifeItems },
-      { title: uiText('Settings'), items: [settings] },
+      { title: t('nav.overview'), items: [dashboard] },
+      { title: t('nav.productivity'), items: workItems },
+      { title: t('nav.wellness'), items: wellnessItems },
+      { title: t('nav.growth'), items: growthItems },
+      { title: t('nav.settings'), items: settingItems },
     ]
-    if (isPlatformAdmin) groups[3].items.push({ id: 'accounts', label: t('nav.accounts'), icon: ShieldCheck })
     return groups.map((group) => ({
       ...group,
-      items: group.items.filter((item) => item.id === 'dashboard' || item.id === 'projects' || item.id === 'settings' || item.id === 'accounts' || enabledModules.includes(item.id)),
+      items: group.items.filter((item) => item.id === 'dashboard' || item.id === 'projects' || item.id === 'settings' || enabledModules.includes(item.id)),
     })).filter((group) => group.items.length > 0)
   }, [enabledModules, isPlatformAdmin, t])
 
+  const selectedGroup = groups.find(group => group.title === ({ overview: t('nav.overview'), productivity: t('nav.productivity'), wellness: t('nav.wellness'), growth: t('nav.growth'), settings: t('nav.settings') }[category]))
+  const categoryGroups = selectedGroup ? [selectedGroup] : []
   const visibleGroups = query.trim()
-    ? groups.map((group) => ({
+    ? categoryGroups.map((group) => ({
       ...group,
       items: group.items.filter((item) => item.label.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())),
     })).filter((group) => group.items.length > 0)
-    : groups
+    : categoryGroups
 
   return (
     <div className="mx-auto h-full w-full max-w-3xl overflow-y-auto px-4 pb-8 pt-5 sm:px-8 sm:pt-8">
       <div className="mb-6 border-b border-border/70 pb-5 sm:mb-8">
         <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary">Life OS</p>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{uiText('Where do you want to go?')}</h1>
-        <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{uiText('Choose a place by what you want to do next.')}</p>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{selectedGroup?.title}</h1>
+        <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{category === 'settings' ? '个人资料与应用偏好' : uiText('Choose a place by what you want to do next.')}</p>
+        {onClose && <button type="button" onClick={onClose} className="mt-4 min-h-11 rounded-md px-3 text-sm font-medium text-primary hover:bg-accent" aria-label="返回当前页面">返回当前页面</button>}
         <label className="relative mt-5 block">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText('Find a tool')} aria-label={uiText('Find a tool')} className="h-11 pl-9 text-base" />
@@ -94,8 +98,8 @@ export function MobileModuleDirectory({ onSelect }: { onSelect: (module: ModuleI
         {visibleGroups.map((group) => (
           <section key={group.title} aria-label={group.title}>
             <div className="mb-2 flex items-baseline justify-between border-b border-border/60 pb-2">
-              <h2 className="text-sm font-semibold tracking-wide">{group.title}</h2>
-              <span className="text-xs text-muted-foreground">{group.items.length}</span>
+              <h2 className="sr-only">{group.title}</h2>
+              <span className="ml-auto text-xs text-muted-foreground">{group.items.length} {uiText('tools')}</span>
             </div>
             <div>
               {group.items.map(({ id, label, icon: Icon }) => (

@@ -63,6 +63,7 @@ import { useTasks, useProjects, useCreateTask, useUpdateTask, useDeleteTask } fr
 import { useIsMobile } from '@/hooks/use-mobile'
 import { AgentRunPanel } from '@/components/lifeos/tasks/agent-run-panel'
 import { TaskDetailExtensions } from '@/components/lifeos/tasks/task-detail-extensions'
+import { fetchTaskCard, type TaskCard } from '@/components/lifeos/tasks/task-card-panel'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   DndContext,
@@ -434,6 +435,8 @@ export function TasksPage() {
 
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [selectedTaskCard, setSelectedTaskCard] = useState<TaskCard | null>(null)
+  const [taskCardLoadState, setTaskCardLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [taskWorkspaceMode, setTaskWorkspaceMode] = useState<'detail' | 'edit'>('detail')
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [newTask, setNewTask] = useState({ title: '', description: '', priority: 'medium' as Task['priority'], dueDate: '', projectId: '', tags: '', recurrence: 'none' as Task['recurrence'] })
@@ -447,6 +450,22 @@ export function TasksPage() {
   const previousSelectedTaskId = useRef<string | null>(null)
 
   const selectedTask = useMemo(() => tasks.find(t => t.id === selectedTaskId), [tasks, selectedTaskId])
+
+  const loadSelectedTaskCard = useCallback(async (taskId: string) => {
+    setTaskCardLoadState('loading')
+    try {
+      setSelectedTaskCard(await fetchTaskCard(taskId))
+      setTaskCardLoadState('ready')
+    } catch {
+      setSelectedTaskCard(null)
+      setTaskCardLoadState('error')
+    }
+  }, [])
+
+  useEffect(() => {
+    if (selectedTaskId) void loadSelectedTaskCard(selectedTaskId)
+    else { setSelectedTaskCard(null); setTaskCardLoadState('loading') }
+  }, [selectedTaskId, loadSelectedTaskCard])
 
   useEffect(() => {
     const previousId = previousSelectedTaskId.current
@@ -715,7 +734,7 @@ export function TasksPage() {
         <div className="min-w-0"><p className="mb-2 break-all text-xs font-medium tracking-wide text-muted-foreground">任务编号 · {selectedTask.id}</p><h3 className="max-w-4xl break-words text-2xl font-semibold tracking-tight text-pretty sm:text-3xl">{selectedTask.title}</h3></div>
         <div className="flex shrink-0 items-center gap-1">
           <Button variant="outline" size="sm" onClick={() => openEditDialog(selectedTask)}><Edit3 className="mr-2 h-3.5 w-3.5" />{t('edit')}</Button>
-          <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-7 sm:w-7 shrink-0" aria-label={t('close')} onClick={closeTaskWorkspace}>
+          <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-7 sm:w-7 shrink-0" aria-label="返回任务列表" onClick={closeTaskWorkspace}>
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -733,14 +752,20 @@ export function TasksPage() {
       <div className="min-w-0 space-y-5">
       <section className="min-w-0 space-y-3 rounded-xl border border-border/60 bg-card p-4 sm:p-5">
         <p className="text-sm font-semibold">任务目标</p>
-        {splitTaskDescription(selectedTask.description).body
-          ? <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/85">{splitTaskDescription(selectedTask.description).body}</p>
-          : <p className="text-sm text-muted-foreground">尚未填写目标，可编辑任务补充。</p>}
+        {taskCardLoadState === 'loading' ? <p className="text-sm text-muted-foreground">正在读取任务卡…</p>
+          : taskCardLoadState === 'error' ? <div className="flex items-center gap-3"><p role="alert" className="text-sm text-muted-foreground">任务目标读取失败。</p><Button variant="outline" size="sm" onClick={() => void loadSelectedTaskCard(selectedTask.id)}>重试</Button></div>
+          : selectedTaskCard?.goal ? <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/85">{selectedTaskCard.goal}</p>
+            : <p className="text-sm text-muted-foreground">尚未填写任务目标。</p>}
       </section>
       <section className="min-w-0 space-y-3 rounded-xl border border-border/60 bg-card p-4 sm:p-5">
         <p className="text-sm font-semibold">预期产出与验收</p>
-        <p className="text-sm leading-relaxed text-foreground/85">{selectedTask.status === 'done' ? '任务已标记完成。' : '完成后在此记录交付物与验收结果。'}</p>
-        <p className="text-xs text-muted-foreground">{uiText('Acceptance has not been recorded.')}</p>
+        {taskCardLoadState === 'loading' ? <p className="text-sm text-muted-foreground">正在读取预期产出与验收…</p>
+          : taskCardLoadState === 'error' ? <p className="text-sm text-muted-foreground">无法读取任务卡字段，请使用目标区域的重试按钮。</p>
+            : <>
+              <div><p className="mb-1 text-xs text-muted-foreground">预期产出</p>{selectedTaskCard?.expectedArtifacts.length ? <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed">{selectedTaskCard.expectedArtifacts.map((item, index) => <li key={`${index}-${item}`} className="break-words">{item}</li>)}</ul> : <p className="text-sm text-muted-foreground">尚未填写预期产出。</p>}</div>
+              <div><p className="mb-1 text-xs text-muted-foreground">验收标准</p>{selectedTaskCard?.verification.length ? <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed">{selectedTaskCard.verification.map((item, index) => <li key={`${index}-${item}`} className="break-words">{item}</li>)}</ul> : <p className="text-sm text-muted-foreground">尚未填写验收标准。</p>}</div>
+              {selectedTaskCard?.nextStep && <div><p className="mb-1 text-xs text-muted-foreground">下一步</p><p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{selectedTaskCard.nextStep}</p></div>}
+            </>}
       </section>
       <section className="min-w-0 space-y-3 rounded-xl border border-border/60 bg-card p-4 sm:p-5">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{uiText('Task materials')}</p>
@@ -846,7 +871,7 @@ export function TasksPage() {
               </div>
               <div>
                 <p className="text-xs font-semibold">{t('tasks.productivityScore')}</p>
-                <p className="text-[10px] text-muted-foreground">{tasks.filter(t => t.status === 'done').length} {uiText("of")} {tasks.length} {t('tasks.tasksDone')}</p>
+                <p className="text-[10px] text-muted-foreground">{uiText('All tasks')}: {tasks.filter(t => t.status === 'done').length} {uiText("of")} {tasks.length} {t('tasks.tasksDone')}</p>
               </div>
             </div>
             <div className="flex-1">

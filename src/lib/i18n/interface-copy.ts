@@ -283,6 +283,7 @@ const chinese: Record<string, string> = {
   "Where do you want to go?": "接下来要去哪里？",
   "Choose a place by what you want to do next.": "按接下来要做的事选择功能。",
   "Find a tool": "搜索功能",
+  "tools": "项功能",
   "No tools match your search.": "没有匹配的功能。",
   "Task queue": "任务队列",
   "Your work": "我的任务",

@@ -56,6 +56,7 @@ import { Switch } from '@/components/ui/switch'
 import { useAppStore } from '@/stores/app-store'
 import { useTranslation } from '@/lib/i18n'
 import { useDashboard, useTasks, useEvents, useHabits, useCreateTask, useCreateNote, useCreateHabit, useUpdateTask, useDashboardWidgets, useSaveDashboardWidgets } from '@/lib/api/hooks'
+import { getTaskMetrics } from '@/lib/task-metrics'
 import { showToast } from '@/lib/toast'
 import { JournalPrompts } from '@/components/lifeos/dashboard/journal-prompts'
 import { WeeklyReview } from '@/components/lifeos/dashboard/weekly-review'
@@ -393,8 +394,11 @@ export function DashboardPage() {
   const habitActivity = (habitStats.recentActivity as unknown[]) || []
 
   const tasksByStatus = (taskStats.byStatus as Record<string, number>) || { todo: 0, 'in-progress': 0, done: 0 }
-  const totalTasks = (taskStats.total as number) || 0
-  const pendingTasks = (tasksByStatus.todo || 0) + (tasksByStatus['in-progress'] || 0)
+  const taskList = useMemo(() => (tasks as Record<string, unknown>[] | undefined) || [], [tasks])
+  const taskMetrics = getTaskMetrics(taskList)
+  const totalTasks = taskMetrics.total
+  const completedTasks = taskMetrics.completed
+  const pendingTasks = taskMetrics.remaining
   const habitCompletion = (habitStats.completionRate as number) || 0
   const completedHabitsToday = (habitStats.completedToday as number) || 0
   const totalHabits = (habitStats.total as number) || 0
@@ -405,11 +409,10 @@ export function DashboardPage() {
   // Tasks for the "Today's Tasks" card
   const recentTasks = useMemo(() => {
     if (!tasks) return []
-    const allTasks = tasks as Record<string, unknown>[]
-    return allTasks
+    return taskList
       .filter((task) => (task.status as string) !== 'done')
       .slice(0, 5)
-  }, [tasks])
+  }, [taskList])
 
   const saveTaskHandoff = useCallback((task: Record<string, unknown>, handoff: string) => {
     const original = String(task.description || '')
@@ -469,7 +472,7 @@ export function DashboardPage() {
   }, [tasks, apiHabitsRaw])
 
   // Progress calculation for the ring
-  const taskProgress = totalTasks > 0 ? Math.round(((tasksByStatus.done || 0) / totalTasks) * 100) : 0
+  const taskProgress = taskMetrics.completionPercent
   const habitProgress = totalHabits > 0 ? Math.round((completedHabitsToday / totalHabits) * 100) : 0
   const overallProgress = Math.round((taskProgress + habitProgress) / 2)
 
