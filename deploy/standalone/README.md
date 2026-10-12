@@ -105,8 +105,8 @@ these non-secret variables on the `lifeos-production` GitHub Environment:
 
 - `LIFEOS_SSH_HOST`, `LIFEOS_SSH_USER`, optional `LIFEOS_SSH_PORT` (default 22)
 - `LIFEOS_SYSTEMD_UNIT` (the existing unit name)
-- `LIFEOS_HEALTH_URL` (the real local HTTP(S) health endpoint, with no userinfo
-  or query string)
+- `LIFEOS_HEALTH_URL` (the real local HTTP endpoint on `localhost` or
+  `127.0.0.1`, with no userinfo or query string)
 
 Set these Environment secrets only after the operator verifies access and host
 identity:

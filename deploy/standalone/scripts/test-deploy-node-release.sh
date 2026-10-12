@@ -90,4 +90,12 @@ if run_deploy "$bad_hash_root" "$good_commit" "$(printf '0%.0s' {1..64})" "$tmp/
 fi
 [[ $(readlink -f "$bad_hash_root/opt/lifeos/current") == "$bad_hash_root/opt/lifeos/releases/7cb2c14" ]]
 
+if env TEST_ROOT="$bad_hash_root" LIFEOS_TEST_ROOT="$bad_hash_root" PATH="$fake_bin:$PATH" \
+  bash -c 'cat "$1" | "$2" "$3" "$4" example.service https://example.test/health' \
+  _ "$tmp/$good_commit.tar.gz" "$repo_root/deploy/standalone/scripts/deploy-node-release.sh" "$good_commit" "$good_hash"; then
+  echo 'expected a non-local health URL to be rejected' >&2
+  exit 1
+fi
+[[ $(readlink -f "$bad_hash_root/opt/lifeos/current") == "$bad_hash_root/opt/lifeos/releases/7cb2c14" ]]
+
 echo 'deploy release checks passed: commit/hash validation, data/config preservation, atomic activation, and health-failure rollback'

@@ -178,7 +178,7 @@ jobs:
           LIFEOS_SSH_PORT=$((10#$LIFEOS_SSH_PORT))
           (( LIFEOS_SSH_PORT > 0 && LIFEOS_SSH_PORT < 65536 ))
           [[ "$LIFEOS_SYSTEMD_UNIT" =~ ^[A-Za-z0-9_.@-]+$ ]]
-          [[ "$LIFEOS_HEALTH_URL" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?/[A-Za-z0-9._~/-]*$ ]]
+          [[ "$LIFEOS_HEALTH_URL" =~ ^http://(127\.0\.0\.1|localhost)(:[0-9]{1,5})?/[A-Za-z0-9._~/-]*$ ]]
           [[ "$PACKAGE_SHA256" =~ ^[a-f0-9]{64}$ ]]
 
           key_file="$RUNNER_TEMP/lifeos-deploy-key"

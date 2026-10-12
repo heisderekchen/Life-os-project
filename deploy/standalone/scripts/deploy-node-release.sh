@@ -13,7 +13,7 @@ health_url=$4
 [[ $commit =~ ^[a-f0-9]{40}$ ]] || die 'invalid commit SHA'
 [[ $package_sha =~ ^[a-f0-9]{64}$ ]] || die 'invalid package SHA-256'
 [[ $unit =~ ^[A-Za-z0-9_.@-]+$ ]] || die 'invalid systemd unit'
-[[ $health_url =~ ^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?/[A-Za-z0-9._~/-]*$ ]] || die 'invalid health URL'
+[[ $health_url =~ ^http://(127\.0\.0\.1|localhost)(:[0-9]{1,5})?/[A-Za-z0-9._~/-]*$ ]] || die 'health URL must use localhost or 127.0.0.1'
 
 if [[ -n ${LIFEOS_TEST_ROOT:-} ]]; then
   [[ $EUID != 0 ]] || die 'test root is only allowed for non-root tests'
