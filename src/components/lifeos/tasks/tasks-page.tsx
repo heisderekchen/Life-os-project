@@ -2,7 +2,7 @@
 
 import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
 
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import {
   Plus,
   Search,
@@ -434,8 +434,16 @@ export function TasksPage() {
   const [editTask, setEditTask] = useState<{ id: string; title: string; description: string; priority: Task['priority']; dueDate: string; projectId: string; status: Task['status']; recurrence: Task['recurrence'] } | null>(null)
   const [handoffDraft, setHandoffDraft] = useState('')
   const isMobile = useIsMobile()
+  const previousSelectedTaskId = useRef<string | null>(null)
 
   const selectedTask = useMemo(() => tasks.find(t => t.id === selectedTaskId), [tasks, selectedTaskId])
+
+  useEffect(() => {
+    const previousId = previousSelectedTaskId.current
+    previousSelectedTaskId.current = selectedTaskId
+    if (selectedTaskId || !previousId) return
+    requestAnimationFrame(() => [...document.querySelectorAll<HTMLElement>('[data-task-id]')].find(element => element.dataset.taskId === previousId)?.focus({ preventScroll: true }))
+  }, [selectedTaskId])
 
   useEffect(() => {
     setHandoffDraft(selectedTask ? splitTaskDescription(selectedTask.description).handoff : '')
@@ -674,7 +682,7 @@ export function TasksPage() {
   const taskDetailContent = selectedTask ? (
     <div className="space-y-5">
       <div className="flex flex-col gap-5 border-b border-border/60 pb-5 sm:flex-row sm:items-start sm:justify-between">
-        <h3 className="max-w-4xl text-2xl font-semibold tracking-tight text-pretty sm:text-3xl">{selectedTask.title}</h3>
+        <div className="min-w-0"><p className="mb-2 break-all text-xs font-medium tracking-wide text-muted-foreground">任务编号 · {selectedTask.id}</p><h3 className="max-w-4xl break-words text-2xl font-semibold tracking-tight text-pretty sm:text-3xl">{selectedTask.title}</h3></div>
         <div className="flex shrink-0 items-center gap-1">
           <Button variant="outline" size="sm" onClick={() => openEditDialog(selectedTask)}><Edit3 className="mr-2 h-3.5 w-3.5" />{t('edit')}</Button>
           <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-7 sm:w-7 shrink-0" aria-label={t('close')} onClick={closeTaskWorkspace}>
@@ -683,7 +691,7 @@ export function TasksPage() {
         </div>
       </div>
       <div className="flex items-center gap-2 flex-wrap">
-        <Badge className={`${priorityColors[selectedTask.priority]} text-xs rounded-full border-0`}>{selectedTask.priority}</Badge>
+        <Badge className={`${priorityColors[selectedTask.priority]} text-xs rounded-full border-0`}>{t(`tasks.${selectedTask.priority}`)}</Badge>
         <Badge className={cn('text-xs rounded-full border-0', selectedTask.status === 'done' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : selectedTask.status === 'in-progress' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'bg-slate-500/10 text-slate-600 dark:text-slate-400')}>{selectedTask.status === 'in-progress' ? t('tasks.inProgress') : selectedTask.status === 'todo' ? t('tasks.todo') : t('tasks.done')}</Badge>
         {selectedTask.dueDate && (
           <Badge variant="outline" className={cn('text-xs', getDueDateStatus(selectedTask.dueDate).className)}>
@@ -691,12 +699,21 @@ export function TasksPage() {
           </Badge>
         )}
       </div>
-      <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.72fr)]">
+      <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.72fr)]">
+      <div className="min-w-0 space-y-5">
       <section className="min-w-0 space-y-3 rounded-xl border border-border/60 bg-card p-4 sm:p-5">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{uiText('Task materials')}</p>
+        <p className="text-sm font-semibold">任务目标</p>
         {splitTaskDescription(selectedTask.description).body
           ? <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/85">{splitTaskDescription(selectedTask.description).body}</p>
-          : <p className="text-sm text-muted-foreground">{uiText('No data')}</p>}
+          : <p className="text-sm text-muted-foreground">尚未填写目标，可编辑任务补充。</p>}
+      </section>
+      <section className="min-w-0 space-y-3 rounded-xl border border-border/60 bg-card p-4 sm:p-5">
+        <p className="text-sm font-semibold">预期产出与验收</p>
+        <p className="text-sm leading-relaxed text-foreground/85">{selectedTask.status === 'done' ? '任务已标记完成。' : '完成后在此记录交付物与验收结果。'}</p>
+        <p className="text-xs text-muted-foreground">{uiText('Acceptance has not been recorded.')}</p>
+      </section>
+      <section className="min-w-0 space-y-3 rounded-xl border border-border/60 bg-card p-4 sm:p-5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{uiText('Task materials')}</p>
         <div className="flex min-w-0 flex-wrap gap-1.5">
           {selectedTask.projectId && projectNames.get(selectedTask.projectId) && <Badge variant="secondary" className="max-w-full truncate">{projectNames.get(selectedTask.projectId)}</Badge>}
           {selectedTask.tags.map(tag => <Badge key={tag} variant="outline" className="max-w-full truncate">#{tag}</Badge>)}
@@ -704,12 +721,8 @@ export function TasksPage() {
           {selectedTask.estimatedMinutes && <Badge variant="outline">{t('tasks.estimated')}: {selectedTask.estimatedMinutes} {t('tasks.min')}</Badge>}
         </div>
       </section>
+      </div>
       <div className="min-w-0 space-y-5">
-      <section className="space-y-2 rounded-xl border border-border/60 bg-card p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{uiText('Result and acceptance')}</p>
-        <p className="text-sm font-medium">{selectedTask.status === 'done' ? uiText('This task is marked complete.') : uiText('Results will appear here after execution.')}</p>
-        <p className="text-xs text-muted-foreground">{uiText('Acceptance has not been recorded.')}</p>
-      </section>
       <section className="space-y-2 rounded-xl border border-border/60 bg-card p-4">
         <div className="flex items-center gap-2">
           <ChevronRight className="h-4 w-4 text-primary" />
@@ -754,43 +767,44 @@ export function TasksPage() {
       <AgentRunPanel task={{ id: selectedTask.id, title: selectedTask.title, description: splitTaskDescription(selectedTask.description).body }} />
       <TaskDetailExtensions taskId={selectedTask.id} />
       </div>
-      <div className="space-y-2">
-        <Button variant="outline" size="sm" className="w-full" onClick={() => toggleTaskStatus(selectedTask.id)}>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4">
+        <Button variant="outline" size="sm" onClick={() => toggleTaskStatus(selectedTask.id)}>
           {selectedTask.status === 'done' ? t('tasks.markIncomplete') : t('tasks.markComplete')}
         </Button>
-        <Button variant="outline" size="sm" className="w-full text-destructive hover:text-destructive" onClick={() => deleteTask(selectedTask.id)}>
-          <Trash2 className="h-3.5 w-3.5 mr-1.5" />{t('tasks.deleteTask')}
-        </Button>
+        <details className="group relative">
+          <summary className="cursor-pointer list-none rounded-md px-3 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-destructive">更多操作</summary>
+          <div className="absolute bottom-full right-0 z-10 mb-2 rounded-lg border border-border bg-popover p-1 shadow-lg">
+            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => { if (window.confirm('确定删除这个任务吗？')) deleteTask(selectedTask.id) }}><Trash2 className="mr-1.5 h-3.5 w-3.5" />{t('tasks.deleteTask')}</Button>
+          </div>
+        </details>
       </div>
     </div>
   ) : null
 
   const taskEditContent = editTask ? (
-    <div className="mx-auto w-full max-w-4xl space-y-7 px-4 py-5 sm:px-8 sm:py-8">
+    <div className="mx-auto w-full max-w-4xl space-y-5 px-4 pb-6 pt-5 sm:space-y-7 sm:px-8 sm:py-8">
       <div className="flex min-w-0 flex-col items-start justify-between gap-4 border-b border-border/60 pb-5 sm:flex-row sm:items-center">
         <div className="min-w-0"><p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">{uiText('Task workspace')}</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">{t('tasks.editTask')}</h2><p className="mt-1 max-w-full break-words text-sm text-muted-foreground">{editTask.title || t('tasks.taskTitle')}</p></div>
-        <Button className="shrink-0" variant="outline" onClick={cancelTaskEdit}>{t('cancel')}</Button>
       </div>
       <div className="grid min-w-0 gap-8 lg:grid-cols-[minmax(0,1fr)_260px]">
         <div className="space-y-5" onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleUpdateTask() } }}>
-          <div><label className="mb-2 block text-sm font-medium">{t('tasks.taskTitle')}</label><Input aria-label={t('tasks.taskTitle')} autoFocus className="h-12 text-base" value={editTask.title} onChange={(e) => setEditTask((p) => p && ({ ...p, title: e.target.value }))} /></div>
-          <div><label className="mb-2 block text-sm font-medium">{t('tasks.description')}</label><Textarea rows={8} className="resize-y text-sm leading-6" value={editTask.description} onChange={(e) => setEditTask((p) => p && ({ ...p, description: e.target.value }))} /></div>
+          <div><label className="mb-2 block text-sm font-medium">{t('tasks.taskTitle')}</label><Input aria-label={t('tasks.taskTitle')} autoFocus={!isMobile} className="h-12 text-base" value={editTask.title} onChange={(e) => setEditTask((p) => p && ({ ...p, title: e.target.value }))} /></div>
+          <div><label className="mb-2 block text-sm font-medium">{t('tasks.description')}</label><Textarea rows={8} className="resize-y text-base leading-6" value={editTask.description} onChange={(e) => setEditTask((p) => p && ({ ...p, description: e.target.value }))} /></div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <div><label className="mb-2 block text-sm font-medium">{t('tasks.priority')}</label><Select value={editTask.priority} onValueChange={(v) => setEditTask((p) => p && ({ ...p, priority: v as Task['priority'] }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="low">{t('tasks.low')}</SelectItem><SelectItem value="medium">{t('tasks.medium')}</SelectItem><SelectItem value="high">{t('tasks.high')}</SelectItem><SelectItem value="urgent">{t('tasks.urgent')}</SelectItem></SelectContent></Select></div>
-            <div><label className="mb-2 block text-sm font-medium">{t('tasks.status')}</label><Select value={editTask.status} onValueChange={(v) => setEditTask((p) => p && ({ ...p, status: v as Task['status'] }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todo">{t('tasks.todo')}</SelectItem><SelectItem value="in-progress">{t('tasks.inProgress')}</SelectItem><SelectItem value="done">{t('tasks.done')}</SelectItem></SelectContent></Select></div>
-            <div><label className="mb-2 block text-sm font-medium">{t('tasks.dueDate')}</label><Input type="date" value={editTask.dueDate} onChange={(e) => setEditTask((p) => p && ({ ...p, dueDate: e.target.value }))} /></div>
-            <div><label className="mb-2 block text-sm font-medium">{t('tasks.project')}</label><Select value={editTask.projectId || 'none'} onValueChange={(v) => setEditTask((p) => p && ({ ...p, projectId: v === 'none' ? '' : v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">—</SelectItem>{projects.map((pr) => <SelectItem key={pr.id} value={pr.id}>{pr.name}</SelectItem>)}</SelectContent></Select></div>
+            <div><label className="mb-2 block text-sm font-medium">{t('tasks.priority')}</label><Select value={editTask.priority} onValueChange={(v) => setEditTask((p) => p && ({ ...p, priority: v as Task['priority'] }))}><SelectTrigger className="h-11 text-base"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="low">{t('tasks.low')}</SelectItem><SelectItem value="medium">{t('tasks.medium')}</SelectItem><SelectItem value="high">{t('tasks.high')}</SelectItem><SelectItem value="urgent">{t('tasks.urgent')}</SelectItem></SelectContent></Select></div>
+            <div><label className="mb-2 block text-sm font-medium">{t('tasks.status')}</label><Select value={editTask.status} onValueChange={(v) => setEditTask((p) => p && ({ ...p, status: v as Task['status'] }))}><SelectTrigger className="h-11 text-base"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todo">{t('tasks.todo')}</SelectItem><SelectItem value="in-progress">{t('tasks.inProgress')}</SelectItem><SelectItem value="done">{t('tasks.done')}</SelectItem></SelectContent></Select></div>
+            <div><label className="mb-2 block text-sm font-medium">{t('tasks.dueDate')}</label><Input className="h-11 text-base" type="date" value={editTask.dueDate} onChange={(e) => setEditTask((p) => p && ({ ...p, dueDate: e.target.value }))} /></div>
+            <div><label className="mb-2 block text-sm font-medium">{t('tasks.project')}</label><Select value={editTask.projectId || 'none'} onValueChange={(v) => setEditTask((p) => p && ({ ...p, projectId: v === 'none' ? '' : v }))}><SelectTrigger className="h-11 text-base"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">—</SelectItem>{projects.map((pr) => <SelectItem key={pr.id} value={pr.id}>{pr.name}</SelectItem>)}</SelectContent></Select></div>
           </div>
-          <div><label className="mb-2 block text-sm font-medium">{t('tasks.composer.recurrence')}</label><Select value={editTask.recurrence || 'none'} onValueChange={(v) => setEditTask((p) => p && ({ ...p, recurrence: v as Task['recurrence'] }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">{t('tasks.composer.recurrenceNone')}</SelectItem><SelectItem value="daily">{t('habits.daily')}</SelectItem><SelectItem value="weekly">{t('habits.weekly')}</SelectItem><SelectItem value="monthly">{t('habits.monthly')}</SelectItem></SelectContent></Select></div>
+          <div><label className="mb-2 block text-sm font-medium">{t('tasks.composer.recurrence')}</label><Select value={editTask.recurrence || 'none'} onValueChange={(v) => setEditTask((p) => p && ({ ...p, recurrence: v as Task['recurrence'] }))}><SelectTrigger className="h-11 text-base"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">{t('tasks.composer.recurrenceNone')}</SelectItem><SelectItem value="daily">{t('habits.daily')}</SelectItem><SelectItem value="weekly">{t('habits.weekly')}</SelectItem><SelectItem value="monthly">{t('habits.monthly')}</SelectItem></SelectContent></Select></div>
         </div>
         <aside className="h-fit rounded-xl border border-border/60 bg-muted/20 p-4"><h3 className="text-sm font-semibold">{uiText('Task essentials')}</h3><p className="mt-2 text-xs leading-5 text-muted-foreground">{uiText('Set the task goal, timing, owner project and current status. Existing execution, subtasks and knowledge links stay attached.')}</p><div className="mt-4 space-y-3 text-xs"><p><span className="text-muted-foreground">{t('tasks.status')}</span><br /><span className="font-medium">{statusLabels[editTask.status]}</span></p><p><span className="text-muted-foreground">{t('tasks.project')}</span><br /><span className="font-medium">{editTask.projectId ? projectNames.get(editTask.projectId) : '—'}</span></p></div></aside>
       </div>
-      <div className="flex justify-end border-t border-border/60 pt-5"><Button onClick={handleUpdateTask} disabled={!editTask.title.trim() || updateTaskMutation.isPending}>{updateTaskMutation.isPending ? t('loading') : t('save')}</Button></div>
     </div>
   ) : null
 
   return (
-    <div className="flex h-full animate-page-enter">
+    <div className="flex h-full">
       {/* Main Content */}
       <div className={cn('flex-1 flex flex-col min-w-0', selectedTask && 'hidden')}>
         {/* Productivity Score + Progress Bar */}
@@ -1297,11 +1311,19 @@ export function TasksPage() {
       {/* Task workspace replaces the list in-place, so detail and editing never stack panels. */}
       {selectedTask && (
         <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background" aria-label={t('tasks.taskDetails')}>
-          <div className="flex-1 overflow-y-auto overscroll-contain">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             <div className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-8 sm:py-8">
               {taskWorkspaceMode === 'edit' ? taskEditContent : taskDetailContent}
             </div>
           </div>
+          {taskWorkspaceMode === 'edit' && editTask && (
+            <div className="flex-none border-t border-border bg-background/95 px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] sm:px-8">
+              <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-3 sm:justify-end">
+                <Button className="h-11 min-w-24" variant="outline" onClick={cancelTaskEdit}>{uiText('Back to task')}</Button>
+                <Button className="h-11 min-w-24" onClick={handleUpdateTask} disabled={!editTask.title.trim() || updateTaskMutation.isPending}>{updateTaskMutation.isPending ? t('loading') : t('save')}</Button>
+              </div>
+            </div>
+          )}
         </section>
       )}
 
@@ -1391,15 +1413,26 @@ function Listview({ tasks, projects, selectedTaskId, celebratingTaskId, onSelect
           <motion.article
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
+            data-task-id={task.id}
+            tabIndex={0}
+            aria-label={`${uiText('Open task details')}: ${task.title}`}
+            aria-expanded={selectedTaskId === task.id}
             className={cn(
               'task-summary-card group grid min-w-0 cursor-pointer gap-3 border-l-[3px] px-3.5 py-3.5 transition-all duration-200 hover:bg-accent/20 sm:rounded-xl sm:border sm:border-border/60 sm:px-4 sm:py-4',
               priorityBorderColors[task.priority],
-              task.status === 'done' && 'opacity-60',
+              task.status === 'done' && '[&_.task-title]:text-muted-foreground [&_.task-title]:line-through',
               isCelebrating && 'animate-celebrate',
               isSelected && 'bg-accent/50'
             )}
             style={selectedTaskId === task.id && !selectionMode ? { borderLeftColor: accentHex, backgroundColor: 'var(--accent)' } : undefined}
             onClick={() => selectionMode ? onToggleSelect?.(task.id) : onSelectTask(task.id)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                if (selectionMode) onToggleSelect?.(task.id)
+                else onSelectTask(task.id)
+              }
+            }}
             onDoubleClick={(e) => { if (selectionMode) return; e.stopPropagation(); onEditTask?.(task) }}
           >
             <div className="flex min-w-0 items-start gap-3">
@@ -1417,8 +1450,7 @@ function Listview({ tasks, projects, selectedTaskId, celebratingTaskId, onSelect
                   {task.recurrence && task.recurrence !== 'none' && <Badge variant="outline" className="rounded-full text-[10px] capitalize"><RefreshCw className="mr-1 h-2.5 w-2.5" />{task.recurrence}</Badge>}
                 </div>
                 <div className="min-w-0">
-                  <p className={cn('break-words text-[15px] font-semibold leading-snug', task.status === 'done' && 'line-through-animate text-muted-foreground')}>{task.title}</p>
-                  {splitTaskDescription(task.description).body && <p className="mt-1 line-clamp-2 break-words text-xs leading-relaxed text-muted-foreground">{splitTaskDescription(task.description).body}</p>}
+                  <p className={cn('task-title break-words text-[15px] font-semibold leading-snug', task.status === 'done' && 'line-through-animate text-muted-foreground')}>{task.title}</p>
                 </div>
                 {(splitTaskDescription(task.description).handoff || splitTaskDescription(task.description).body) && <div className="rounded-md bg-muted/30 px-3 py-2"><p className="text-[10px] font-medium text-muted-foreground">{splitTaskDescription(task.description).handoff ? uiText('Latest progress') : uiText('Task materials')}</p><p className="mt-1 line-clamp-2 break-words text-xs leading-relaxed text-foreground/75">{splitTaskDescription(task.description).handoff || splitTaskDescription(task.description).body}</p></div>}
                 {task.tags.length > 0 && <div className="flex flex-wrap gap-1">{task.tags.slice(0, 5).map(tag => <Badge key={tag} variant="outline" className="max-w-full truncate px-1.5 py-0 text-[10px]">#{tag}</Badge>)}{task.tags.length > 5 && <span className="text-[10px] text-muted-foreground">+{task.tags.length - 5}</span>}</div>}

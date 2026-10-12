@@ -55,6 +55,7 @@ const chinese: Record<string, string> = {
   "Task materials": "任务材料",
   "Execution log": "执行日志",
   "Task workspace": "任务工作区",
+  "Back to task": "返回任务",
   "Task essentials": "任务摘要",
   "Set the task goal, timing, owner project and current status. Existing execution, subtasks and knowledge links stay attached.": "填写任务目标、时间、所属项目和状态。现有执行记录、子任务和知识关联会继续保留。",
   "Result and acceptance": "结果与验收",
