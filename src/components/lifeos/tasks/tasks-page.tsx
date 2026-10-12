@@ -114,20 +114,6 @@ export function TaskRunSignals({ task }: { task: Task }) {
       <p className="mt-1.5 min-w-0 whitespace-pre-wrap break-words text-xs leading-5 text-foreground/80">
         {handoff || uiText('No progress has been recorded yet.')}
       </p>
-      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2.5 sm:grid-cols-3">
-        <div className="min-w-0">
-          <span className="block text-[10px] text-muted-foreground">{uiText('Worker')}</span>
-          <span className="mt-0.5 block truncate text-[11px] font-medium text-muted-foreground">{uiText('Executor not configured')}</span>
-        </div>
-        <div className="min-w-0">
-          <span className="block text-[10px] text-muted-foreground">{uiText('Pending confirmations')}</span>
-          <span className="mt-0.5 block truncate text-[11px] font-medium text-muted-foreground">{uiText('Acceptance flow not configured')}</span>
-        </div>
-        <div className="col-span-2 min-w-0 sm:col-span-1">
-          <span className="block text-[10px] text-muted-foreground">{uiText('Execution')}</span>
-          <span className="mt-0.5 block truncate text-[11px] font-medium text-muted-foreground">{uiText('No execution record')}</span>
-        </div>
-      </div>
     </div>
   )
 }
@@ -313,7 +299,7 @@ function SortableTaskCard({
           {splitTaskDescription(task.description).body && (
             <p className="line-clamp-2 pl-7 text-xs leading-relaxed text-muted-foreground">{splitTaskDescription(task.description).body}</p>
           )}
-          <div className="pl-7"><TaskRunSignals task={task} /></div>
+          {(splitTaskDescription(task.description).handoff || task.description) && <p className="line-clamp-2 pl-7 text-xs leading-relaxed text-muted-foreground">{splitTaskDescription(task.description).handoff || splitTaskDescription(task.description).body}</p>}
           <div className="flex items-center justify-end gap-0.5 border-t border-border/50 pl-7 pt-2">
             <div className="flex items-center gap-0.5">
               {columnStatus !== 'todo' && (
@@ -438,13 +424,13 @@ export function TasksPage() {
 
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [taskWorkspaceMode, setTaskWorkspaceMode] = useState<'detail' | 'edit'>('detail')
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [newTask, setNewTask] = useState({ title: '', description: '', priority: 'medium' as Task['priority'], dueDate: '', projectId: '', tags: '', recurrence: 'none' as Task['recurrence'] })
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   // Edit-task dialog state — populated when the user clicks "Edit" in the
   // context menu or double-clicks a task title.
-  const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editTask, setEditTask] = useState<{ id: string; title: string; description: string; priority: Task['priority']; dueDate: string; projectId: string; status: Task['status']; recurrence: Task['recurrence'] } | null>(null)
   const [handoffDraft, setHandoffDraft] = useState('')
   const isMobile = useIsMobile()
@@ -551,7 +537,8 @@ export function TasksPage() {
       status: task.status,
       recurrence: task.recurrence || 'none',
     })
-    setEditDialogOpen(true)
+    setSelectedTaskId(task.id)
+    setTaskWorkspaceMode('edit')
   }, [])
 
   const handleUpdateTask = useCallback(() => {
@@ -567,12 +554,18 @@ export function TasksPage() {
       recurrence: editTask.recurrence !== 'none' ? editTask.recurrence : null,
     }, {
       onSuccess: () => {
-        setEditDialogOpen(false)
+        setTaskWorkspaceMode('detail')
         setEditTask(null)
         showToast.success(t('toast.saved'))
       },
     })
   }, [editTask, updateTaskMutation, t])
+
+  const closeTaskWorkspace = useCallback(() => {
+    setSelectedTaskId(null)
+    setTaskWorkspaceMode('detail')
+    setEditTask(null)
+  }, [])
 
   const saveTaskHandoff = useCallback(() => {
     if (!selectedTask || !handoffDraft.trim()) return
@@ -637,11 +630,14 @@ export function TasksPage() {
 
   const taskDetailContent = selectedTask ? (
     <div className="space-y-5">
-      <div className="flex items-start justify-between">
-        <h3 className="font-semibold">{selectedTask.title}</h3>
-        <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-7 sm:w-7 shrink-0" aria-label={t('close')} onClick={() => setSelectedTaskId(null)}>
-          <X className="h-4 w-4" />
-        </Button>
+      <div className="flex flex-col gap-5 border-b border-border/60 pb-5 sm:flex-row sm:items-start sm:justify-between">
+        <h3 className="max-w-4xl text-2xl font-semibold tracking-tight text-pretty sm:text-3xl">{selectedTask.title}</h3>
+        <div className="flex shrink-0 items-center gap-1">
+          <Button variant="outline" size="sm" onClick={() => openEditDialog(selectedTask)}><Edit3 className="mr-2 h-3.5 w-3.5" />{t('edit')}</Button>
+          <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-7 sm:w-7 shrink-0" aria-label={t('close')} onClick={closeTaskWorkspace}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
       <div className="flex items-center gap-2 flex-wrap">
         <Badge className={`${priorityColors[selectedTask.priority]} text-xs rounded-full border-0`}>{selectedTask.priority}</Badge>
@@ -652,8 +648,8 @@ export function TasksPage() {
           </Badge>
         )}
       </div>
-      <Separator />
-      <section className="space-y-2 rounded-xl border border-border/60 bg-card p-3.5">
+      <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.72fr)]">
+      <section className="min-w-0 space-y-3 rounded-xl border border-border/60 bg-card p-4 sm:p-5">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{uiText('Task materials')}</p>
         {splitTaskDescription(selectedTask.description).body
           ? <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/85">{splitTaskDescription(selectedTask.description).body}</p>
@@ -662,62 +658,27 @@ export function TasksPage() {
           {selectedTask.projectId && projectNames.get(selectedTask.projectId) && <Badge variant="secondary" className="max-w-full truncate">{projectNames.get(selectedTask.projectId)}</Badge>}
           {selectedTask.tags.map(tag => <Badge key={tag} variant="outline" className="max-w-full truncate">#{tag}</Badge>)}
           {selectedTask.recurrence && selectedTask.recurrence !== 'none' && <Badge variant="outline" className="capitalize">{selectedTask.recurrence}</Badge>}
+          {selectedTask.estimatedMinutes && <Badge variant="outline">{t('tasks.estimated')}: {selectedTask.estimatedMinutes} {t('tasks.min')}</Badge>}
         </div>
       </section>
-      <section className="space-y-3 rounded-xl border border-border/60 bg-card p-3.5">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{uiText('Execution log')}</p>
-        <TaskRunSignals task={selectedTask} />
-        <AgentRunPanel task={{ id: selectedTask.id, title: selectedTask.title, description: splitTaskDescription(selectedTask.description).body }} />
-      </section>
-      <TaskDetailExtensions taskId={selectedTask.id} />
-      <section className="space-y-2 rounded-xl border border-border/60 bg-card p-3.5">
+      <div className="min-w-0 space-y-5">
+      <section className="space-y-2 rounded-xl border border-border/60 bg-card p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{uiText('Result and acceptance')}</p>
         <p className="text-sm font-medium">{selectedTask.status === 'done' ? uiText('This task is marked complete.') : uiText('Results will appear here after execution.')}</p>
         <p className="text-xs text-muted-foreground">{uiText('Acceptance has not been recorded.')}</p>
       </section>
-      <div className="space-y-2 rounded-lg bg-muted/45 p-3">
+      <section className="space-y-2 rounded-xl border border-border/60 bg-card p-4">
         <div className="flex items-center gap-2">
           <ChevronRight className="h-4 w-4 text-primary" />
-          <p className="text-sm font-medium">停点与下一步</p>
+          <p className="text-sm font-semibold">停点与下一步</p>
         </div>
-        <p className="text-xs leading-5 text-muted-foreground">把你停下来的位置和下一步写清楚；仪表盘和另一台设备会读取同一条任务记录。</p>
+        <p className="text-xs leading-5 text-muted-foreground">{handoffDraft ? '当前进度与下一步可在这里继续更新。' : '添加一条进展或下一步，之后可以从这里接着做。'}</p>
         <Textarea value={handoffDraft} onChange={(event) => setHandoffDraft(event.target.value)} placeholder="例如：已整理完资料，下一步是确认报价并发给客户。" className="min-h-20 resize-none text-sm" />
         <Button size="sm" className="w-full" onClick={saveTaskHandoff} disabled={!handoffDraft.trim() || updateTaskMutation.isPending}>
           {updateTaskMutation.isPending ? '正在保存…' : '保存停点'}
         </Button>
-      </div>
-      <div className="space-y-3">
-        {selectedTask.estimatedMinutes && (
-          <div className="flex items-center gap-2 text-sm">
-            <Clock className="h-4 w-4 text-muted-foreground" />
-            <span className="text-muted-foreground">{t('tasks.estimated')}</span>
-            <span className="font-medium">{selectedTask.estimatedMinutes} {t('tasks.min')}</span>
-            {selectedTask.actualMinutes && (
-              <>
-                <span className="text-muted-foreground ml-2">{t('tasks.actual')}</span>
-                <span className="font-medium">{selectedTask.actualMinutes} {t('tasks.min')}</span>
-              </>
-            )}
-          </div>
-        )}
-      </div>
-      {selectedTask.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {selectedTask.tags.map(tag => (
-            <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
-          ))}
-        </div>
-      )}
-      {selectedTask.recurrence && selectedTask.recurrence !== 'none' && (
-        <div className="flex items-center gap-2 text-sm">
-          <RefreshCw className="h-4 w-4 text-muted-foreground" />
-          <span className="text-muted-foreground">{uiText("Tekrar:")}</span>
-          <Badge variant="secondary" className="text-xs capitalize">{selectedTask.recurrence}</Badge>
-        </div>
-      )}
-      <Separator />
-      {/* Sub-tasks */}
-      <div className="space-y-2">
+      </section>
+      <section className="space-y-3 rounded-xl border border-border/60 bg-card p-4">
         <p className="text-sm font-medium">{uiText("Alt Görevler")}</p>
         {tasks.filter(t => t.parentTaskId === selectedTask.id).map(sub => (
           <div key={sub.id} className="flex items-center gap-2">
@@ -743,8 +704,13 @@ export function TasksPage() {
             <Plus className="h-3 w-3" />
           </Button>
         </div>
+      </section>
       </div>
-      <Separator />
+      </div>
+      <div className="space-y-5">
+      <AgentRunPanel task={{ id: selectedTask.id, title: selectedTask.title, description: splitTaskDescription(selectedTask.description).body }} />
+      <TaskDetailExtensions taskId={selectedTask.id} />
+      </div>
       <div className="space-y-2">
         <Button variant="outline" size="sm" className="w-full" onClick={() => toggleTaskStatus(selectedTask.id)}>
           {selectedTask.status === 'done' ? t('tasks.markIncomplete') : t('tasks.markComplete')}
@@ -756,10 +722,34 @@ export function TasksPage() {
     </div>
   ) : null
 
+  const taskEditContent = editTask ? (
+    <div className="mx-auto w-full max-w-4xl space-y-7 px-4 py-5 sm:px-8 sm:py-8">
+      <div className="flex min-w-0 flex-col items-start justify-between gap-4 border-b border-border/60 pb-5 sm:flex-row sm:items-center">
+        <div className="min-w-0"><p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">{uiText('Task workspace')}</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">{t('tasks.editTask')}</h2><p className="mt-1 max-w-full break-words text-sm text-muted-foreground">{editTask.title || t('tasks.taskTitle')}</p></div>
+        <Button className="shrink-0" variant="outline" onClick={() => { setTaskWorkspaceMode('detail'); setEditTask(null) }}>{t('cancel')}</Button>
+      </div>
+      <div className="grid min-w-0 gap-8 lg:grid-cols-[minmax(0,1fr)_260px]">
+        <div className="space-y-5" onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleUpdateTask() } }}>
+          <div><label className="mb-2 block text-sm font-medium">{t('tasks.taskTitle')}</label><Input aria-label={t('tasks.taskTitle')} autoFocus className="h-12 text-base" value={editTask.title} onChange={(e) => setEditTask((p) => p && ({ ...p, title: e.target.value }))} /></div>
+          <div><label className="mb-2 block text-sm font-medium">{t('tasks.description')}</label><Textarea rows={8} className="resize-y text-sm leading-6" value={editTask.description} onChange={(e) => setEditTask((p) => p && ({ ...p, description: e.target.value }))} /></div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div><label className="mb-2 block text-sm font-medium">{t('tasks.priority')}</label><Select value={editTask.priority} onValueChange={(v) => setEditTask((p) => p && ({ ...p, priority: v as Task['priority'] }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="low">{t('tasks.low')}</SelectItem><SelectItem value="medium">{t('tasks.medium')}</SelectItem><SelectItem value="high">{t('tasks.high')}</SelectItem><SelectItem value="urgent">{t('tasks.urgent')}</SelectItem></SelectContent></Select></div>
+            <div><label className="mb-2 block text-sm font-medium">{t('tasks.status')}</label><Select value={editTask.status} onValueChange={(v) => setEditTask((p) => p && ({ ...p, status: v as Task['status'] }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todo">{t('tasks.todo')}</SelectItem><SelectItem value="in-progress">{t('tasks.inProgress')}</SelectItem><SelectItem value="done">{t('tasks.done')}</SelectItem></SelectContent></Select></div>
+            <div><label className="mb-2 block text-sm font-medium">{t('tasks.dueDate')}</label><Input type="date" value={editTask.dueDate} onChange={(e) => setEditTask((p) => p && ({ ...p, dueDate: e.target.value }))} /></div>
+            <div><label className="mb-2 block text-sm font-medium">{t('tasks.project')}</label><Select value={editTask.projectId || 'none'} onValueChange={(v) => setEditTask((p) => p && ({ ...p, projectId: v === 'none' ? '' : v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">—</SelectItem>{projects.map((pr) => <SelectItem key={pr.id} value={pr.id}>{pr.name}</SelectItem>)}</SelectContent></Select></div>
+          </div>
+          <div><label className="mb-2 block text-sm font-medium">{t('tasks.composer.recurrence')}</label><Select value={editTask.recurrence || 'none'} onValueChange={(v) => setEditTask((p) => p && ({ ...p, recurrence: v as Task['recurrence'] }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">{t('tasks.composer.recurrenceNone')}</SelectItem><SelectItem value="daily">{t('habits.daily')}</SelectItem><SelectItem value="weekly">{t('habits.weekly')}</SelectItem><SelectItem value="monthly">{t('habits.monthly')}</SelectItem></SelectContent></Select></div>
+        </div>
+        <aside className="h-fit rounded-xl border border-border/60 bg-muted/20 p-4"><h3 className="text-sm font-semibold">{uiText('Task essentials')}</h3><p className="mt-2 text-xs leading-5 text-muted-foreground">{uiText('Set the task goal, timing, owner project and current status. Existing execution, subtasks and knowledge links stay attached.')}</p><div className="mt-4 space-y-3 text-xs"><p><span className="text-muted-foreground">{t('tasks.status')}</span><br /><span className="font-medium">{statusLabels[editTask.status]}</span></p><p><span className="text-muted-foreground">{t('tasks.project')}</span><br /><span className="font-medium">{editTask.projectId ? projectNames.get(editTask.projectId) : '—'}</span></p></div></aside>
+      </div>
+      <div className="flex justify-end border-t border-border/60 pt-5"><Button onClick={handleUpdateTask} disabled={!editTask.title.trim() || updateTaskMutation.isPending}>{updateTaskMutation.isPending ? t('loading') : t('save')}</Button></div>
+    </div>
+  ) : null
+
   return (
     <div className="flex h-full animate-page-enter">
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className={cn('flex-1 flex flex-col min-w-0', selectedTask && !isMobile && 'hidden')}>
         {/* Productivity Score + Progress Bar */}
         <div className="px-4 pt-3 pb-1">
           <div className="flex items-center gap-3">
@@ -1202,128 +1192,6 @@ export function TasksPage() {
               </DialogContent>
             </Dialog>
 
-            {/* ─── Edit Task Dialog ──────────────────────────────────── */}
-            <Dialog open={editDialogOpen} onOpenChange={(o) => { setEditDialogOpen(o); if (!o) setEditTask(null) }}>
-              <DialogContent className="max-w-lg" aria-describedby={undefined}>
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <Edit3 className="h-4 w-4" />
-                    {t('tasks.editTask')}
-                  </DialogTitle>
-                  <DialogDescription className="sr-only">{t('tasks.editTask')}</DialogDescription>
-                </DialogHeader>
-                {editTask && (
-                  <div
-                    className="space-y-4 py-2"
-                    onKeyDown={(e) => {
-                      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                        e.preventDefault()
-                        handleUpdateTask()
-                      }
-                    }}
-                  >
-                    <div>
-                      <label className="text-sm font-medium mb-1.5 block">{t('tasks.taskTitle')}</label>
-                      <Input
-                        autoFocus
-                        value={editTask.title}
-                        onChange={(e) => setEditTask((p) => p && ({ ...p, title: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium mb-1.5 block">{t('tasks.description')}</label>
-                      <Textarea
-                        rows={3}
-                        value={editTask.description}
-                        onChange={(e) => setEditTask((p) => p && ({ ...p, description: e.target.value }))}
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm font-medium mb-1.5 block">{t('tasks.priority')}</label>
-                        <Select
-                          value={editTask.priority}
-                          onValueChange={(v) => setEditTask((p) => p && ({ ...p, priority: v as Task['priority'] }))}
-                        >
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="low">{t('tasks.low')}</SelectItem>
-                            <SelectItem value="medium">{t('tasks.medium')}</SelectItem>
-                            <SelectItem value="high">{t('tasks.high')}</SelectItem>
-                            <SelectItem value="urgent">{t('tasks.urgent')}</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium mb-1.5 block">{t('tasks.status')}</label>
-                        <Select
-                          value={editTask.status}
-                          onValueChange={(v) => setEditTask((p) => p && ({ ...p, status: v as Task['status'] }))}
-                        >
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="todo">{t('tasks.todo')}</SelectItem>
-                            <SelectItem value="in-progress">{t('tasks.inProgress')}</SelectItem>
-                            <SelectItem value="done">{t('tasks.done')}</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm font-medium mb-1.5 block">{t('tasks.dueDate')}</label>
-                        <Input
-                          type="date"
-                          value={editTask.dueDate}
-                          onChange={(e) => setEditTask((p) => p && ({ ...p, dueDate: e.target.value }))}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium mb-1.5 block">{t('tasks.project')}</label>
-                        <Select
-                          value={editTask.projectId || 'none'}
-                          onValueChange={(v) => setEditTask((p) => p && ({ ...p, projectId: v === 'none' ? '' : v }))}
-                        >
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">—</SelectItem>
-                            {projects.map((pr) => (
-                              <SelectItem key={pr.id} value={pr.id}>{pr.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium mb-1.5 block">{t('tasks.composer.recurrence')}</label>
-                      <Select
-                        value={editTask.recurrence || 'none'}
-                        onValueChange={(v) => setEditTask((p) => p && ({ ...p, recurrence: v as Task['recurrence'] }))}
-                      >
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">{t('tasks.composer.recurrenceNone')}</SelectItem>
-                          <SelectItem value="daily">{t('habits.daily')}</SelectItem>
-                          <SelectItem value="weekly">{t('habits.weekly')}</SelectItem>
-                          <SelectItem value="monthly">{t('habits.monthly')}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                )}
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button variant="outline">{t('cancel')}</Button>
-                  </DialogClose>
-                  <Button
-                    onClick={handleUpdateTask}
-                    disabled={!editTask || !editTask.title.trim() || updateTaskMutation.isPending}
-                  >
-                    {t('save')}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
             </div>
           </div>
           <div className="relative">
@@ -1383,26 +1251,15 @@ export function TasksPage() {
         </div>
       </div>
 
-      {/* Detail Panel - Desktop */}
-      {selectedTask && !isMobile && (
-        <div className="w-80 border-l border-border/50 bg-background shrink-0">
-          <div className="p-5">{taskDetailContent}</div>
-        </div>
-      )}
-
-      {/* Detail Panel - Mobile Sheet */}
-      {selectedTask && isMobile && (
-        <Sheet open={!!selectedTaskId} onOpenChange={(open) => { if (!open) setSelectedTaskId(null) }}>
-          <SheetContent side="right" className="lifeos-safe-bottom-lg w-[min(24rem,92vw)] p-4 sm:p-5">
-            <SheetHeader className="sr-only">
-              <SheetTitle>{t('tasks.taskDetails')}</SheetTitle>
-              <SheetDescription>{t('tasks.taskDetails')}</SheetDescription>
-            </SheetHeader>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-              {taskDetailContent}
+      {/* Task workspace replaces the list in-place, so detail and editing never stack panels. */}
+      {selectedTask && (
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background" aria-label={t('tasks.taskDetails')}>
+          <div className="flex-1 overflow-y-auto overscroll-contain">
+            <div className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-8 sm:py-8">
+              {taskWorkspaceMode === 'edit' ? taskEditContent : taskDetailContent}
             </div>
-          </SheetContent>
-        </Sheet>
+          </div>
+        </section>
       )}
 
       {/* Bulk Action Bar */}
@@ -1520,7 +1377,7 @@ function Listview({ tasks, projects, selectedTaskId, celebratingTaskId, onSelect
                   <p className={cn('break-words text-[15px] font-semibold leading-snug', task.status === 'done' && 'line-through-animate text-muted-foreground')}>{task.title}</p>
                   {splitTaskDescription(task.description).body && <p className="mt-1 line-clamp-2 break-words text-xs leading-relaxed text-muted-foreground">{splitTaskDescription(task.description).body}</p>}
                 </div>
-                <TaskRunSignals task={task} />
+                {(splitTaskDescription(task.description).handoff || splitTaskDescription(task.description).body) && <div className="rounded-md bg-muted/30 px-3 py-2"><p className="text-[10px] font-medium text-muted-foreground">{splitTaskDescription(task.description).handoff ? uiText('Latest progress') : uiText('Task materials')}</p><p className="mt-1 line-clamp-2 break-words text-xs leading-relaxed text-foreground/75">{splitTaskDescription(task.description).handoff || splitTaskDescription(task.description).body}</p></div>}
                 {task.tags.length > 0 && <div className="flex flex-wrap gap-1">{task.tags.slice(0, 5).map(tag => <Badge key={tag} variant="outline" className="max-w-full truncate px-1.5 py-0 text-[10px]">#{tag}</Badge>)}{task.tags.length > 5 && <span className="text-[10px] text-muted-foreground">+{task.tags.length - 5}</span>}</div>}
                 {!selectionMode && <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-2">
                   <span className="text-[11px] text-muted-foreground">{uiText('Open task details')}</span>

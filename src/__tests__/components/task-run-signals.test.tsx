@@ -28,13 +28,13 @@ describe('TaskRunSignals', () => {
   beforeEach(() => useAppStore.setState({ language: 'zh' }))
   afterEach(() => cleanup())
 
-  it('shows only task-backed progress and truthful unconfigured execution fields', () => {
+  it('shows task-backed progress without empty execution placeholders', () => {
     render(<TaskRunSignals task={baseTask} />)
 
     expect(screen.getByText('Synthetic progress line for the UI preview.')).toBeInTheDocument()
-    expect(screen.getByText('执行器未配置')).toBeInTheDocument()
-    expect(screen.getByText('验收流程未配置')).toBeInTheDocument()
-    expect(screen.getByText('暂无执行记录')).toBeInTheDocument()
+    expect(screen.queryByText('执行器未配置')).not.toBeInTheDocument()
+    expect(screen.queryByText('验收流程未配置')).not.toBeInTheDocument()
+    expect(screen.queryByText('暂无执行记录')).not.toBeInTheDocument()
   })
 
   it('does not invent progress when the task has no handoff entry', () => {
