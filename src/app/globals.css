@@ -1794,6 +1794,31 @@ button[aria-label="中文 / English"] {
   [data-slot="card"] { border-radius: 15px; }
   body { background-attachment: scroll; }
 }
+@media (max-width: 767px) {
+  /* App-wide touch-size design target for mobile. This is a product usability
+   * target and does not assert conformance to a particular WCAG level. */
+  .lifeos-main button:not([role="checkbox"]),
+  .lifeos-main [role="tab"],
+  .lifeos-main summary {
+    min-height: 44px;
+  }
+  .lifeos-main button[data-slot="button"].size-9,
+  .lifeos-main button[data-slot="button"].w-8,
+  .lifeos-main button[data-slot="button"].w-7,
+  .lifeos-main button[data-slot="button"].w-6 {
+    min-width: 44px;
+  }
+  .lifeos-main [role="checkbox"] {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .lifeos-main input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]),
+  .lifeos-main textarea,
+  .lifeos-main [role="combobox"] {
+    min-height: 44px;
+    font-size: 16px !important;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
   header, aside, [data-slot="sheet-content"], [data-slot="dialog-content"], [data-slot="popover-content"], [data-slot="dropdown-menu-content"] { -webkit-backdrop-filter: none; backdrop-filter: none; background-color: var(--background); }

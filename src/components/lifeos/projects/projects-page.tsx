@@ -13,7 +13,6 @@ import {
   Plus,
   RotateCw,
   Search,
-  Sparkles,
   Trash2,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -41,6 +40,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { useCreateProject, useDeleteProject, useProjects, useUpdateProject } from '@/lib/api/hooks'
 import { useTranslation } from '@/lib/i18n'
+import { ModulePageHeader } from '@/components/lifeos/shared/module-page-header'
 import type { Project } from '@/stores/task-store'
 
 type ProjectRecord = Project & {
@@ -170,20 +170,10 @@ export function ProjectsPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8" data-testid="projects-page">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
-            <Sparkles className="h-3.5 w-3.5" />
-            {t('nav.productivity')}
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{t('projects.title')}</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground sm:text-base">{t('projects.subtitle')}</p>
-        </div>
-        <Button onClick={openCreate} className="w-full shrink-0 gap-2 sm:w-auto">
+      <ModulePageHeader eyebrow={t('nav.productivity')} title={t('projects.title')} description={t('projects.subtitle')} actions={<Button onClick={openCreate} className="min-h-11 w-full gap-2 sm:w-auto">
           <Plus className="h-4 w-4" />
           {t('projects.create')}
-        </Button>
-      </div>
+        </Button>} />
 
       <div className="flex flex-col gap-3 rounded-xl border bg-card/60 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
         <div className="-mx-1 flex max-w-full gap-1 overflow-x-auto px-1 pb-1 sm:pb-0" role="tablist" aria-label={t('projects.title')}>
@@ -194,7 +184,7 @@ export function ProjectsPage() {
               role="tab"
               aria-selected={filter === item.id}
               onClick={() => setFilter(item.id)}
-              className={`shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${filter === item.id ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+            className={`min-h-11 shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${filter === item.id ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
             >
               {item.label}
             </button>
@@ -207,7 +197,7 @@ export function ProjectsPage() {
             onChange={(event) => setSearch(event.target.value)}
             placeholder={t('projects.search')}
             aria-label={t('projects.search')}
-            className="pl-9"
+            className="h-11 pl-9 text-base"
           />
         </div>
       </div>
@@ -265,13 +255,13 @@ export function ProjectsPage() {
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
-                      <Button variant="ghost" size="icon" className="h-9 w-9" aria-label={t('projects.actions.edit', { name: project.name })} onClick={() => openEdit(project)}>
+                      <Button variant="ghost" size="icon" className="h-11 w-11" aria-label={t('projects.actions.edit', { name: project.name })} onClick={() => openEdit(project)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-9 w-9" aria-label={t(archived ? 'projects.actions.unarchive' : 'projects.actions.archive', { name: project.name })} onClick={() => void toggleArchive(project)} disabled={updateProject.isPending}>
+                      <Button variant="ghost" size="icon" className="h-11 w-11" aria-label={t(archived ? 'projects.actions.unarchive' : 'projects.actions.archive', { name: project.name })} onClick={() => void toggleArchive(project)} disabled={updateProject.isPending}>
                         {archived ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-destructive" aria-label={t('projects.actions.delete', { name: project.name })} onClick={() => { setDeleteError(false); setDeleting(project) }}>
+                      <Button variant="ghost" size="icon" className="h-11 w-11 text-muted-foreground hover:text-destructive" aria-label={t('projects.actions.delete', { name: project.name })} onClick={() => { setDeleteError(false); setDeleting(project) }}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>

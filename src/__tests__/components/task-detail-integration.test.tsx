@@ -71,4 +71,21 @@ describe.each([
     await user.click(screen.getByRole('button', { name: '保存' }))
     expect(updateTask).toHaveBeenCalledWith(expect.objectContaining({ id: 'task-ui-1', title: 'Saved task' }), expect.any(Object))
   })
+
+  it('keeps the user in edit mode when they cancel navigation with unsaved changes', async () => {
+    useAppStore.setState({ language: 'zh', activeModule: 'tasks' })
+    viewport.mobile = mobile
+    const user = userEvent.setup()
+    const queryClient = new QueryClient()
+    render(<QueryClientProvider client={queryClient}><TasksPage /></QueryClientProvider>)
+    await user.click(screen.getByText('Selected task'))
+    await user.click(within(screen.getByRole('region')).getByRole('button', { name: '编辑' }))
+    await user.type(screen.getByLabelText('任务标题'), ' 修改')
+    const confirmDiscard = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    useAppStore.getState().setActiveModule('projects')
+    expect(confirmDiscard).toHaveBeenCalledWith('放弃尚未保存的修改？')
+    expect(useAppStore.getState().activeModule).toBe('tasks')
+    expect(screen.getByRole('button', { name: '保存' })).toBeInTheDocument()
+    confirmDiscard.mockRestore()
+  })
 })

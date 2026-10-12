@@ -39,6 +39,9 @@ import { KeyboardShortcutsHelp, useKeyboardShortcuts } from './keyboard-shortcut
 import { FocusModeOverlay } from './focus-mode-overlay'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { Home, CheckSquare, FolderKanban, MoreHorizontal } from 'lucide-react'
+import { uiText } from '@/lib/i18n/interface-copy'
+import { useTranslation } from '@/lib/i18n'
 
 const moduleComponents: Record<string, React.ComponentType> = {
   dashboard: DashboardPage,
@@ -57,7 +60,7 @@ const moduleComponents: Record<string, React.ComponentType> = {
 }
 
 export function AppShell() {
-  const { activeModule, welcomeSeen, setupComplete, focusMode } = useAppStore()
+  const { activeModule, welcomeSeen, setupComplete, focusMode, setActiveModule } = useAppStore()
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false)
   const [cloudState, setCloudState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [cloudError, setCloudError] = useState('')
@@ -336,6 +339,8 @@ export function AppShell() {
         </div>
       </div>
 
+      {!focusMode && isMobile && <MobilePrimaryNav activeModule={activeModule} onSelect={setActiveModule} />}
+
       {/* Mobile sidebar Sheet — rendered outside the layout flow */}
       {!focusMode && isMobile && <Sidebar />}
 
@@ -343,5 +348,33 @@ export function AppShell() {
       <GlobalSearchPanel />
       <KeyboardShortcutsHelp open={shortcutsHelpOpen} onOpenChange={setShortcutsHelpOpen} />
     </div>
+  )
+}
+
+function MobilePrimaryNav({ activeModule, onSelect }: {
+  activeModule: ReturnType<typeof useAppStore.getState>['activeModule']
+  onSelect: (module: ReturnType<typeof useAppStore.getState>['activeModule']) => void
+}) {
+  const { t } = useTranslation()
+  const { setMobileSidebarOpen, mobileSidebarOpen } = useAppStore()
+  const primary = [
+    { id: 'dashboard' as const, label: t('nav.dashboard'), icon: Home },
+    { id: 'tasks' as const, label: t('nav.tasks'), icon: CheckSquare },
+    { id: 'projects' as const, label: t('nav.projects'), icon: FolderKanban },
+  ]
+  const inPrimary = primary.some(item => item.id === activeModule)
+  return (
+    <nav aria-label={uiText('Primary navigation')} className="grid min-h-14 shrink-0 grid-cols-4 gap-1 border-t border-border bg-background/95 px-2 pt-1 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+      {primary.map(({ id, label, icon: Icon }) => (
+        <button key={id} type="button" aria-current={activeModule === id ? 'page' : undefined} onClick={() => onSelect(id)} className={activeModule === id ? 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md bg-accent text-foreground' : 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md text-muted-foreground'}>
+          <Icon className="h-4 w-4" />
+          <span className="text-[11px] font-medium">{label}</span>
+        </button>
+      ))}
+      <button type="button" aria-expanded={mobileSidebarOpen} aria-current={!inPrimary ? 'page' : undefined} onClick={() => setMobileSidebarOpen(true)} className={!inPrimary ? 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md bg-accent text-foreground' : 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md text-muted-foreground'}>
+        <MoreHorizontal className="h-4 w-4" />
+        <span className="text-[11px] font-medium">{uiText('More')}</span>
+      </button>
+    </nav>
   )
 }

@@ -20,6 +20,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Maximize2,
   ShieldCheck,
 } from 'lucide-react'
@@ -115,49 +116,47 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
       <ScrollArea className="flex-1 py-3">
         <nav className="px-2 space-y-4">
           <TooltipProvider delayDuration={0}>
-            {filteredSections.map((section) => (
-              <div key={section.title}>
-                {!collapsed && (
-                  <p className="px-2 mb-1 text-[11px] font-medium text-muted-foreground/50 uppercase tracking-wider">
-                    {section.title}
-                  </p>
-                )}
+            {filteredSections.map((section) => {
+              const primaryGroup = section.title === t('nav.overview') || section.title === t('nav.productivity')
+              const links = (
                 <div className="space-y-px">
                   {section.items.map((mod) => {
                     const isActive = activeModule === mod.id
                     const Icon = mod.icon
-
                     const btn = (
                       <button
                         key={mod.id}
+                        aria-current={isActive ? 'page' : undefined}
                         onClick={() => handleNav(mod.id)}
                         className={cn(
                           'w-full flex items-center gap-2.5 rounded-md text-sm transition-colors duration-150',
                           collapsed ? 'justify-center px-2 py-2' : 'min-h-11 px-2 py-2',
-                          isActive
-                            ? 'bg-accent text-foreground font-medium'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-accent/60'
+                          isActive ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground hover:text-foreground hover:bg-accent/60'
                         )}
                       >
                         <Icon className="h-4 w-4 shrink-0" />
                         {!collapsed && <span className="truncate">{mod.label}</span>}
                       </button>
                     )
-
-                    if (collapsed) {
-                      return (
-                        <Tooltip key={mod.id}>
-                          <TooltipTrigger asChild>{btn}</TooltipTrigger>
-                          <TooltipContent side="right">{mod.label}</TooltipContent>
-                        </Tooltip>
-                      )
-                    }
-
-                    return btn
+                    return collapsed ? (
+                      <Tooltip key={mod.id}><TooltipTrigger asChild>{btn}</TooltipTrigger><TooltipContent side="right">{mod.label}</TooltipContent></Tooltip>
+                    ) : btn
                   })}
                 </div>
+              )
+              if (collapsed || primaryGroup) return <div key={section.title}>
+                {!collapsed && <p className="px-2 mb-1 text-[11px] font-medium text-muted-foreground/60 uppercase tracking-wider">{section.title}</p>}
+                {links}
               </div>
-            ))}
+              return (
+                <details key={section.title} className="group/nav rounded-md" open={section.items.some(item => item.id === activeModule)}>
+                  <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-md px-2 text-xs font-semibold text-muted-foreground hover:bg-accent/50 hover:text-foreground [&::-webkit-details-marker]:hidden">
+                    <span>{section.title}</span><ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open/nav:rotate-180" />
+                  </summary>
+                  <div className="mt-1 space-y-px pl-2">{links}</div>
+                </details>
+              )
+            })}
           </TooltipProvider>
         </nav>
       </ScrollArea>

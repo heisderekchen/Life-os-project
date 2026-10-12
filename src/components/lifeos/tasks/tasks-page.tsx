@@ -477,6 +477,25 @@ export function TasksPage() {
     return () => window.removeEventListener('keydown', handleEscape)
   }, [selectedTaskId, taskWorkspaceMode, editTask, selectedTask])
 
+  useEffect(() => {
+    if (taskWorkspaceMode !== 'edit') return
+    const handleModuleChange = (event: Event) => {
+      if (!(event instanceof CustomEvent)) return
+      const changed = Boolean(editTask && selectedTask && (
+        editTask.title !== selectedTask.title
+        || editTask.description !== selectedTask.description
+        || editTask.priority !== selectedTask.priority
+        || editTask.status !== selectedTask.status
+        || editTask.dueDate !== (selectedTask.dueDate || '')
+        || editTask.projectId !== (selectedTask.projectId || '')
+        || editTask.recurrence !== (selectedTask.recurrence || 'none')
+      ))
+      if (changed && !window.confirm('放弃尚未保存的修改？')) event.preventDefault()
+    }
+    window.addEventListener('lifeos:before-module-change', handleModuleChange)
+    return () => window.removeEventListener('lifeos:before-module-change', handleModuleChange)
+  }, [taskWorkspaceMode, editTask, selectedTask])
+
   const filteredTasks = useMemo(() => {
     let result = tasks
     if (taskFilter !== 'all') {
@@ -754,9 +773,9 @@ export function TasksPage() {
             value={newSubtask}
             onChange={(e) => setNewSubtask(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleAddSubtask() }}
-            className="h-7 text-xs"
+            className="h-11 text-base"
           />
-          <Button size="sm" variant="outline" className="h-7 shrink-0" onClick={handleAddSubtask} disabled={createTaskMutation.isPending}>
+          <Button size="icon" variant="outline" className="h-11 w-11 shrink-0" onClick={handleAddSubtask} disabled={createTaskMutation.isPending} aria-label={uiText('Add subtask')}>
             <Plus className="h-3 w-3" />
           </Button>
         </div>
@@ -844,11 +863,11 @@ export function TasksPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <Tabs value={taskView} onValueChange={(v) => setTaskView(v as 'list' | 'board')}>
-                <TabsList className="h-8">
-                  <TabsTrigger value="list" className="text-xs px-3 h-6">
+                <TabsList className="h-auto min-h-11">
+                  <TabsTrigger value="list" className="text-xs px-3 min-h-11">
                     <List className="h-3.5 w-3.5 mr-1" />{t('tasks.list')}
                   </TabsTrigger>
-                  <TabsTrigger value="board" className="text-xs px-3 h-6">
+                  <TabsTrigger value="board" className="text-xs px-3 min-h-11">
                     <LayoutGrid className="h-3.5 w-3.5 mr-1" />{t('tasks.board')}
                   </TabsTrigger>
                 </TabsList>
@@ -1457,9 +1476,9 @@ function Listview({ tasks, projects, selectedTaskId, celebratingTaskId, onSelect
                 {!selectionMode && <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-2">
                   <span className="text-[11px] text-muted-foreground">{uiText('Open task details')}</span>
                   <div className="flex flex-wrap items-center gap-1">
-                    {onMoveTask && task.status !== 'done' && <Button variant="outline" size="sm" className="h-8" onClick={(e) => { e.stopPropagation(); onMoveTask(task.id, task.status === 'todo' ? 'in-progress' : 'done') }}>{task.status === 'todo' ? uiText('Start') : t('tasks.markComplete')}</Button>}
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); onEditTask?.(task) }} title={t('edit')} aria-label={`${t('edit')}: ${task.title}`}><Edit3 className="h-3.5 w-3.5" /></Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDeleteTask(task.id) }} title={t('delete')} aria-label={`${t('delete')}: ${task.title}`}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    {onMoveTask && task.status !== 'done' && <Button variant="outline" size="sm" className="h-11" onClick={(e) => { e.stopPropagation(); onMoveTask(task.id, task.status === 'todo' ? 'in-progress' : 'done') }}>{task.status === 'todo' ? uiText('Start') : t('tasks.markComplete')}</Button>}
+                    <Button variant="ghost" size="icon" className="h-11 w-11" onClick={(e) => { e.stopPropagation(); onEditTask?.(task) }} title={t('edit')} aria-label={`${t('edit')}: ${task.title}`}><Edit3 className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-11 w-11 text-muted-foreground hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDeleteTask(task.id) }} title={t('delete')} aria-label={`${t('delete')}: ${task.title}`}><Trash2 className="h-3.5 w-3.5" /></Button>
                   </div>
                 </div>}
               </div>
