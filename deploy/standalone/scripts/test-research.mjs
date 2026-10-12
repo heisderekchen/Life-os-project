@@ -395,9 +395,11 @@ try {
   // ---- View + server wiring contract ----
   const panelSource = readFileSync(join(repoRoot, 'src/components/lifeos/tasks/research-panel.tsx'), 'utf8')
   const pageSource = readFileSync(join(repoRoot, 'src/components/lifeos/tasks/tasks-page.tsx'), 'utf8')
+  const detailsSource = readFileSync(join(repoRoot, 'src/components/lifeos/tasks/task-detail-extensions.tsx'), 'utf8')
   const serverSource = readFileSync(join(root, 'server.mjs'), 'utf8')
   const moduleSource = readFileSync(join(root, 'src/research.mjs'), 'utf8')
-  assert.match(pageSource, /ResearchPanel/, 'task detail must mount the research panel')
+  assert.match(pageSource, /TaskDetailExtensions/, 'selected task detail must mount the shared task extensions')
+  assert.match(detailsSource, /ResearchPanel/, 'task detail extensions must mount the research panel')
   assert.match(panelSource, /开始研究/, 'the UI must use an explicit Chinese start button')
   assert.match(panelSource, /等待 Neo\/研究执行器连接/)
   assert.match(panelSource, /sm:grid-cols/, 'panel must keep a responsive layout')
