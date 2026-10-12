@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { ChevronDown, Sparkles } from 'lucide-react'
 import { apiPath } from '@/lib/api/client'
 
 type AgentRun = {
@@ -89,9 +90,15 @@ export function AgentRunPanel({ task }: { task: { id: string; title: string; des
 
   const ready = health?.enabled && health?.taskTrigger === 'approved_worker' && health?.providers?.[provider]
   const currentDraft = runs.find(run => run.state === 'draft')
-  return <section className="space-y-3 rounded-xl border border-border/60 bg-card p-3.5" aria-label="AI task planner">
-    <div><h4 className="text-sm font-semibold">AI 任务规划</h4><p className="mt-1 text-xs text-muted-foreground">只发送你在下方确认的任务文字；不会读取门店客户、订单或其他 Life OS 数据。AI 只返回建议，不会自动改动任务。</p></div>
-    {!health?.enabled && <p className="text-xs text-muted-foreground">AI 服务未启用：{health?.reason || error || '等待健康检查'}</p>}
+  return <details className="group rounded-xl border border-border/60 bg-card" aria-label="AI task planner">
+    <summary className="flex cursor-pointer list-none items-center gap-3 p-4 [&::-webkit-details-marker]:hidden">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Sparkles className="h-4 w-4" /></span>
+      <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">AI 任务规划</span><span className="mt-0.5 block text-xs text-muted-foreground">{health?.enabled ? '模型与执行设置' : '未启用 · 需要时展开配置'}</span></span>
+      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+    </summary>
+    <div className="space-y-3 border-t border-border/60 p-4">
+    <p className="text-xs leading-5 text-muted-foreground">只发送你在下方确认的任务文字；不会读取门店客户、订单或其他 Life OS 数据。AI 只返回建议，不会自动改动任务。</p>
+    {!health?.enabled && <p className="text-xs text-muted-foreground">AI 服务未启用。连接模型服务后，可以创建需要单独批准的规划草稿。</p>}
     {health?.enabled && health?.taskTrigger !== 'approved_worker' && <p className="text-xs text-muted-foreground">执行 worker 尚未就绪，当前不能批准执行。</p>}
     <label className="block text-xs">模型提供方<select className="mt-1 w-full rounded-md border bg-background p-2" value={provider} onChange={e => setProvider(e.target.value as 'deepseek' | 'openai')}><option value="deepseek">DeepSeek</option><option value="openai">OpenAI</option></select></label>
     <textarea className="min-h-28 w-full rounded-md border bg-background p-2 text-sm" maxLength={20000} value={prompt} onChange={e => setPrompt(e.target.value)} aria-label="发送给 AI 的任务内容" />
@@ -100,5 +107,6 @@ export function AgentRunPanel({ task }: { task: { id: string; title: string; des
     {currentDraft && <div className="space-y-2 rounded-md border p-3"><p className="text-xs font-medium">待审批 · {currentDraft.provider} / {currentDraft.model} · ${Number(currentDraft.budgetUsd).toFixed(2)} · {currentDraft.maxOutputTokens} tokens</p><pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs">{currentDraft.request.prompt}</pre><label className="flex gap-2 text-xs"><input type="checkbox" checked={approved} onChange={e => setApproved(e.target.checked)} />我已核对上方完整提示词和额度，并明确批准调用模型。</label>{currentDraft.provider === 'openai' && <label className="flex gap-2 text-xs"><input type="checkbox" checked={confirmedOpenAI} onChange={e => setConfirmedOpenAI(e.target.checked)} />我确认将任务内容发送至 OpenAI。</label>}<button type="button" disabled={!approved || (currentDraft.provider === 'openai' && !confirmedOpenAI) || !ready || busy} onClick={() => void approveRun(currentDraft)} className="rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground disabled:opacity-50">批准并排队执行</button></div>}
     {runs.filter(run => run.state !== 'draft').slice(0, 4).map(run => <div key={run.id} className="rounded-md border p-2 text-xs"><p>执行状态：{run.state}{run.errorCode ? ` · ${run.errorCode}` : ''}</p>{run.result !== undefined && run.result !== null ? <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words">{JSON.stringify(run.result, null, 2)}</pre> : null}</div>)}
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
-  </section>
+    </div>
+  </details>
 }
