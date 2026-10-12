@@ -63,6 +63,7 @@ import { useTasks, useProjects, useCreateTask, useUpdateTask, useDeleteTask } fr
 import { useIsMobile } from '@/hooks/use-mobile'
 import { AgentRunPanel } from '@/components/lifeos/tasks/agent-run-panel'
 import { TaskDetailExtensions } from '@/components/lifeos/tasks/task-detail-extensions'
+import { fetchTaskCard, type TaskCard } from '@/components/lifeos/tasks/task-card-panel'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   DndContext,
@@ -101,6 +102,15 @@ function splitTaskDescription(description: string) {
     body: description.slice(0, markerIndex).trim(),
     handoff: description.slice(markerIndex + HANDOFF_MARKER.length).trim(),
   }
+}
+
+function isOverdueOpenTask(task: Task) {
+  if (!task.dueDate || (task.status !== 'todo' && task.status !== 'in-progress')) return false
+  const due = new Date(task.dueDate)
+  const today = new Date()
+  due.setHours(0, 0, 0, 0)
+  today.setHours(0, 0, 0, 0)
+  return due < today
 }
 
 export function TaskRunSignals({ task }: { task: Task }) {
@@ -397,6 +407,7 @@ const accentHexMap: Record<string, string> = {
 export function TasksPage() {
   useInterfaceLanguage()
   const { taskView, setTaskView, taskFilter, setTaskFilter } = useTaskStore()
+  const [queueFilter, setQueueFilter] = useState<'all' | 'in-progress' | 'attention' | 'todo'>('all')
   const accentColor = useAppStore((s) => s.accentColor)
   const { t } = useTranslation()
   const statusLabels: Record<string, string> = useMemo(() => ({
@@ -424,6 +435,8 @@ export function TasksPage() {
 
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [selectedTaskCard, setSelectedTaskCard] = useState<TaskCard | null>(null)
+  const [taskCardLoadState, setTaskCardLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [taskWorkspaceMode, setTaskWorkspaceMode] = useState<'detail' | 'edit'>('detail')
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [newTask, setNewTask] = useState({ title: '', description: '', priority: 'medium' as Task['priority'], dueDate: '', projectId: '', tags: '', recurrence: 'none' as Task['recurrence'] })
@@ -437,6 +450,22 @@ export function TasksPage() {
   const previousSelectedTaskId = useRef<string | null>(null)
 
   const selectedTask = useMemo(() => tasks.find(t => t.id === selectedTaskId), [tasks, selectedTaskId])
+
+  const loadSelectedTaskCard = useCallback(async (taskId: string) => {
+    setTaskCardLoadState('loading')
+    try {
+      setSelectedTaskCard(await fetchTaskCard(taskId))
+      setTaskCardLoadState('ready')
+    } catch {
+      setSelectedTaskCard(null)
+      setTaskCardLoadState('error')
+    }
+  }, [])
+
+  useEffect(() => {
+    if (selectedTaskId) void loadSelectedTaskCard(selectedTaskId)
+    else { setSelectedTaskCard(null); setTaskCardLoadState('loading') }
+  }, [selectedTaskId, loadSelectedTaskCard])
 
   useEffect(() => {
     const previousId = previousSelectedTaskId.current
@@ -477,9 +506,32 @@ export function TasksPage() {
     return () => window.removeEventListener('keydown', handleEscape)
   }, [selectedTaskId, taskWorkspaceMode, editTask, selectedTask])
 
+  useEffect(() => {
+    if (taskWorkspaceMode !== 'edit') return
+    const handleModuleChange = (event: Event) => {
+      if (!(event instanceof CustomEvent)) return
+      const changed = Boolean(editTask && selectedTask && (
+        editTask.title !== selectedTask.title
+        || editTask.description !== selectedTask.description
+        || editTask.priority !== selectedTask.priority
+        || editTask.status !== selectedTask.status
+        || editTask.dueDate !== (selectedTask.dueDate || '')
+        || editTask.projectId !== (selectedTask.projectId || '')
+        || editTask.recurrence !== (selectedTask.recurrence || 'none')
+      ))
+      if (changed && !window.confirm('放弃尚未保存的修改？')) event.preventDefault()
+    }
+    window.addEventListener('lifeos:before-module-change', handleModuleChange)
+    return () => window.removeEventListener('lifeos:before-module-change', handleModuleChange)
+  }, [taskWorkspaceMode, editTask, selectedTask])
+
   const filteredTasks = useMemo(() => {
     let result = tasks
-    if (taskFilter !== 'all') {
+    if (queueFilter === 'attention') {
+      result = result.filter(isOverdueOpenTask)
+    } else if (queueFilter !== 'all') {
+      result = result.filter(t => t.status === queueFilter && !isOverdueOpenTask(t))
+    } else if (taskFilter !== 'all') {
       result = result.filter(t => t.status === taskFilter)
     }
     if (searchQuery) {
@@ -487,7 +539,7 @@ export function TasksPage() {
       result = result.filter(t => t.title.toLowerCase().includes(q) || t.description.toLowerCase().includes(q))
     }
     return result
-  }, [tasks, taskFilter, searchQuery])
+  }, [tasks, taskFilter, queueFilter, searchQuery])
 
   const todoTasks = filteredTasks.filter(t => t.status === 'todo')
   const inProgressTasks = filteredTasks.filter(t => t.status === 'in-progress')
@@ -496,10 +548,7 @@ export function TasksPage() {
   // Productivity Score & Completion Progress
   const taskCompletionPct = tasks.length > 0 ? Math.round((tasks.filter(t => t.status === 'done').length / tasks.length) * 100) : 0
   const overdueTasks = tasks.filter(t => {
-    if (!t.dueDate || t.status === 'done') return false
-    const due = new Date(t.dueDate)
-    due.setHours(0, 0, 0, 0)
-    return due < new Date(new Date().toISOString().split('T')[0])
+    return isOverdueOpenTask(t)
   })
 
   const handleAddTask = useCallback(() => {
@@ -685,7 +734,7 @@ export function TasksPage() {
         <div className="min-w-0"><p className="mb-2 break-all text-xs font-medium tracking-wide text-muted-foreground">任务编号 · {selectedTask.id}</p><h3 className="max-w-4xl break-words text-2xl font-semibold tracking-tight text-pretty sm:text-3xl">{selectedTask.title}</h3></div>
         <div className="flex shrink-0 items-center gap-1">
           <Button variant="outline" size="sm" onClick={() => openEditDialog(selectedTask)}><Edit3 className="mr-2 h-3.5 w-3.5" />{t('edit')}</Button>
-          <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-7 sm:w-7 shrink-0" aria-label={t('close')} onClick={closeTaskWorkspace}>
+          <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-7 sm:w-7 shrink-0" aria-label="返回任务列表" onClick={closeTaskWorkspace}>
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -703,14 +752,20 @@ export function TasksPage() {
       <div className="min-w-0 space-y-5">
       <section className="min-w-0 space-y-3 rounded-xl border border-border/60 bg-card p-4 sm:p-5">
         <p className="text-sm font-semibold">任务目标</p>
-        {splitTaskDescription(selectedTask.description).body
-          ? <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/85">{splitTaskDescription(selectedTask.description).body}</p>
-          : <p className="text-sm text-muted-foreground">尚未填写目标，可编辑任务补充。</p>}
+        {taskCardLoadState === 'loading' ? <p className="text-sm text-muted-foreground">正在读取任务卡…</p>
+          : taskCardLoadState === 'error' ? <div className="flex items-center gap-3"><p role="alert" className="text-sm text-muted-foreground">任务目标读取失败。</p><Button variant="outline" size="sm" onClick={() => void loadSelectedTaskCard(selectedTask.id)}>重试</Button></div>
+          : selectedTaskCard?.goal ? <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/85">{selectedTaskCard.goal}</p>
+            : <p className="text-sm text-muted-foreground">尚未填写任务目标。</p>}
       </section>
       <section className="min-w-0 space-y-3 rounded-xl border border-border/60 bg-card p-4 sm:p-5">
         <p className="text-sm font-semibold">预期产出与验收</p>
-        <p className="text-sm leading-relaxed text-foreground/85">{selectedTask.status === 'done' ? '任务已标记完成。' : '完成后在此记录交付物与验收结果。'}</p>
-        <p className="text-xs text-muted-foreground">{uiText('Acceptance has not been recorded.')}</p>
+        {taskCardLoadState === 'loading' ? <p className="text-sm text-muted-foreground">正在读取预期产出与验收…</p>
+          : taskCardLoadState === 'error' ? <p className="text-sm text-muted-foreground">无法读取任务卡字段，请使用目标区域的重试按钮。</p>
+            : <>
+              <div><p className="mb-1 text-xs text-muted-foreground">预期产出</p>{selectedTaskCard?.expectedArtifacts.length ? <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed">{selectedTaskCard.expectedArtifacts.map((item, index) => <li key={`${index}-${item}`} className="break-words">{item}</li>)}</ul> : <p className="text-sm text-muted-foreground">尚未填写预期产出。</p>}</div>
+              <div><p className="mb-1 text-xs text-muted-foreground">验收标准</p>{selectedTaskCard?.verification.length ? <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed">{selectedTaskCard.verification.map((item, index) => <li key={`${index}-${item}`} className="break-words">{item}</li>)}</ul> : <p className="text-sm text-muted-foreground">尚未填写验收标准。</p>}</div>
+              {selectedTaskCard?.nextStep && <div><p className="mb-1 text-xs text-muted-foreground">下一步</p><p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{selectedTaskCard.nextStep}</p></div>}
+            </>}
       </section>
       <section className="min-w-0 space-y-3 rounded-xl border border-border/60 bg-card p-4 sm:p-5">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{uiText('Task materials')}</p>
@@ -754,9 +809,9 @@ export function TasksPage() {
             value={newSubtask}
             onChange={(e) => setNewSubtask(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleAddSubtask() }}
-            className="h-7 text-xs"
+            className="h-11 text-base"
           />
-          <Button size="sm" variant="outline" className="h-7 shrink-0" onClick={handleAddSubtask} disabled={createTaskMutation.isPending}>
+          <Button size="icon" variant="outline" className="h-11 w-11 shrink-0" onClick={handleAddSubtask} disabled={createTaskMutation.isPending} aria-label={uiText('Add subtask')}>
             <Plus className="h-3 w-3" />
           </Button>
         </div>
@@ -816,7 +871,7 @@ export function TasksPage() {
               </div>
               <div>
                 <p className="text-xs font-semibold">{t('tasks.productivityScore')}</p>
-                <p className="text-[10px] text-muted-foreground">{tasks.filter(t => t.status === 'done').length} {uiText("of")} {tasks.length} {t('tasks.tasksDone')}</p>
+                <p className="text-[10px] text-muted-foreground">{uiText('All tasks')}: {tasks.filter(t => t.status === 'done').length} {uiText("of")} {tasks.length} {t('tasks.tasksDone')}</p>
               </div>
             </div>
             <div className="flex-1">
@@ -827,28 +882,42 @@ export function TasksPage() {
           </div>
         </div>
 
-        {/* Overdue Section */}
-        {overdueTasks.length > 0 && (
-          <div className="px-4 py-2">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/30">
-              <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse-red" />
-              <span className="text-xs font-medium text-red-600 dark:text-red-400">{overdueTasks.length} {overdueTasks.length > 1 ? t('tasks.overdueTasksPlural') : t('tasks.overdueTasks')}</span>
-              <div className="flex-1" />
-              <span className="text-[10px] text-red-500/70">{t('tasks.reviewDueDates')}</span>
-            </div>
+        <div role="group" aria-label={uiText('Task queue')} className="px-4 pt-4">
+          <div className="mb-2 flex items-baseline justify-between">
+            <h2 className="text-sm font-semibold">{uiText('Your work')}</h2>
+            <span className="text-xs text-muted-foreground">{tasks.length} {uiText('tasks in view')}</span>
           </div>
-        )}
+          <div className="grid grid-cols-2 divide-x divide-y divide-border/70 overflow-hidden border-y border-border/70 sm:grid-cols-4 sm:divide-y-0">
+            {([
+              { id: 'in-progress', label: uiText('In progress'), count: tasks.filter(task => task.status === 'in-progress' && !isOverdueOpenTask(task)).length, note: uiText('Being worked on') },
+              { id: 'attention', label: uiText('Needs attention'), count: overdueTasks.length, note: uiText('Overdue') },
+              { id: 'todo', label: uiText('Next up'), count: tasks.filter(task => task.status === 'todo' && !isOverdueOpenTask(task)).length, note: uiText('Ready to start') },
+              { id: 'all', label: uiText('All tasks'), count: tasks.length, note: uiText('Every status') },
+            ] as const).map((queue) => {
+              const selected = queueFilter === queue.id && taskFilter === 'all'
+              return (
+                <button key={queue.id} type="button" aria-pressed={selected} onClick={() => { setQueueFilter(queue.id); setTaskFilter('all') }} className={cn('min-h-[76px] px-3 py-3 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:min-h-[84px] sm:px-4', selected && 'bg-accent/45')}>
+                  <span className="flex items-baseline justify-between gap-2">
+                    <span className="truncate text-xs font-semibold sm:text-sm">{queue.label}</span>
+                    <span className="text-lg font-semibold tabular-nums">{queue.count}</span>
+                  </span>
+                  <span className="mt-1 block truncate text-[11px] text-muted-foreground">{queue.note}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
 
         {/* Toolbar */}
         <div className="p-4 border-b border-border/50 space-y-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <Tabs value={taskView} onValueChange={(v) => setTaskView(v as 'list' | 'board')}>
-                <TabsList className="h-8">
-                  <TabsTrigger value="list" className="text-xs px-3 h-6">
+                <TabsList className="h-auto min-h-11">
+                  <TabsTrigger value="list" className="text-xs px-3 min-h-11">
                     <List className="h-3.5 w-3.5 mr-1" />{t('tasks.list')}
                   </TabsTrigger>
-                  <TabsTrigger value="board" className="text-xs px-3 h-6">
+                  <TabsTrigger value="board" className="text-xs px-3 min-h-11">
                     <LayoutGrid className="h-3.5 w-3.5 mr-1" />{t('tasks.board')}
                   </TabsTrigger>
                 </TabsList>
@@ -867,35 +936,23 @@ export function TasksPage() {
                   {selectionMode ? t('cancel') : t('tasks.selection.select')}
                 </Button>
               )}
-              <div className="flex min-w-0 flex-wrap items-center gap-1">
-                {(['all', 'todo', 'in-progress', 'done'] as const).map((filter) => {
-                  const count = filter === 'all' ? tasks.length : tasks.filter(t => t.status === filter).length
-                  const isActive = taskFilter === filter
-                  return (
-                    <Button
-                      key={filter}
-                      variant={isActive ? 'secondary' : 'ghost'}
-                      size="sm"
-                      className={cn('h-7 text-xs gap-1.5 tab-transition', isActive && 'border-l-2')}
-                      style={isActive ? { borderLeftColor: accentHex } : undefined}
-                      onClick={() => setTaskFilter(filter)}
-                    >
-                      {filter === 'all' ? t('tasks.all') : filter === 'in-progress' ? t('tasks.inProgress') : filter === 'todo' ? t('tasks.todo') : t('tasks.done')}
-                      <motion.span
-                        key={`${filter}-${count}`}
-                        initial={{ scale: 0.8, opacity: 0.5 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        className={cn(
-                          'inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full text-[10px] font-medium transition-colors',
-                          taskFilter === filter ? (filterBadgeColors[filter] || filterBadgeColors.all) : 'bg-muted text-muted-foreground'
-                        )}
-                      >
-                        {count}
-                      </motion.span>
-                    </Button>
-                  )
-                })}
-              </div>
+              <details className="group/status relative">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-md border px-3 text-xs font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground [&::-webkit-details-marker]:hidden">
+                  {uiText('Status filters')}<ChevronDown className="ml-2 h-3.5 w-3.5 transition-transform group-open/status:rotate-180" />
+                </summary>
+                <div className="absolute left-0 top-full z-20 mt-1 flex min-w-44 flex-col rounded-lg border bg-popover p-1 shadow-lg">
+                  {(['all', 'todo', 'in-progress', 'done'] as const).map((filter) => {
+                    const count = filter === 'all' ? tasks.length : tasks.filter(t => t.status === filter).length
+                    const isActive = taskFilter === filter && queueFilter === 'all'
+                    return (
+                      <button key={filter} type="button" className={cn('flex min-h-11 items-center justify-between gap-4 rounded-md px-3 text-left text-sm hover:bg-accent', isActive && 'bg-accent font-medium')} onClick={() => { setQueueFilter('all'); setTaskFilter(filter) }}>
+                        <span>{filter === 'all' ? t('tasks.all') : filter === 'in-progress' ? t('tasks.inProgress') : filter === 'todo' ? t('tasks.todo') : t('tasks.done')}</span>
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs tabular-nums">{count}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </details>
             </div>
             <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
               <Popover>
@@ -1457,9 +1514,9 @@ function Listview({ tasks, projects, selectedTaskId, celebratingTaskId, onSelect
                 {!selectionMode && <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-2">
                   <span className="text-[11px] text-muted-foreground">{uiText('Open task details')}</span>
                   <div className="flex flex-wrap items-center gap-1">
-                    {onMoveTask && task.status !== 'done' && <Button variant="outline" size="sm" className="h-8" onClick={(e) => { e.stopPropagation(); onMoveTask(task.id, task.status === 'todo' ? 'in-progress' : 'done') }}>{task.status === 'todo' ? uiText('Start') : t('tasks.markComplete')}</Button>}
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); onEditTask?.(task) }} title={t('edit')} aria-label={`${t('edit')}: ${task.title}`}><Edit3 className="h-3.5 w-3.5" /></Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDeleteTask(task.id) }} title={t('delete')} aria-label={`${t('delete')}: ${task.title}`}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    {onMoveTask && task.status !== 'done' && <Button variant="outline" size="sm" className="h-11" onClick={(e) => { e.stopPropagation(); onMoveTask(task.id, task.status === 'todo' ? 'in-progress' : 'done') }}>{task.status === 'todo' ? uiText('Start') : t('tasks.markComplete')}</Button>}
+                    <Button variant="ghost" size="icon" className="h-11 w-11" onClick={(e) => { e.stopPropagation(); onEditTask?.(task) }} title={t('edit')} aria-label={`${t('edit')}: ${task.title}`}><Edit3 className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-11 w-11 text-muted-foreground hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDeleteTask(task.id) }} title={t('delete')} aria-label={`${t('delete')}: ${task.title}`}><Trash2 className="h-3.5 w-3.5" /></Button>
                   </div>
                 </div>}
               </div>

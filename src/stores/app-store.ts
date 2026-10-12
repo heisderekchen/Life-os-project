@@ -90,7 +90,14 @@ export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
       activeModule: 'dashboard',
-      setActiveModule: (module) => set({ activeModule: module }),
+      setActiveModule: (module) => {
+        if (typeof window !== 'undefined') {
+          const navigation = new CustomEvent('lifeos:before-module-change', { cancelable: true, detail: { module } })
+          window.dispatchEvent(navigation)
+          if (navigation.defaultPrevented) return
+        }
+        set({ activeModule: module })
+      },
       
       sidebarCollapsed: false,
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),

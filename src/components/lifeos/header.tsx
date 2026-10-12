@@ -1,12 +1,12 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useAppStore, type ModuleId } from '@/stores/app-store'
 import {
   Search,
   Sun,
   Moon,
   Plus,
-  Menu,
   Command,
   CheckSquare,
   StickyNote,
@@ -14,6 +14,7 @@ import {
   ChevronRight,
   User,
   Settings,
+  ShieldCheck,
   LogOut,
   Maximize2,
 } from 'lucide-react'
@@ -43,11 +44,21 @@ import { useProfile } from '@/lib/api/hooks'
 import { showToast } from '@/lib/toast'
 
 export function Header() {
-  const { activeModule, setCommandPaletteOpen, setMobileSidebarOpen, setGlobalSearchOpen, setActiveModule, toggleFocusMode, language, setLanguage } = useAppStore()
+  const { activeModule, setCommandPaletteOpen, setGlobalSearchOpen, setActiveModule, toggleFocusMode, language, setLanguage } = useAppStore()
   const { theme, setTheme } = useTheme()
   const isMobile = useIsMobile()
   const { t } = useTranslation()
   const { data: profile } = useProfile()
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    fetch('/api/platform/session', { cache: 'no-store' })
+      .then(async response => response.ok ? response.json() : null)
+      .then(session => { if (active) setIsPlatformAdmin(session?.principal?.role === 'platform_admin') })
+      .catch(() => { if (active) setIsPlatformAdmin(false) })
+    return () => { active = false }
+  }, [])
 
   const moduleLabels: Record<ModuleId, string> = {
     dashboard: t('nav.dashboard'),
@@ -85,6 +96,12 @@ export function Header() {
   const userEmail = profile?.email || ''
   const isPrivateWorkbench = process.env.NEXT_PUBLIC_LIFEOS_BASE_PATH === '/workbench'
 
+  const navigateFromProfile = (module: ModuleId) => {
+    const store = useAppStore.getState()
+    store.setMobileSidebarOpen(false)
+    store.setActiveModule(module)
+  }
+
   const signOut = async () => {
     try {
       // Session management is mounted at the Worker root, outside the Life OS
@@ -110,17 +127,6 @@ export function Header() {
     <header className="min-h-14 sm:min-h-12 z-30 bg-background/95 border-b border-border flex items-center justify-between px-2 sm:px-4 gap-1.5 sm:gap-4 shrink-0 backdrop-blur supports-[backdrop-filter]:bg-background/85">
       {/* Left — breadcrumb */}
       <div className="flex items-center gap-1 sm:gap-2 min-w-0">
-        {isMobile && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-10 w-10 shrink-0"
-            aria-label={t('header.openNavigation')}
-            onClick={() => setMobileSidebarOpen(true)}
-          >
-            <Menu className="h-4 w-4" />
-          </Button>
-        )}
         <Breadcrumb className="min-w-0">
           <BreadcrumbList className="flex-nowrap whitespace-nowrap overflow-hidden">
             <BreadcrumbItem>
@@ -179,9 +185,9 @@ export function Header() {
 
       {/* Right */}
       <div className="flex items-center gap-1">
-          <Button variant="outline" size="sm" className="h-10 min-w-10 sm:min-w-[88px] shrink-0 px-2 text-xs" aria-label={language === 'zh' ? 'Switch to English' : '切换到中文'} title={language === 'zh' ? '切换到 English' : 'Switch to 中文'} onClick={() => setLanguage(language === 'zh' ? 'en' : 'zh')}><span className="sm:hidden">{language === 'zh' ? '中' : 'EN'}</span><span className="hidden sm:inline">中文 / English</span></Button>
+          <Button variant="outline" size="sm" className="h-11 min-w-11 sm:min-w-[88px] shrink-0 px-2 text-xs" aria-label={language === 'zh' ? 'Switch to English' : '切换到中文'} title={language === 'zh' ? '切换到 English' : 'Switch to 中文'} onClick={() => setLanguage(language === 'zh' ? 'en' : 'zh')}><span className="sm:hidden">{language === 'zh' ? '中' : 'EN'}</span><span className="hidden sm:inline">中文 / English</span></Button>
         {isMobile && (
-          <Button variant="ghost" size="icon" className="h-10 w-10" aria-label={t('header.searchEverything')} onClick={() => setGlobalSearchOpen(true)}>
+          <Button variant="ghost" size="icon" className="h-11 w-11" aria-label={t('header.searchEverything')} onClick={() => setGlobalSearchOpen(true)}>
             <Search className="h-4 w-4" />
           </Button>
         )}
@@ -189,7 +195,7 @@ export function Header() {
         {/* Quick add */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-10 w-10" aria-label={t('header.quickCreate')}>
+            <Button variant="ghost" size="icon" className="h-11 w-11" aria-label={t('header.quickCreate')}>
               <Plus className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -229,7 +235,7 @@ export function Header() {
         {/* User avatar */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-10 min-w-10 px-1.5 gap-1.5 rounded-md hover:bg-accent/60" aria-label={t('header.profile')}>
+            <Button variant="ghost" className="h-11 min-w-11 px-1.5 gap-1.5 rounded-md hover:bg-accent/60" aria-label={t('header.profile')}>
               <Avatar className="h-6 w-6">
                 <AvatarFallback className="text-[10px] font-semibold bg-foreground text-background">
                   {initials}
@@ -248,14 +254,18 @@ export function Header() {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => useAppStore.getState().setActiveModule('settings')}>
+            <DropdownMenuItem onClick={() => navigateFromProfile('settings')}>
               <User className="mr-2 h-4 w-4" />
               {t('header.profile')}
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => useAppStore.getState().setActiveModule('settings')}>
+            <DropdownMenuItem onClick={() => navigateFromProfile('settings')}>
               <Settings className="mr-2 h-4 w-4" />
               {t('header.preferences')}
             </DropdownMenuItem>
+            {isPlatformAdmin && <DropdownMenuItem onClick={() => navigateFromProfile('accounts')}>
+              <ShieldCheck className="mr-2 h-4 w-4" />
+              {t('nav.accounts')}
+            </DropdownMenuItem>}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
               {theme === 'dark' ? (

@@ -418,7 +418,7 @@ export function NotificationCenter() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-8 sm:w-8 relative hover:scale-105 transition-transform duration-150" aria-label={uiText("Notifications")}>
+        <Button variant="ghost" size="icon" className="h-11 w-11 sm:h-8 sm:w-8 relative hover:scale-105 transition-transform duration-150" aria-label={uiText("Notifications")}>
           <Bell className="h-4 w-4" />
           {unreadCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 flex items-center justify-center rounded-full bg-orange-500 text-white text-[10px] font-bold px-1 ring-2 ring-background animate-pulse">

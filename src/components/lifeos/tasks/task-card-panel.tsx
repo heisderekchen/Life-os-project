@@ -17,7 +17,7 @@ type WorkerRole = 'planner' | 'developer' | 'reviewer'
 type RoleAssignment = { role: WorkerRole; provider: string | null; model: string | null; objective?: string }
 type RoutingRow = { type: string; role: string; provider: string; model: string; ready: boolean }
 
-type TaskCard = {
+export type TaskCard = {
   taskId: string
   type: string
   goal: string
@@ -39,7 +39,7 @@ type CatalogResponse = {
   routing: RoutingRow[]
 }
 
-type CardResponse = { taskId: string; card: TaskCard | null; routing: RoutingRow[] }
+export type CardResponse = { taskId: string; card: TaskCard | null; routing: RoutingRow[] }
 type TaskDetail = {
   subtasks?: { id: string; title: string }[]
   dependencies?: { id: string; dependsOnId: string; dependsOn?: { title?: string } | null }[]
@@ -116,6 +116,13 @@ function formOf(card: TaskCard): CardForm {
     }
   }
   return form
+}
+
+export async function fetchTaskCard(taskId: string): Promise<TaskCard | null> {
+  const response = await fetch(apiPath(`/api/task-cards/tasks/${encodeURIComponent(taskId)}`), { cache: 'no-store' })
+  const value = await response.json().catch(() => ({})) as CardResponse & { error?: string }
+  if (!response.ok) throw new Error(value.error || `HTTP_${response.status}`)
+  return value.card
 }
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {

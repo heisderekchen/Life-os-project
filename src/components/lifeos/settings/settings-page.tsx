@@ -30,6 +30,7 @@ import { KeyboardShortcutsHelp } from '@/components/lifeos/keyboard-shortcuts'
 import { useTranslation, availableLanguages } from '@/lib/i18n'
 import type { LanguageCode } from '@/lib/i18n'
 import { apiPath } from '@/lib/api/client'
+import { ModulePageHeader } from '@/components/lifeos/shared/module-page-header'
 
 type SettingsTab = 'profile' | 'appearance' | 'data' | 'shortcuts' | 'notifications' | 'about'
 
@@ -82,6 +83,9 @@ export function SettingsPage() {
   const activeAccentHex = accentColor === 'custom' ? customAccentColor : (accentColorMap[accentColor] || accentColorMap.emerald)
   const [profileName, setProfileName] = useState('User')
   const [profileEmail, setProfileEmail] = useState('user@example.com')
+  const profileNameComplete = profileName.trim().length > 0 && profileName.trim() !== 'User'
+  const profileEmailComplete = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profileEmail.trim()) && !profileEmail.includes('example')
+  const profileCompletion = Math.round(([profileNameComplete, profileEmailComplete].filter(Boolean).length / 2) * 100)
   const [showModuleColors, setShowModuleColors] = useState(true)
   const [borderRadius, setBorderRadius] = useState(() => {
     if (typeof document !== 'undefined') {
@@ -253,8 +257,8 @@ export function SettingsPage() {
   ]
 
   return (
-    <div className="p-[var(--lifeos-card-padding)] max-w-4xl mx-auto animate-page-enter">
-      <h2 className="text-xl font-bold mb-[var(--lifeos-section-gap)]">{t('settings.title')}</h2>
+    <div className="settings-page p-[var(--lifeos-card-padding)] max-w-4xl mx-auto animate-page-enter">
+      <ModulePageHeader title={t('settings.title')} description={uiText('Personalize your workspace, notifications and data preferences.')} />
 
       {/* Profile Completion Indicator */}
       <Card className="mb-6 overflow-hidden">
@@ -264,32 +268,31 @@ export function SettingsPage() {
             <div className="relative shrink-0">
               <svg width={48} height={48} className="transform -rotate-90">
                 <circle cx={24} cy={24} r={20} fill="none" stroke="currentColor" strokeWidth={3} className="text-muted/20" />
-                <circle cx={24} cy={24} r={20} fill="none" stroke={activeAccentHex} strokeWidth={3} strokeDasharray={125.7} strokeDashoffset={125.7 - 0.75 * 125.7} strokeLinecap="round" className="animate-completion-ring transition-all duration-700" />
+                <circle cx={24} cy={24} r={20} fill="none" stroke={activeAccentHex} strokeWidth={3} strokeDasharray={125.7} strokeDashoffset={125.7 - (profileCompletion / 100) * 125.7} strokeLinecap="round" className="animate-completion-ring transition-all duration-700" />
               </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-xs font-bold" style={{ color: activeAccentHex }}>75%</span>
+              <span className="absolute inset-0 flex items-center justify-center text-xs font-bold" style={{ color: activeAccentHex }}>{profileCompletion}%</span>
             </div>
             <div className="flex-1">
               <p className="text-sm font-semibold">{t('settings.profileCompletion')}</p>
               <p className="text-xs text-muted-foreground">{t('settings.completeProfile')}</p>
               <div className="flex gap-2 mt-2">
-                {!profileEmail.includes('example') && <Badge variant="secondary" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600"><Check className="h-2.5 w-2.5 mr-1" />{t('settings.email')}</Badge>}
-                {profileName !== 'User' && <Badge variant="secondary" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600"><Check className="h-2.5 w-2.5 mr-1" />{t('settings.displayName')}</Badge>}
-                <Badge variant="outline" className="text-[10px]">{uiText("Avatar")}</Badge>
+                {profileEmailComplete && <Badge variant="secondary" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600"><Check className="h-2.5 w-2.5 mr-1" />{t('settings.email')}</Badge>}
+                {profileNameComplete && <Badge variant="secondary" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600"><Check className="h-2.5 w-2.5 mr-1" />{t('settings.displayName')}</Badge>}
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <div className="flex flex-col md:flex-row gap-6">
+      <div className="flex flex-col gap-4 md:flex-row md:gap-6">
         {/* Sidebar Tabs */}
-        <div className="w-full md:w-48 shrink-0">
-          <nav className="space-y-1">
+        <div className="w-full shrink-0 md:w-48">
+          <nav aria-label={t('settings.title')} className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 md:mx-0 md:flex-col md:overflow-visible md:px-0 md:pb-0">
             {tabs.map(tab => {
               const Icon = tab.icon
               const isActive = activeTab === tab.id
               return (
-                <button key={tab.id} className={cn('w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 relative hover-lift', isActive ? 'bg-accent text-accent-foreground shadow-sm' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground')} onClick={() => setActiveTab(tab.id)}>
+                <button key={tab.id} aria-pressed={isActive} className={cn('relative flex min-h-11 shrink-0 items-center gap-2.5 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-colors duration-200 md:w-full', isActive ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground')} onClick={() => setActiveTab(tab.id)}>
                   {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[4px] h-6 rounded-r-full" style={{ background: `linear-gradient(to bottom, ${activeAccentHex}, ${activeAccentHex}cc)` }} />}
                   <Icon className="h-4 w-4" />{tab.label}
                 </button>

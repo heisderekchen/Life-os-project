@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useAppStore } from '@/stores/app-store'
+import { useAppStore, type ModuleId } from '@/stores/app-store'
 import { useTheme } from 'next-themes'
 import { apiPath } from '@/lib/api/client'
 import {
@@ -35,10 +35,14 @@ import { CalendarPage } from './calendar/calendar-page'
 import { TimePage } from './time/time-page'
 import { SettingsPage } from './settings/settings-page'
 import { PlatformAccountsPage } from './admin/platform-accounts-page'
+import { MobileModuleDirectory } from './mobile-module-directory'
 import { KeyboardShortcutsHelp, useKeyboardShortcuts } from './keyboard-shortcuts'
 import { FocusModeOverlay } from './focus-mode-overlay'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { Home, CheckSquare, Repeat, GraduationCap } from 'lucide-react'
+import { uiText } from '@/lib/i18n/interface-copy'
+import { useTranslation } from '@/lib/i18n'
 
 const moduleComponents: Record<string, React.ComponentType> = {
   dashboard: DashboardPage,
@@ -57,8 +61,9 @@ const moduleComponents: Record<string, React.ComponentType> = {
 }
 
 export function AppShell() {
-  const { activeModule, welcomeSeen, setupComplete, focusMode } = useAppStore()
+  const { activeModule, welcomeSeen, setupComplete, focusMode, mobileSidebarOpen, setMobileSidebarOpen, setActiveModule } = useAppStore()
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false)
+  const [mobileCategory, setMobileCategory] = useState<'overview' | 'productivity' | 'wellness' | 'growth'>('overview')
   const [cloudState, setCloudState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [cloudError, setCloudError] = useState('')
   const [saveError, setSaveError] = useState(false)
@@ -295,6 +300,10 @@ export function AppShell() {
   }
 
   const ActiveComponent = moduleComponents[activeModule] || DashboardPage
+  const selectMobileModule = (module: ModuleId) => {
+    setMobileSidebarOpen(false)
+    setActiveModule(module)
+  }
 
   // Page transition variants
   const pageVariants = {
@@ -318,30 +327,63 @@ export function AppShell() {
         <div className="lifeos-column">
           {!focusMode && <Header />}
           <main className="lifeos-main relative">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeModule}
-                variants={pageVariants}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-                className="h-full"
-              >
-                <ActiveComponent />
-              </motion.div>
-            </AnimatePresence>
+            {isMobile && mobileSidebarOpen ? (
+            <MobileModuleDirectory category={mobileCategory} onSelect={selectMobileModule} onClose={() => setMobileSidebarOpen(false)} />
+            ) : (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeModule}
+                  variants={pageVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                  className="h-full"
+                >
+                  <ActiveComponent />
+                </motion.div>
+              </AnimatePresence>
+            )}
             {focusMode && <FocusModeOverlay />}
           </main>
         </div>
       </div>
 
-      {/* Mobile sidebar Sheet — rendered outside the layout flow */}
-      {!focusMode && isMobile && <Sidebar />}
+      {!focusMode && isMobile && <MobilePrimaryNav activeModule={activeModule} directoryOpen={mobileSidebarOpen} browseCategory={mobileCategory} onCategory={category => {
+        if (mobileSidebarOpen && mobileCategory === category) { setMobileSidebarOpen(false); return }
+        setMobileCategory(category)
+        setMobileSidebarOpen(true)
+      }} />}
 
       <CommandPalette />
       <GlobalSearchPanel />
       <KeyboardShortcutsHelp open={shortcutsHelpOpen} onOpenChange={setShortcutsHelpOpen} />
     </div>
+  )
+}
+
+export function MobilePrimaryNav({ activeModule, directoryOpen, browseCategory, onCategory }: {
+  activeModule: ModuleId
+  directoryOpen: boolean
+  browseCategory: 'overview' | 'productivity' | 'wellness' | 'growth'
+  onCategory: (category: 'overview' | 'productivity' | 'wellness' | 'growth') => void
+}) {
+  const { t } = useTranslation()
+  const primary = [
+    { id: 'overview' as const, label: t('nav.overview'), icon: Home, modules: ['dashboard'] },
+    { id: 'productivity' as const, label: t('nav.productivity'), icon: CheckSquare, modules: ['tasks', 'projects', 'notes', 'calendar', 'time'] },
+    { id: 'wellness' as const, label: t('nav.wellness'), icon: Repeat, modules: ['habits', 'journal'] },
+    { id: 'growth' as const, label: t('nav.growth'), icon: GraduationCap, modules: ['goals', 'learning', 'finance'] },
+  ]
+  const activeCategory = directoryOpen ? browseCategory : primary.find(item => item.modules.includes(activeModule))?.id
+  return (
+    <nav aria-label={uiText('Primary navigation')} className="grid min-h-14 shrink-0 grid-cols-4 gap-1 border-t border-border bg-background/95 px-2 pt-1 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+      {primary.map(({ id, label, icon: Icon }) => (
+        <button key={id} type="button" aria-current={activeCategory === id ? 'page' : undefined} aria-pressed={activeCategory === id} onClick={() => onCategory(id)} className={activeCategory === id ? 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md bg-accent text-foreground' : 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md text-muted-foreground'}>
+          <Icon className="h-4 w-4" />
+          <span className="text-[11px] font-medium">{label}</span>
+        </button>
+      ))}
+    </nav>
   )
 }
