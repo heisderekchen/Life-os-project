@@ -62,6 +62,25 @@ const en = {
     finance: 'Finance',
     settings: 'Settings',
     focusMode: 'Focus Mode',
+    accounts: 'Accounts & access',
+    administration: 'Administration',
+  },
+
+  platformAdmin: {
+    title: 'Accounts and workspace access', description: 'Create accounts and grant access to configured workspaces.',
+    loading: 'Checking administrator access…', accessDenied: 'This page is available to platform administrators only.',
+    refresh: 'Refresh', loadFailed: 'Could not load account settings.', actionFailed: 'The change could not be saved.',
+    createAccount: 'Create account', createAccountDescription: 'Creates a regular account. Set its password and workspace access below.',
+    username: 'Username', displayName: 'Display name', create: 'Create account', accountCreated: 'Account created.',
+    passwordUpdated: 'Password updated. Existing sessions were ended.', accountEnabled: 'Account enabled.',
+    accountDisabled: 'Account disabled.', permissionsUpdated: 'Workspace access updated.', accounts: 'Accounts',
+    enabled: 'Enabled', disabled: 'Disabled', accountStatus: 'Account status', workspaceAccess: 'Workspace access',
+    confirmDisable: 'Disable this account?', disableSessionsNotice: 'Its active sessions will stop working immediately.',
+    confirmRevoke: 'Revoke access to',
+    configured: 'configured', notConfigured: 'not configured', adminWorkspaceNotice: 'Administrator access is managed by the server configuration.',
+    newPassword: 'Temporary password', confirmPassword: 'Confirm password', passwordMismatch: 'Passwords do not match.',
+    passwordRequirements: 'Use 14–128 characters. The fields are cleared after a successful save.',
+    savePassword: 'Save password', cancel: 'Cancel', setOrResetPassword: 'Set or reset password', noAccounts: 'No accounts found.',
   },
 
   // Sidebar Stats

@@ -54,7 +54,23 @@ const zh = {
     "learning": "学习",
     "finance": "财务",
     "settings": "设置",
+    "accounts": "账号与权限",
+    "administration": "管理",
     "focusMode": "专注模式"
+  },
+  "platformAdmin": {
+    "title": "账号与工作台权限", "description": "创建账号并分配已配置的工作台。",
+    "loading": "正在验证超管权限…", "accessDenied": "仅平台超管可以访问此页面。",
+    "refresh": "刷新", "loadFailed": "无法加载账号设置。", "actionFailed": "未能保存此更改。",
+    "createAccount": "开立账号", "createAccountDescription": "创建普通账号，然后在下方设置密码和工作台权限。",
+    "username": "账号名", "displayName": "显示名称", "create": "创建账号", "accountCreated": "账号已创建。",
+    "passwordUpdated": "密码已更新，现有会话已失效。", "accountEnabled": "账号已启用。", "accountDisabled": "账号已停用。",
+    "permissionsUpdated": "工作台权限已更新。", "accounts": "账号列表", "enabled": "启用", "disabled": "停用",
+    "accountStatus": "账号状态", "workspaceAccess": "工作台权限", "configured": "已配置", "notConfigured": "尚未配置",
+    "confirmDisable": "确定停用此账号？", "disableSessionsNotice": "该账号的现有会话会立即失效。", "confirmRevoke": "确定撤销工作台权限：",
+    "adminWorkspaceNotice": "超管的工作台权限由服务端配置管理。", "newPassword": "临时密码", "confirmPassword": "确认密码", "passwordMismatch": "两次输入的密码不一致。",
+    "passwordRequirements": "请输入 14–128 个字符。保存成功后输入框会清空。", "savePassword": "保存密码", "cancel": "取消",
+    "setOrResetPassword": "设置或重置密码", "noAccounts": "没有账号。"
   },
   "sidebarStats": {
     "openTasks": "待完成任务",

@@ -63,7 +63,25 @@ const tr: TranslationKeys = {
     learning: 'Öğrenme',
     finance: 'Finans',
     settings: 'Ayarlar',
+    accounts: 'Hesaplar ve erişim',
+    administration: 'Yönetim',
     focusMode: 'Odak Modu',
+  },
+
+  platformAdmin: {
+    title: 'Hesaplar ve çalışma alanı erişimi', description: 'Hesap oluşturun ve yapılandırılmış çalışma alanlarına erişim verin.',
+    loading: 'Yönetici erişimi doğrulanıyor…', accessDenied: 'Bu sayfa yalnızca platform yöneticilerine açıktır.',
+    refresh: 'Yenile', loadFailed: 'Hesap ayarları yüklenemedi.', actionFailed: 'Değişiklik kaydedilemedi.',
+    createAccount: 'Hesap oluştur', createAccountDescription: 'Standart hesap oluşturur. Parola ve çalışma alanı erişimini aşağıdan ayarlayın.',
+    username: 'Kullanıcı adı', displayName: 'Görünen ad', create: 'Hesap oluştur', accountCreated: 'Hesap oluşturuldu.',
+    passwordUpdated: 'Parola güncellendi. Mevcut oturumlar sonlandırıldı.', accountEnabled: 'Hesap etkinleştirildi.',
+    accountDisabled: 'Hesap devre dışı bırakıldı.', permissionsUpdated: 'Çalışma alanı erişimi güncellendi.', accounts: 'Hesaplar',
+    enabled: 'Etkin', disabled: 'Devre dışı', accountStatus: 'Hesap durumu', workspaceAccess: 'Çalışma alanı erişimi',
+    confirmDisable: 'Bu hesap devre dışı bırakılsın mı?', disableSessionsNotice: 'Etkin oturumları hemen geçersiz kılınır.', confirmRevoke: 'Şu alana erişim iptal edilsin:',
+    configured: 'yapılandırıldı', notConfigured: 'yapılandırılmadı', adminWorkspaceNotice: 'Yönetici erişimi sunucu yapılandırmasından yönetilir.',
+    newPassword: 'Geçici parola', confirmPassword: 'Parolayı doğrula', passwordMismatch: 'Parolalar eşleşmiyor.',
+    passwordRequirements: '14–128 karakter kullanın. Kaydedilince alanlar temizlenir.',
+    savePassword: 'Parolayı kaydet', cancel: 'İptal', setOrResetPassword: 'Parola belirle veya sıfırla', noAccounts: 'Hesap bulunamadı.',
   },
 
   // Sidebar Stats

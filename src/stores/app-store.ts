@@ -14,6 +14,7 @@ export type ModuleId =
   | 'calendar'
   | 'time'
   | 'settings'
+  | 'accounts'
 
 interface AppState {
   // Navigation

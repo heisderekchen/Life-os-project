@@ -43,7 +43,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   ContextMenu,
@@ -62,8 +62,7 @@ import { showToast } from '@/lib/toast'
 import { useTasks, useProjects, useCreateTask, useUpdateTask, useDeleteTask } from '@/lib/api/hooks'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { AgentRunPanel } from '@/components/lifeos/tasks/agent-run-panel'
-import { TaskCardPanel } from '@/components/lifeos/tasks/task-card-panel'
-import { ResearchPanel } from '@/components/lifeos/tasks/research-panel'
+import { TaskDetailExtensions } from '@/components/lifeos/tasks/task-detail-extensions'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   DndContext,
@@ -670,8 +669,7 @@ export function TasksPage() {
         <TaskRunSignals task={selectedTask} />
         <AgentRunPanel task={{ id: selectedTask.id, title: selectedTask.title, description: splitTaskDescription(selectedTask.description).body }} />
       </section>
-      <TaskCardPanel taskId={selectedTask.id} />
-      <ResearchPanel taskId={selectedTask.id} />
+      <TaskDetailExtensions taskId={selectedTask.id} />
       <section className="space-y-2 rounded-xl border border-border/60 bg-card p-3.5">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{uiText('Result and acceptance')}</p>
         <p className="text-sm font-medium">{selectedTask.status === 'done' ? uiText('This task is marked complete.') : uiText('Results will appear here after execution.')}</p>
@@ -1398,6 +1396,7 @@ export function TasksPage() {
           <SheetContent side="right" className="lifeos-safe-bottom-lg w-[min(24rem,92vw)] p-4 sm:p-5">
             <SheetHeader className="sr-only">
               <SheetTitle>{t('tasks.taskDetails')}</SheetTitle>
+              <SheetDescription>{t('tasks.taskDetails')}</SheetDescription>
             </SheetHeader>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               {taskDetailContent}

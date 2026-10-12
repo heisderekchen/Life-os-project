@@ -59,7 +59,25 @@ const es: TranslationKeys = {
     learning: 'Aprendizaje',
     finance: 'Finanzas',
     settings: 'Ajustes',
+    accounts: 'Cuentas y acceso',
+    administration: 'Administración',
     focusMode: 'Modo enfoque',
+  },
+
+  platformAdmin: {
+    title: 'Cuentas y acceso a espacios', description: 'Crea cuentas y concede acceso a espacios configurados.',
+    loading: 'Comprobando permisos de administrador…', accessDenied: 'Esta página es solo para administradores de la plataforma.',
+    refresh: 'Actualizar', loadFailed: 'No se pudieron cargar las cuentas.', actionFailed: 'No se pudo guardar el cambio.',
+    createAccount: 'Crear cuenta', createAccountDescription: 'Crea una cuenta estándar. Después configura su contraseña y sus espacios.',
+    username: 'Usuario', displayName: 'Nombre visible', create: 'Crear cuenta', accountCreated: 'Cuenta creada.',
+    passwordUpdated: 'Contraseña actualizada. Se cerraron las sesiones existentes.', accountEnabled: 'Cuenta habilitada.',
+    accountDisabled: 'Cuenta deshabilitada.', permissionsUpdated: 'Acceso a espacios actualizado.', accounts: 'Cuentas',
+    enabled: 'Habilitada', disabled: 'Deshabilitada', accountStatus: 'Estado de cuenta', workspaceAccess: 'Acceso a espacios',
+    confirmDisable: '¿Deshabilitar esta cuenta?', disableSessionsNotice: 'Sus sesiones activas dejarán de funcionar inmediatamente.', confirmRevoke: '¿Revocar el acceso a',
+    configured: 'configurado', notConfigured: 'sin configurar', adminWorkspaceNotice: 'El acceso de administrador se gestiona en la configuración del servidor.',
+    newPassword: 'Contraseña temporal', confirmPassword: 'Confirmar contraseña', passwordMismatch: 'Las contraseñas no coinciden.',
+    passwordRequirements: 'Usa entre 14 y 128 caracteres. Los campos se borran al guardar.',
+    savePassword: 'Guardar contraseña', cancel: 'Cancelar', setOrResetPassword: 'Definir o restablecer contraseña', noAccounts: 'No hay cuentas.',
   },
 
   sidebarStats: {

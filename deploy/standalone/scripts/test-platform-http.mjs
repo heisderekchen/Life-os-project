@@ -107,6 +107,9 @@ try {
   assert.ok(loginHtml.includes('.box{box-sizing:border-box;width:min(360px,calc(100% - 40px))'))
   assert.match(loginHtml, /id="username"/)
   assert.match(loginHtml, /type="password"/)
+  assert.match(loginHtml, /id="owner-setup"/)
+  assert.match(loginHtml, /api\/personal-workbench\/owner-credential/)
+  assert.match(loginHtml, /id="owner-setup-confirm"/)
   assert.equal(/注册|signup|sign-up|register/i.test(loginHtml), false)
   assert.match(await (await fetch(`${base}/workbench/`)).text(), /统一登录/)
 

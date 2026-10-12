@@ -2,7 +2,7 @@
 
 import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAppStore, type ModuleId } from '@/stores/app-store'
 import { useTranslation } from '@/lib/i18n'
 import {
@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Maximize2,
+  ShieldCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -32,6 +33,16 @@ import { useIsMobile } from '@/hooks/use-mobile'
 function SidebarContent({ collapsed }: { collapsed: boolean }) {
   const { activeModule, setActiveModule, setMobileSidebarOpen, enabledModules } = useAppStore()
   const { t } = useTranslation()
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    fetch('/api/platform/session', { cache: 'no-store' })
+      .then(async response => response.ok ? response.json() : null)
+      .then(session => { if (active) setIsPlatformAdmin(session?.principal?.role === 'platform_admin') })
+      .catch(() => { if (active) setIsPlatformAdmin(false) })
+    return () => { active = false }
+  }, [])
 
   const navSections = useMemo(() => [
     {
@@ -67,15 +78,19 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
     },
   ], [t])
 
+  const visibleSections = isPlatformAdmin
+    ? [...navSections, { title: t('nav.administration'), items: [{ id: 'accounts' as ModuleId, label: t('nav.accounts'), icon: ShieldCheck }] }]
+    : navSections
+
   const handleNav = (id: ModuleId) => {
     setActiveModule(id)
     setMobileSidebarOpen(false)
   }
 
-  const filteredSections = navSections.map(section => ({
+  const filteredSections = visibleSections.map(section => ({
     ...section,
     items: section.items.filter(item =>
-      enabledModules.includes(item.id) || item.id === 'dashboard' || item.id === 'projects'
+      item.id === 'accounts' || enabledModules.includes(item.id) || item.id === 'dashboard' || item.id === 'projects'
     )
   })).filter(section => section.items.length > 0)
 
