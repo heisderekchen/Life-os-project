@@ -119,18 +119,26 @@ Verify the host key fingerprint through the cloud provider's trusted console or
 another independent administrator channel; compare it with
 `ssh-keygen -lf <verified-public-host-key>` before storing the matching
 `known_hosts` line. Do not trust a key learned by the workflow itself. Use a
-dedicated non-root SSH account; its only passwordless sudo command should be
-the root-owned deployment helper below. Do not use root SSH or broad
-`systemctl` sudo access.
+dedicated non-root SSH account and a dedicated key. Restrict that key in
+`authorized_keys` with OpenSSH's `restrict` and a forced command pointing to
+the root-owned `deploy-ssh-gateway` below; this blocks shell, PTY, forwarding,
+and arbitrary SSH commands. Its only passwordless sudo command should be the
+root-owned deployment helper. Do not use root SSH or broad `systemctl` sudo
+access.
 
 One-time host provisioning, performed separately by an authorized server
 administrator, is required:
 
-1. Install this reviewed script as a root-owned executable at
-   `/usr/local/sbin/lifeos-deploy-release` (for example, with
-   `install -o root -g root -m 0755 <reviewed-script> /usr/local/sbin/lifeos-deploy-release`)
-   and authorize the dedicated SSH user to run only that helper
-   non-interactively.
+1. Install the reviewed helper as a root-owned executable at
+   `/usr/local/sbin/lifeos-deploy-release`, and install
+   `scripts/deploy-ssh-gateway.sh` as `/usr/local/sbin/lifeos-ssh-gateway`,
+   both owned by root and not writable by the deploy account. Add a sudoers
+   entry allowing that account to run only
+   `/usr/local/sbin/lifeos-deploy-release` without a password. In that
+   account's `authorized_keys`, use an entry of the form
+   `restrict,command="/usr/local/sbin/lifeos-ssh-gateway" <dedicated-public-key>`.
+   The gateway accepts only the exact validated deployment command emitted by
+   this workflow and forwards the archive on stdin to the sudo helper.
 2. Confirm the service environment still points `LIFEOS_DATA_DIR` at
    `/var/lib/lifeos`, and keep its existing secrets and configuration in
    `/etc/lifeos`.

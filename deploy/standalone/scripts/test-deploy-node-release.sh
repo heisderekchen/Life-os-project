@@ -98,4 +98,9 @@ if env TEST_ROOT="$bad_hash_root" LIFEOS_TEST_ROOT="$bad_hash_root" PATH="$fake_
 fi
 [[ $(readlink -f "$bad_hash_root/opt/lifeos/current") == "$bad_hash_root/opt/lifeos/releases/7cb2c14" ]]
 
+if SSH_ORIGINAL_COMMAND='id' bash "$repo_root/deploy/standalone/scripts/deploy-ssh-gateway.sh"; then
+  echo 'expected the SSH gateway to reject arbitrary commands' >&2
+  exit 1
+fi
+
 echo 'deploy release checks passed: commit/hash validation, data/config preservation, atomic activation, and health-failure rollback'
