@@ -169,7 +169,7 @@ export function Header() {
       <div className="flex items-center gap-1">
           <Button variant="outline" size="sm" className="h-11 min-w-11 sm:min-w-[88px] shrink-0 px-2 text-xs" aria-label={language === 'zh' ? 'Switch to English' : '切换到中文'} title={language === 'zh' ? '切换到 English' : 'Switch to 中文'} onClick={() => setLanguage(language === 'zh' ? 'en' : 'zh')}><span className="sm:hidden">{language === 'zh' ? '中' : 'EN'}</span><span className="hidden sm:inline">中文 / English</span></Button>
         {isMobile && (
-          <Button variant="ghost" size="icon" className="h-10 w-10" aria-label={t('header.searchEverything')} onClick={() => setGlobalSearchOpen(true)}>
+          <Button variant="ghost" size="icon" className="h-11 w-11" aria-label={t('header.searchEverything')} onClick={() => setGlobalSearchOpen(true)}>
             <Search className="h-4 w-4" />
           </Button>
         )}
@@ -177,7 +177,7 @@ export function Header() {
         {/* Quick add */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-10 w-10" aria-label={t('header.quickCreate')}>
+            <Button variant="ghost" size="icon" className="h-11 w-11" aria-label={t('header.quickCreate')}>
               <Plus className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -217,7 +217,7 @@ export function Header() {
         {/* User avatar */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-10 min-w-10 px-1.5 gap-1.5 rounded-md hover:bg-accent/60" aria-label={t('header.profile')}>
+            <Button variant="ghost" className="h-11 min-w-11 px-1.5 gap-1.5 rounded-md hover:bg-accent/60" aria-label={t('header.profile')}>
               <Avatar className="h-6 w-6">
                 <AvatarFallback className="text-[10px] font-semibold bg-foreground text-background">
                   {initials}
