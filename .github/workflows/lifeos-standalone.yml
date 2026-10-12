@@ -6,13 +6,20 @@ on:
   pull_request:
     branches: [main, codex/standalone-deployment]
   workflow_dispatch:
+    inputs:
+      deploy_production:
+        description: Deploy this verified main commit after verification.
+        type: boolean
+        required: false
+        default: false
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
   group: lifeos-standalone-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   verify:
@@ -71,6 +78,7 @@ jobs:
       - run: sh deploy/standalone/scripts/test-run-node-path.sh
       - run: python3 deploy/standalone/scripts/test-sqlite-tools.py
       - run: node deploy/standalone/scripts/test-agent-bridge.mjs
+      - run: bash deploy/standalone/scripts/test-deploy-node-release.sh
       - name: Validate deployment Compose configuration
         run: docker compose -f deploy/standalone/docker-compose.yml config --quiet
       - run: npm ci --prefix agent-service
@@ -106,3 +114,96 @@ jobs:
             /tmp/lifeos-standalone-node.tar.gz.sha256
             /tmp/lifeos-images.sha256
           retention-days: 7
+
+  deploy:
+    name: Deploy verified Node release
+    needs: verify
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      vars.LIFEOS_AUTODEPLOY_ENABLED == 'true' &&
+      (github.event_name == 'push' ||
+       (github.event_name == 'workflow_dispatch' && inputs.deploy_production))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: lifeos-production
+    concurrency:
+      group: lifeos-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: lifeos-node-runtime-${{ github.sha }}
+          path: /tmp/lifeos-node-runtime
+      - name: Verify commit and package manifests
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle=/tmp/lifeos-node-runtime/lifeos-standalone-node.tar.gz
+          sha_file="$bundle.sha256"
+          test -s "$bundle"
+          test -s "$sha_file"
+          (cd /tmp/lifeos-node-runtime && sha256sum -c lifeos-standalone-node.tar.gz.sha256)
+          expected_commit="$GITHUB_SHA"
+          [[ "$expected_commit" =~ ^[a-f0-9]{40}$ ]]
+          staging=$(mktemp -d)
+          trap 'rm -rf "$staging"' EXIT
+          tar -xzf "$bundle" -C "$staging"
+          grep -qx "source_commit=$expected_commit" "$staging/VERSION"
+          (cd "$staging" && sha256sum -c MANIFEST.sha256)
+          digest=$(sha256sum "$bundle" | cut -d' ' -f1)
+          echo "sha256=$digest" >> "$GITHUB_OUTPUT"
+      - name: Deploy over pinned SSH
+        shell: bash
+        env:
+          PACKAGE_SHA256: ${{ steps.package.outputs.sha256 }}
+          LIFEOS_SSH_HOST: ${{ vars.LIFEOS_SSH_HOST }}
+          LIFEOS_SSH_USER: ${{ vars.LIFEOS_SSH_USER }}
+          LIFEOS_SSH_PORT: ${{ vars.LIFEOS_SSH_PORT || '22' }}
+          LIFEOS_SYSTEMD_UNIT: ${{ vars.LIFEOS_SYSTEMD_UNIT }}
+          LIFEOS_HEALTH_URL: ${{ vars.LIFEOS_HEALTH_URL }}
+          LIFEOS_SSH_PRIVATE_KEY: ${{ secrets.LIFEOS_SSH_PRIVATE_KEY }}
+          LIFEOS_SSH_KNOWN_HOSTS: ${{ secrets.LIFEOS_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          : "${LIFEOS_SSH_HOST:?Set the lifeos-production host variable}"
+          : "${LIFEOS_SSH_USER:?Set the lifeos-production user variable}"
+          : "${LIFEOS_SSH_PRIVATE_KEY:?Set the lifeos-production SSH key secret}"
+          : "${LIFEOS_SSH_KNOWN_HOSTS:?Set the pinned lifeos-production known-hosts secret}"
+          : "${LIFEOS_SYSTEMD_UNIT:?Set the actual systemd unit variable}"
+          : "${LIFEOS_HEALTH_URL:?Set the actual local health URL variable}"
+          [[ "$LIFEOS_SSH_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]]
+          [[ "$LIFEOS_SSH_USER" =~ ^[A-Za-z_][A-Za-z0-9_.-]*$ ]]
+          [[ "$LIFEOS_SSH_PORT" =~ ^[0-9]{1,5}$ ]]
+          LIFEOS_SSH_PORT=$((10#$LIFEOS_SSH_PORT))
+          (( LIFEOS_SSH_PORT > 0 && LIFEOS_SSH_PORT < 65536 ))
+          [[ "$LIFEOS_SYSTEMD_UNIT" =~ ^[A-Za-z0-9_.@-]+$ ]]
+          [[ "$LIFEOS_HEALTH_URL" =~ ^http://(127\.0\.0\.1|localhost)(:[0-9]{1,5})?/[A-Za-z0-9._~/-]*$ ]]
+          [[ "$PACKAGE_SHA256" =~ ^[a-f0-9]{64}$ ]]
+
+          key_file="$RUNNER_TEMP/lifeos-deploy-key"
+          known_hosts_file="$RUNNER_TEMP/lifeos-known-hosts"
+          umask 077
+          printf '%s\n' "$LIFEOS_SSH_PRIVATE_KEY" > "$key_file"
+          printf '%s\n' "$LIFEOS_SSH_KNOWN_HOSTS" > "$known_hosts_file"
+          chmod 600 "$key_file" "$known_hosts_file"
+          trap 'rm -f "$key_file" "$known_hosts_file"' EXIT
+          pinned_host="$LIFEOS_SSH_HOST"
+          if [[ "$LIFEOS_SSH_PORT" != 22 ]]; then
+            pinned_host="[$LIFEOS_SSH_HOST]:$LIFEOS_SSH_PORT"
+          fi
+          ssh-keygen -F "$pinned_host" -f "$known_hosts_file" >/dev/null
+
+          printf -v remote_command 'sudo -n /usr/local/sbin/lifeos-deploy-release %q %q %q %q' \
+            "$GITHUB_SHA" "$PACKAGE_SHA256" "$LIFEOS_SYSTEMD_UNIT" "$LIFEOS_HEALTH_URL"
+          ssh \
+            -i "$key_file" \
+            -p "$LIFEOS_SSH_PORT" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$known_hosts_file" \
+            -o GlobalKnownHostsFile=/dev/null \
+            "${LIFEOS_SSH_USER}@${LIFEOS_SSH_HOST}" \
+            "$remote_command" \
+            < /tmp/lifeos-node-runtime/lifeos-standalone-node.tar.gz

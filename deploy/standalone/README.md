@@ -77,6 +77,89 @@ Set DNS and allow ports 80/443 through the normal deployment process. Then run
 `docker compose up -d` in this directory. Caddy provisions HTTPS; the app and
 SQLite database remain private to the compose network.
 
+## GitHub unattended deployment (disabled until configured)
+
+`.github/workflows/lifeos-standalone.yml` can deploy the Node 24 bundle built by
+the same run after the main-branch `verify` job succeeds. It does not publish a
+Docker image or start a deployment while the repository Actions variable
+`LIFEOS_AUTODEPLOY_ENABLED` is unset; set it to `true` only after the existing
+browser download warning has been resolved independently and the host setup
+below has been reviewed. The optional `workflow_dispatch` input can deploy only
+from `main`, only after its own `verify` job, and only while that gate is on.
+This workflow is not a fallback for downloading a browser-blocked release.
+
+It downloads `lifeos-node-runtime-${GITHUB_SHA}` from that exact Actions run,
+checks the bundle SHA-256, the embedded `source_commit`, and every entry in
+`MANIFEST.sha256`, then streams the archive over SSH. SSH always uses
+`StrictHostKeyChecking=yes` with the pinned `known_hosts` file; there is no
+`ssh-keyscan` trust-on-first-use or disabled host verification. Deploys share a
+non-cancelling concurrency lock.
+
+Before enabling the repository variable, a server administrator must verify
+that the existing service still invokes `/etc/lifeos/run-node.sh`, that this
+launcher resolves application files through `/opt/lifeos/current`, and that
+the existing `/opt/lifeos/current` symlink points into
+`/opt/lifeos/releases` (the deployed `7cb2c14` release). The workflow requires
+the actual systemd unit and local health URL; it does not guess either. Set
+these non-secret variables on the `lifeos-production` GitHub Environment:
+
+- `LIFEOS_SSH_HOST`, `LIFEOS_SSH_USER`, optional `LIFEOS_SSH_PORT` (default 22)
+- `LIFEOS_SYSTEMD_UNIT` (the existing unit name)
+- `LIFEOS_HEALTH_URL` (the real local HTTP endpoint on `localhost` or
+  `127.0.0.1`, with no userinfo or query string)
+
+Set these Environment secrets only after the operator verifies access and host
+identity:
+
+- `LIFEOS_SSH_PRIVATE_KEY`: a dedicated deployment key, never a personal admin
+  key.
+- `LIFEOS_SSH_KNOWN_HOSTS`: the exact `known_hosts` entry for the target.
+
+Verify the host key fingerprint through the cloud provider's trusted console or
+another independent administrator channel; compare it with
+`ssh-keygen -lf <verified-public-host-key>` before storing the matching
+`known_hosts` line. Do not trust a key learned by the workflow itself. Use a
+dedicated non-root SSH account and a dedicated key. Restrict that key in
+`authorized_keys` with OpenSSH's `restrict` and a forced command pointing to
+the root-owned `deploy-ssh-gateway` below; this blocks shell, PTY, forwarding,
+and arbitrary SSH commands. Its only passwordless sudo command should be the
+root-owned deployment helper. Do not use root SSH or broad `systemctl` sudo
+access.
+
+One-time host provisioning, performed separately by an authorized server
+administrator, is required:
+
+1. Install the reviewed helper as a root-owned executable at
+   `/usr/local/sbin/lifeos-deploy-release`, and install
+   `scripts/deploy-ssh-gateway.sh` as `/usr/local/sbin/lifeos-ssh-gateway`,
+   both owned by root and not writable by the deploy account. Add a sudoers
+   entry allowing that account to run only
+   `/usr/local/sbin/lifeos-deploy-release` without a password. In that
+   account's `authorized_keys`, use an entry of the form
+   `restrict,command="/usr/local/sbin/lifeos-ssh-gateway" <dedicated-public-key>`.
+   The gateway accepts only the exact validated deployment command emitted by
+   this workflow and forwards the archive on stdin to the sudo helper.
+2. Confirm the service environment still points `LIFEOS_DATA_DIR` at
+   `/var/lib/lifeos`, and keep its existing secrets and configuration in
+   `/etc/lifeos`.
+3. Only then set `LIFEOS_AUTODEPLOY_ENABLED=true` in repository Actions
+   variables. This implementation PR itself does not invoke the deploy job
+   from pull-request events.
+
+The helper refuses to run unless `/var/lib/lifeos/lifeos.db`,
+`/etc/lifeos/run-node.sh`, and the existing `current` symlink are present. It
+checks the configured unit launcher, package SHA and commit, extracts into a
+staging directory on the release filesystem, atomically swaps
+`/opt/lifeos/current`, restarts the configured unit and polls the configured
+health URL. Restart or health failure atomically restores the prior symlink,
+restarts the old release and checks it again. It never writes to
+`/var/lib/lifeos/lifeos.db` or `/etc/lifeos`; after a healthy deployment it
+retains the current release, the previous target, and recent full-SHA releases.
+The existing short-SHA `7cb2c14` directory is not pruned. Database backups are
+not deleted by this workflow. This is an application rollback only: the helper
+never rewinds SQLite schema or data. A schema restore, if ever needed, remains a
+separate operator action using a verified backup.
+
 ## Unified login and platform admin
 
 First-version unified login adds account A as the legacy Life OS owner/platform
