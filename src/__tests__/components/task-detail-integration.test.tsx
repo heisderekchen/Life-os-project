@@ -42,12 +42,20 @@ describe.each([
     expect(screen.getByText('Research task-ui-1')).toBeInTheDocument()
     expect(screen.getByRole('region')).toHaveAttribute('aria-label', '任务详情')
 
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('region')).not.toBeInTheDocument()
+    await user.click(screen.getByText('Selected task'))
+    expect(await screen.findByRole('region')).toBeInTheDocument()
+
     await user.click(within(screen.getByRole('region')).getByRole('button', { name: '编辑' }))
     expect(screen.getByText('任务标题')).toBeInTheDocument()
     expect(screen.queryByTestId('task-detail-extensions')).not.toBeInTheDocument()
     await user.clear(screen.getByDisplayValue('Selected task'))
     await user.type(screen.getByLabelText('任务标题'), 'Updated task')
+    const confirmDiscard = vi.spyOn(window, 'confirm').mockReturnValue(true)
     await user.click(screen.getByRole('button', { name: '取消' }))
+    expect(confirmDiscard).toHaveBeenCalledWith('放弃尚未保存的修改？')
+    confirmDiscard.mockRestore()
     expect(screen.getByRole('region')).toBeInTheDocument()
     expect(updateTask).not.toHaveBeenCalled()
 

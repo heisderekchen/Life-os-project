@@ -441,6 +441,34 @@ export function TasksPage() {
     setHandoffDraft(selectedTask ? splitTaskDescription(selectedTask.description).handoff : '')
   }, [selectedTask?.id, selectedTask?.description])
 
+  useEffect(() => {
+    if (!selectedTaskId) return
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      if (taskWorkspaceMode === 'edit') {
+        const changed = Boolean(editTask && selectedTask && (
+          editTask.title !== selectedTask.title
+          || editTask.description !== selectedTask.description
+          || editTask.priority !== selectedTask.priority
+          || editTask.status !== selectedTask.status
+          || editTask.dueDate !== (selectedTask.dueDate || '')
+          || editTask.projectId !== (selectedTask.projectId || '')
+          || editTask.recurrence !== (selectedTask.recurrence || 'none')
+        ))
+        if (changed && !window.confirm('放弃尚未保存的修改？')) return
+        setTaskWorkspaceMode('detail')
+        setEditTask(null)
+        return
+      }
+      setSelectedTaskId(null)
+      setTaskWorkspaceMode('detail')
+      setEditTask(null)
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [selectedTaskId, taskWorkspaceMode, editTask, selectedTask])
+
   const filteredTasks = useMemo(() => {
     let result = tasks
     if (taskFilter !== 'all') {
@@ -628,6 +656,21 @@ export function TasksPage() {
     })
   }, [newSubtask, selectedTaskId, createTaskMutation])
 
+  const cancelTaskEdit = useCallback(() => {
+    const changed = Boolean(editTask && selectedTask && (
+      editTask.title !== selectedTask.title
+      || editTask.description !== selectedTask.description
+      || editTask.priority !== selectedTask.priority
+      || editTask.status !== selectedTask.status
+      || editTask.dueDate !== (selectedTask.dueDate || '')
+      || editTask.projectId !== (selectedTask.projectId || '')
+      || editTask.recurrence !== (selectedTask.recurrence || 'none')
+    ))
+    if (changed && !window.confirm('放弃尚未保存的修改？')) return
+    setTaskWorkspaceMode('detail')
+    setEditTask(null)
+  }, [editTask, selectedTask])
+
   const taskDetailContent = selectedTask ? (
     <div className="space-y-5">
       <div className="flex flex-col gap-5 border-b border-border/60 pb-5 sm:flex-row sm:items-start sm:justify-between">
@@ -726,7 +769,7 @@ export function TasksPage() {
     <div className="mx-auto w-full max-w-4xl space-y-7 px-4 py-5 sm:px-8 sm:py-8">
       <div className="flex min-w-0 flex-col items-start justify-between gap-4 border-b border-border/60 pb-5 sm:flex-row sm:items-center">
         <div className="min-w-0"><p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">{uiText('Task workspace')}</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">{t('tasks.editTask')}</h2><p className="mt-1 max-w-full break-words text-sm text-muted-foreground">{editTask.title || t('tasks.taskTitle')}</p></div>
-        <Button className="shrink-0" variant="outline" onClick={() => { setTaskWorkspaceMode('detail'); setEditTask(null) }}>{t('cancel')}</Button>
+        <Button className="shrink-0" variant="outline" onClick={cancelTaskEdit}>{t('cancel')}</Button>
       </div>
       <div className="grid min-w-0 gap-8 lg:grid-cols-[minmax(0,1fr)_260px]">
         <div className="space-y-5" onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleUpdateTask() } }}>
@@ -749,7 +792,7 @@ export function TasksPage() {
   return (
     <div className="flex h-full animate-page-enter">
       {/* Main Content */}
-      <div className={cn('flex-1 flex flex-col min-w-0', selectedTask && !isMobile && 'hidden')}>
+      <div className={cn('flex-1 flex flex-col min-w-0', selectedTask && 'hidden')}>
         {/* Productivity Score + Progress Bar */}
         <div className="px-4 pt-3 pb-1">
           <div className="flex items-center gap-3">
