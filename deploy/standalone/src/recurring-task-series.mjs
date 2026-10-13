@@ -25,7 +25,7 @@ export function buildRecurringTaskSeries(taskRows, runRows) {
     generatedIds.add(generatedId)
   }
 
-  const roots = [...tasks.values()].filter(task => RECURRENCES.has(task.recurrence) && !generatedIds.has(String(task.id)))
+  const roots = [...tasks.values()].filter(task => !generatedIds.has(String(task.id)))
   const series = []
   for (const root of roots) {
     const visited = new Set()
@@ -43,13 +43,17 @@ export function buildRecurringTaskSeries(taskRows, runRows) {
     const candidates = visibleLeaves.length ? visibleLeaves : leaves
     candidates.sort(newestFirst)
     const current = candidates[0]
-    if (!current) continue
+    // The leaf instance is the live configuration for this chain. Users may
+    // stop recurrence on the latest task or change its cadence without
+    // rewriting historical instances in the ledger.
+    if (!current || !RECURRENCES.has(current.recurrence)) continue
     series.push({
       id: String(root.id),
       currentTaskId: String(current.id),
-      title: String(current.title || root.title || ''),
+      title: String(current.title || ''),
       status: String(current.status || 'todo'),
-      recurrence: root.recurrence,
+      recurrence: current.recurrence,
+      recurrenceConfig: current.recurrence_config || null,
       dueDate: current.due_date || null,
       updatedAt: current.updated_at || current.created_at || null,
       archived: Boolean(current.archived),

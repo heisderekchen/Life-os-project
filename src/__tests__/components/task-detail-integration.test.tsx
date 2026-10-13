@@ -11,7 +11,7 @@ const fetchTaskCard = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/api/hooks', () => ({
   useTasks: () => ({ data: [
-    { id: 'task-ui-1', title: 'Selected task', description: 'Task notes', status: 'todo', priority: 'medium', recurrence: 'weekly', recurrenceConfig: '', estimatedMinutes: 20, actualMinutes: null, tags: [], createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+    { id: 'task-ui-1', title: 'Selected task', description: 'Task notes', status: 'todo', priority: 'medium', recurrence: 'weekly', recurrenceConfig: '', startDate: '2026-10-01T15:30:00-07:00', estimatedMinutes: 0, actualMinutes: 0, tags: [{ tag: { name: 'label,with,commas' } }], createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
     { id: 'task-ui-2', title: 'Active task', description: '', status: 'in-progress', priority: 'high', tags: [], createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
     { id: 'task-ui-3', title: 'Done task', description: '', status: 'done', priority: 'low', tags: [], createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
   ], isLoading: false }),
@@ -117,6 +117,23 @@ describe.each([
     await user.click(seriesCard)
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(screen.getByText('Task card task-ui-1')).toBeInTheDocument()
+  })
+
+  it('patches only changed fields and keeps zero durations and comma-containing tags intact', async () => {
+    updateTask.mockClear()
+    useAppStore.setState({ language: 'zh', activeModule: 'tasks' })
+    viewport.mobile = mobile
+    const user = userEvent.setup()
+    const queryClient = new QueryClient()
+    render(<QueryClientProvider client={queryClient}><TasksPage /></QueryClientProvider>)
+    await user.click(screen.getByText('Selected task'))
+    await user.click(within(screen.getByRole('region', { name: '任务详情' })).getByRole('button', { name: '编辑' }))
+    await user.clear(screen.getByLabelText('任务标题'))
+    await user.type(screen.getByLabelText('任务标题'), 'Renamed task')
+    expect(screen.getByText('label,with,commas')).toBeInTheDocument()
+    await user.type(screen.getByRole('textbox', { name: '添加标签' }), 'new tag{Enter}')
+    await user.click(screen.getByRole('button', { name: '保存' }))
+    expect(updateTask).toHaveBeenCalledWith({ id: 'task-ui-1', title: 'Renamed task', tags: ['label,with,commas', 'new tag'] }, expect.any(Object))
   })
 
   it('guards unsaved edits on Escape and backdrop close, then restores focus', async () => {

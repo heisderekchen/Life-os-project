@@ -59,6 +59,7 @@ export interface RecurringTaskSeries {
   title: string
   status: string
   recurrence: 'daily' | 'weekly' | 'monthly'
+  recurrenceConfig: string | null
   dueDate: string | null
   updatedAt: string | null
   archived: boolean
@@ -713,4 +714,3 @@ export function useSaveDashboardWidgets() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['dashboard-widgets'] }),
   })
 }
-

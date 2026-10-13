@@ -164,10 +164,21 @@ function cn(...inputs: (string | undefined | false)[]) {
   return inputs.filter(Boolean).join(' ')
 }
 
+function taskDateInputValue(value: string | null | undefined) {
+  if (!value) return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10)
+}
+
+function sameStrings(left: string[], right: string[]) {
+  return left.length === right.length && left.every((value, index) => value === right[index])
+}
+
 // Map API task to local Task type
 function mapApiTask(apiTask: Record<string, unknown>): Task {
   const dueDate = apiTask.dueDate ? new Date(apiTask.dueDate as string).toISOString().split('T')[0] : null
-  const startDate = apiTask.startDate ? new Date(apiTask.startDate as string).toISOString().split('T')[0] : null
+  const startDate = apiTask.startDate ? String(apiTask.startDate) : null
   const completedAt = apiTask.completedAt ? new Date(apiTask.completedAt as string).toISOString() : null
   const tags = (apiTask.tags as Record<string, unknown>[])?.map((t: Record<string, unknown>) => {
     const tag = t.tag as Record<string, unknown>
@@ -183,8 +194,8 @@ function mapApiTask(apiTask: Record<string, unknown>): Task {
     dueDate,
     startDate,
     completedAt,
-    estimatedMinutes: (apiTask.estimatedMinutes as number) || null,
-    actualMinutes: (apiTask.actualMinutes as number) || null,
+    estimatedMinutes: (apiTask.estimatedMinutes as number | null | undefined) ?? null,
+    actualMinutes: (apiTask.actualMinutes as number | null | undefined) ?? null,
     projectId: (apiTask.projectId as string) || null,
     parentTaskId: (apiTask.parentTaskId as string) || null,
     recurrence: (apiTask.recurrence as string || null) as Task['recurrence'],
@@ -447,7 +458,7 @@ export function TasksPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   // Edit-task dialog state — populated when the user clicks "Edit" in the
   // context menu or double-clicks a task title.
-  const [editTask, setEditTask] = useState<Pick<Task, 'id' | 'title' | 'description' | 'priority' | 'dueDate' | 'startDate' | 'projectId' | 'status' | 'recurrence' | 'recurrenceConfig' | 'estimatedMinutes' | 'actualMinutes'> & { tagsText: string } | null>(null)
+  const [editTask, setEditTask] = useState<Pick<Task, 'id' | 'title' | 'description' | 'priority' | 'dueDate' | 'startDate' | 'projectId' | 'status' | 'recurrence' | 'recurrenceConfig' | 'estimatedMinutes' | 'actualMinutes'> & { tags: string[]; tagInput: string } | null>(null)
   const [handoffDraft, setHandoffDraft] = useState('')
   const isMobile = useIsMobile()
   const previousSelectedTaskId = useRef<string | null>(null)
@@ -459,14 +470,15 @@ export function TasksPage() {
     || editTask.description !== selectedTask.description
     || editTask.priority !== selectedTask.priority
     || editTask.status !== selectedTask.status
-    || editTask.dueDate !== (selectedTask.dueDate || '')
-    || editTask.startDate !== (selectedTask.startDate || '')
+    || taskDateInputValue(editTask.dueDate) !== taskDateInputValue(selectedTask.dueDate)
+    || taskDateInputValue(editTask.startDate) !== taskDateInputValue(selectedTask.startDate)
     || editTask.projectId !== (selectedTask.projectId || '')
     || editTask.recurrence !== (selectedTask.recurrence || 'none')
     || editTask.recurrenceConfig !== (selectedTask.recurrenceConfig || '')
     || editTask.estimatedMinutes !== selectedTask.estimatedMinutes
     || editTask.actualMinutes !== selectedTask.actualMinutes
-    || editTask.tagsText !== selectedTask.tags.join(', ')
+    || !sameStrings(editTask.tags, selectedTask.tags)
+    || editTask.tagInput.trim().length > 0
   )), [editTask, selectedTask])
 
   const loadSelectedTaskCard = useCallback(async (taskId: string) => {
@@ -612,36 +624,43 @@ export function TasksPage() {
       recurrenceConfig: task.recurrenceConfig || '',
       estimatedMinutes: task.estimatedMinutes,
       actualMinutes: task.actualMinutes,
-      tagsText: task.tags.join(', '),
+      tags: [...task.tags],
+      tagInput: '',
     })
     setSelectedTaskId(task.id)
     setTaskWorkspaceMode('edit')
   }, [])
 
   const handleUpdateTask = useCallback(() => {
-    if (!editTask || !editTask.title.trim()) return
-    updateTaskMutation.mutate({
-      id: editTask.id,
-      title: editTask.title,
-      description: editTask.description,
-      priority: editTask.priority,
-      dueDate: editTask.dueDate || null,
-      startDate: editTask.startDate || null,
-      projectId: editTask.projectId || null,
-      status: editTask.status,
-      recurrence: editTask.recurrence !== 'none' ? editTask.recurrence : null,
-      recurrenceConfig: editTask.recurrenceConfig || null,
-      estimatedMinutes: editTask.estimatedMinutes,
-      actualMinutes: editTask.actualMinutes,
-      tags: editTask.tagsText.split(',').map(tag => tag.trim()).filter(Boolean),
-    }, {
+    if (!editTask || !selectedTask || !editTask.title.trim()) return
+    const patch: { id: string } & Record<string, unknown> = { id: editTask.id }
+    if (editTask.title !== selectedTask.title) patch.title = editTask.title
+    if (editTask.description !== selectedTask.description) patch.description = editTask.description
+    if (editTask.priority !== selectedTask.priority) patch.priority = editTask.priority
+    if (taskDateInputValue(editTask.dueDate) !== taskDateInputValue(selectedTask.dueDate)) patch.dueDate = taskDateInputValue(editTask.dueDate) || null
+    if (taskDateInputValue(editTask.startDate) !== taskDateInputValue(selectedTask.startDate)) patch.startDate = taskDateInputValue(editTask.startDate) || null
+    if ((editTask.projectId || null) !== (selectedTask.projectId || null)) patch.projectId = editTask.projectId || null
+    if (editTask.status !== selectedTask.status) patch.status = editTask.status
+    const recurrence = editTask.recurrence !== 'none' ? editTask.recurrence : null
+    if (recurrence !== selectedTask.recurrence) patch.recurrence = recurrence
+    const recurrenceConfig = editTask.recurrenceConfig || null
+    if (recurrenceConfig !== selectedTask.recurrenceConfig) patch.recurrenceConfig = recurrenceConfig
+    if (editTask.estimatedMinutes !== selectedTask.estimatedMinutes) patch.estimatedMinutes = editTask.estimatedMinutes
+    if (editTask.actualMinutes !== selectedTask.actualMinutes) patch.actualMinutes = editTask.actualMinutes
+    if (!sameStrings(editTask.tags, selectedTask.tags)) patch.tags = editTask.tags
+    if (Object.keys(patch).length === 1) {
+      setTaskWorkspaceMode('detail')
+      setEditTask(null)
+      return
+    }
+    updateTaskMutation.mutate(patch, {
       onSuccess: () => {
         setTaskWorkspaceMode('detail')
         setEditTask(null)
         showToast.success(t('toast.saved'))
       },
     })
-  }, [editTask, updateTaskMutation, t])
+  }, [editTask, selectedTask, updateTaskMutation, t])
 
   const closeTaskWorkspace = useCallback(() => {
     setSelectedTaskId(null)
@@ -842,15 +861,22 @@ export function TasksPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div><label className="mb-2 block text-sm font-medium">{t('tasks.priority')}</label><Select value={editTask.priority} onValueChange={(v) => setEditTask((p) => p && ({ ...p, priority: v as Task['priority'] }))}><SelectTrigger className="h-11 text-base"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="low">{t('tasks.low')}</SelectItem><SelectItem value="medium">{t('tasks.medium')}</SelectItem><SelectItem value="high">{t('tasks.high')}</SelectItem><SelectItem value="urgent">{t('tasks.urgent')}</SelectItem></SelectContent></Select></div>
             <div><label className="mb-2 block text-sm font-medium">{t('tasks.status')}</label><Select value={editTask.status} onValueChange={(v) => setEditTask((p) => p && ({ ...p, status: v as Task['status'] }))}><SelectTrigger className="h-11 text-base"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todo">{t('tasks.todo')}</SelectItem><SelectItem value="in-progress">{t('tasks.inProgress')}</SelectItem><SelectItem value="done">{t('tasks.done')}</SelectItem></SelectContent></Select></div>
-            <div><label className="mb-2 block text-sm font-medium">{uiText('Start date')}</label><Input className="h-11 text-base" type="date" value={editTask.startDate || ''} onChange={(e) => setEditTask((p) => p && ({ ...p, startDate: e.target.value }))} /></div>
-            <div><label className="mb-2 block text-sm font-medium">{t('tasks.dueDate')}</label><Input className="h-11 text-base" type="date" value={editTask.dueDate || ''} onChange={(e) => setEditTask((p) => p && ({ ...p, dueDate: e.target.value }))} /></div>
+            <div><label className="mb-2 block text-sm font-medium">{uiText('Start date')}</label><Input className="h-11 text-base" type="date" value={taskDateInputValue(editTask.startDate)} onChange={(e) => setEditTask((p) => p && ({ ...p, startDate: e.target.value }))} /></div>
+            <div><label className="mb-2 block text-sm font-medium">{t('tasks.dueDate')}</label><Input className="h-11 text-base" type="date" value={taskDateInputValue(editTask.dueDate)} onChange={(e) => setEditTask((p) => p && ({ ...p, dueDate: e.target.value }))} /></div>
             <div><label className="mb-2 block text-sm font-medium">{t('tasks.project')}</label><Select value={editTask.projectId || 'none'} onValueChange={(v) => setEditTask((p) => p && ({ ...p, projectId: v === 'none' ? '' : v }))}><SelectTrigger className="h-11 text-base"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">—</SelectItem>{projects.map((pr) => <SelectItem key={pr.id} value={pr.id}>{pr.name}</SelectItem>)}</SelectContent></Select></div>
             <div><label className="mb-2 block text-sm font-medium">{uiText('Estimated minutes')}</label><Input className="h-11 text-base" type="number" min="0" value={editTask.estimatedMinutes ?? ''} onChange={(e) => setEditTask((p) => p && ({ ...p, estimatedMinutes: e.target.value ? Number(e.target.value) : null }))} /></div>
             <div><label className="mb-2 block text-sm font-medium">{uiText('Actual minutes')}</label><Input className="h-11 text-base" type="number" min="0" value={editTask.actualMinutes ?? ''} onChange={(e) => setEditTask((p) => p && ({ ...p, actualMinutes: e.target.value ? Number(e.target.value) : null }))} /></div>
           </div>
           <div><label className="mb-2 block text-sm font-medium">{t('tasks.composer.recurrence')}</label><Select value={editTask.recurrence || 'none'} onValueChange={(v) => setEditTask((p) => p && ({ ...p, recurrence: v as Task['recurrence'] }))}><SelectTrigger className="h-11 text-base"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">{t('tasks.composer.recurrenceNone')}</SelectItem><SelectItem value="daily">{t('habits.daily')}</SelectItem><SelectItem value="weekly">{t('habits.weekly')}</SelectItem><SelectItem value="monthly">{t('habits.monthly')}</SelectItem></SelectContent></Select></div>
           {editTask.recurrence !== 'none' && <div><label className="mb-2 block text-sm font-medium">{uiText('Recurrence details')}</label><Input className="h-11 text-base" value={editTask.recurrenceConfig || ''} onChange={(e) => setEditTask((p) => p && ({ ...p, recurrenceConfig: e.target.value }))} placeholder={uiText('Optional recurrence configuration')} /></div>}
-          <div><label className="mb-2 block text-sm font-medium">{uiText('Tags')}</label><Input className="h-11 text-base" value={editTask.tagsText} onChange={(e) => setEditTask((p) => p && ({ ...p, tagsText: e.target.value }))} placeholder={uiText('Comma-separated tags')} /></div>
+          <div>
+            <label className="mb-2 block text-sm font-medium">{uiText('Tags')}</label>
+            <div className="flex gap-2">
+              <Input aria-label={uiText('Add tag')} className="h-11 text-base" value={editTask.tagInput} onChange={(e) => setEditTask((p) => p && ({ ...p, tagInput: e.target.value }))} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const value = editTask.tagInput.trim(); if (value && !editTask.tags.includes(value)) setEditTask((p) => p && ({ ...p, tags: [...p.tags, value], tagInput: '' })) } }} placeholder={uiText('Add a tag')} />
+              <Button type="button" variant="outline" className="h-11 shrink-0" onClick={() => { const value = editTask.tagInput.trim(); if (value && !editTask.tags.includes(value)) setEditTask((p) => p && ({ ...p, tags: [...p.tags, value], tagInput: '' })) }}>{uiText('Add')}</Button>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">{editTask.tags.map((tag, index) => <Badge key={`${index}-${tag}`} variant="secondary" className="gap-1.5 py-1">{tag}<button type="button" aria-label={`${uiText('Remove tag')} ${tag}`} onClick={() => setEditTask((p) => p && ({ ...p, tags: p.tags.filter((_, currentIndex) => currentIndex !== index) }))} className="rounded-full hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">×</button></Badge>)}</div>
+          </div>
         </div>
         <aside className="h-fit rounded-xl border border-border/60 bg-muted/20 p-4"><h3 className="text-sm font-semibold">{uiText('Task essentials')}</h3><p className="mt-2 text-xs leading-5 text-muted-foreground">{uiText('Set the task goal, timing, owner project and current status. Existing execution, subtasks and knowledge links stay attached.')}</p><div className="mt-4 space-y-3 text-xs"><p><span className="text-muted-foreground">{t('tasks.status')}</span><br /><span className="font-medium">{statusLabels[editTask.status]}</span></p><p><span className="text-muted-foreground">{t('tasks.project')}</span><br /><span className="font-medium">{editTask.projectId ? projectNames.get(editTask.projectId) : '—'}</span></p></div></aside>
       </div>
@@ -1874,4 +1900,3 @@ function Boardview({ todoTasks, inProgressTasks, doneTasks, projects, selectedTa
     </DndContext>
   )
 }
-

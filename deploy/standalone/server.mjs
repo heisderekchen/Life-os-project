@@ -575,4 +575,3 @@ if (RECURRENCE_ENABLED) {
 }
 process.on('SIGTERM', () => { server.close(); next.kill('SIGTERM'); sqlite.close() })
 process.on('SIGINT', () => { server.close(); next.kill('SIGINT'); sqlite.close() })
-

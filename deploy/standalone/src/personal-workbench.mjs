@@ -2200,7 +2200,7 @@ async function handleLifeOsProjectCompatibility(request, env, url, actor) {
 async function handleLifeOsTasks(request, env, url, actor) {
     if (url.pathname === '/api/personal-workbench/lifeos/recurring-tasks' && request.method === 'GET') {
         const [taskRows, runRows] = await Promise.all([
-            env.DB.prepare(`SELECT id,title,status,recurrence,due_date,updated_at,created_at,archived
+            env.DB.prepare(`SELECT id,title,status,recurrence,recurrence_config,due_date,updated_at,created_at,archived
                 FROM personal_workbench_lifeos_tasks`).all(),
             env.DB.prepare(`SELECT source_task_id,generated_task_id FROM lifeos_task_recurrence_runs`).all(),
         ]);
@@ -2463,4 +2463,3 @@ export async function handlePersonalWorkbench(request, env, url, auth) {
     }
     return notFound();
 }
-

@@ -54,10 +54,13 @@ const chinese: Record<string, string> = {
   "Actual minutes": "实际分钟数",
   "Recurrence details": "重复规则详情",
   "Optional recurrence configuration": "可选的重复配置",
-  "Comma-separated tags": "多个标签用逗号分隔",
+  "Comma-separated tags": "逐个添加标签",
   "Cancelled": "已取消",
   "Retry": "重试",
   "Task details and editing": "任务详情与编辑",
+  "Add tag": "添加标签",
+  "Remove tag": "移除标签",
+  "Add a tag": "添加一个标签",
   "Latest progress": "最新进度",
   "Life OS task": "Life OS 普通任务",
   "No progress has been recorded yet.": "还没有记录最新进度。",
@@ -1129,4 +1132,3 @@ export function uiText(copy: string) { return useAppStore.getState().language ==
 
 // Components rendering controlled copy subscribe so an open dialog switches too.
 export function useInterfaceLanguage() { return useAppStore(s => s.language) }
-
