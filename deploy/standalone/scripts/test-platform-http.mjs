@@ -464,4 +464,3 @@ try {
   await new Promise(resolve => setTimeout(resolve, 100))
   rmSync(temp, { recursive: true, force: true })
 }
-
