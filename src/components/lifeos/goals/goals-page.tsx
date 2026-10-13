@@ -239,26 +239,26 @@ export function GoalsPage() {
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6 animate-page-enter">
       {/* Stats with Progress Ring */}
-      <div className="grid grid-cols-3 gap-4">
-        <Card className="overflow-hidden hover-lift">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+        <Card className="gap-1 overflow-hidden py-3 hover-lift md:gap-6 md:py-6">
           <div className="h-1.5" style={{ background: `linear-gradient(to right, ${accentHex}, ${accentHex}cc)` }} />
-          <CardContent className="p-4 text-center">
+          <CardContent className="p-3 text-center">
             <Target className="h-5 w-5 mx-auto mb-1" style={{ color: accentHex }} />
             <p className="text-2xl font-bold">{activeGoals}</p>
             <p className="text-xs text-muted-foreground">{t('goals.activeGoals')}</p>
           </CardContent>
         </Card>
-        <Card className="overflow-hidden hover-lift">
+        <Card className="gap-1 overflow-hidden py-3 hover-lift md:gap-6 md:py-6">
           <div className="h-1.5" style={{ background: `linear-gradient(to right, ${accentHex}cc, ${accentHex})` }} />
-          <CardContent className="p-4 text-center">
+          <CardContent className="p-3 text-center">
             <CheckCircle2 className="h-5 w-5 mx-auto mb-1" style={{ color: accentHex }} />
             <p className="text-2xl font-bold">{completedGoals}</p>
             <p className="text-xs text-muted-foreground">{t('goals.completed')}</p>
           </CardContent>
         </Card>
-        <Card className="overflow-hidden hover-lift">
+        <Card className="col-span-2 gap-1 overflow-hidden py-3 hover-lift sm:col-span-1 md:gap-6 md:py-6">
           <div className="h-1.5" style={{ background: `linear-gradient(to right, ${accentHex}aa, ${accentHex})` }} />
-          <CardContent className="p-4 flex items-center justify-center gap-3">
+          <CardContent className="flex items-center justify-center gap-3 p-3 sm:p-4">
             <ProgressRing progress={avgProgress} size={48} strokeWidth={4} color={accentHex} glow />
             <div className="text-center">
               <p className="text-xs text-muted-foreground">{t('goals.avgProgress')}</p>
@@ -268,11 +268,11 @@ export function GoalsPage() {
       </div>
 
       {/* Filters & Add */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-1.5 flex-wrap border-l-2 pl-3" style={{ borderLeftColor: `${accentHex}4D` }}>
-          <Button variant={categoryFilter === null ? 'secondary' : 'ghost'} size="sm" className="h-7 text-xs" onClick={() => setCategoryFilter(null)}>{t('all')}</Button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-1.5 border-l-2 pl-3" style={{ borderLeftColor: `${accentHex}4D` }}>
+          <Button variant={categoryFilter === null ? 'secondary' : 'ghost'} size="sm" className="h-11 px-3 text-xs md:h-7" onClick={() => setCategoryFilter(null)}>{t('all')}</Button>
           {Object.entries(categoryColors).map(([key, color]) => (
-            <Button key={key} variant={categoryFilter === key ? 'secondary' : 'ghost'} size="sm" className="h-7 text-xs gap-1.5" onClick={() => setCategoryFilter(categoryFilter === key ? null : key)}>
+            <Button key={key} variant={categoryFilter === key ? 'secondary' : 'ghost'} size="sm" className="h-11 gap-1.5 px-3 text-xs md:h-7" onClick={() => setCategoryFilter(categoryFilter === key ? null : key)}>
               <span className="text-sm">{categoryIcons[key]}</span>
               {t(`goals.${key}`)}
             </Button>

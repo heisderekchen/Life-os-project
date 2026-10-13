@@ -546,29 +546,29 @@ export function CalendarPage() {
             </Badge>
           )}
         </div>
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" className="h-8 w-8" onClick={navigateBack}>
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-2">
+            <Button variant="outline" size="icon" className="h-11 w-11 shrink-0 md:h-8 md:w-8" aria-label={uiText('Previous period')} onClick={navigateBack}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="icon" className="h-8 w-8" onClick={navigateForward}>
+            <Button variant="outline" size="icon" className="h-11 w-11 shrink-0 md:h-8 md:w-8" aria-label={uiText('Next period')} onClick={navigateForward}>
               <ChevronRight className="h-4 w-4" />
             </Button>
-            <h2 className="text-lg font-semibold min-w-[200px]">{headerLabel}</h2>
-            <span className="text-xs text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">{uiText("W")}{format(currentDate, 'w')}</span>
-            <Button variant="secondary" size="sm" className="h-7 text-xs" onClick={goToToday}>{t('calendar.today')}</Button>
+            <h2 className="min-w-0 flex-1 truncate text-base font-semibold sm:min-w-[200px] sm:flex-none sm:text-lg">{headerLabel}</h2>
+            <span className="hidden rounded-full bg-muted/50 px-2 py-0.5 text-xs text-muted-foreground sm:inline-flex">{uiText("W")}{format(currentDate, 'w')}</span>
+            <Button variant="secondary" size="sm" className="h-11 shrink-0 px-3 text-xs md:h-7" onClick={goToToday}>{t('calendar.today')}</Button>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Tabs value={calendarView} onValueChange={v => setCalendarView(v as typeof calendarView)}>
-              <TabsList className="h-8">
-                <TabsTrigger value="month" className="text-xs px-3 h-6">{t('calendar.month')}</TabsTrigger>
-                <TabsTrigger value="week" className="text-xs px-3 h-6">{t('calendar.week')}</TabsTrigger>
-                <TabsTrigger value="day" className="text-xs px-3 h-6">{t('calendar.day')}</TabsTrigger>
+              <TabsList className="h-11 md:h-8">
+                <TabsTrigger value="month" className="h-9 px-3 text-xs md:h-6">{t('calendar.month')}</TabsTrigger>
+                <TabsTrigger value="week" className="h-9 px-3 text-xs md:h-6">{t('calendar.week')}</TabsTrigger>
+                <TabsTrigger value="day" className="h-9 px-3 text-xs md:h-6">{t('calendar.day')}</TabsTrigger>
               </TabsList>
             </Tabs>
             <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
               <DialogTrigger asChild>
-                <Button size="sm">
+                <Button size="sm" className="h-11 md:h-9">
                   <Plus className="h-4 w-4 mr-1.5" />{t('calendar.newEvent')}
                 </Button>
               </DialogTrigger>

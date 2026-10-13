@@ -413,9 +413,9 @@ export function HabitsPage() {
 
       {/* Stats Overview */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-[var(--lifeos-list-gap)]">
-        <Card className="overflow-hidden relative micro-hover">
+        <Card className="gap-1 overflow-hidden relative py-3 micro-hover sm:gap-6 sm:py-6">
           <div className="absolute top-0 left-0 right-0 h-1" style={{ background: `linear-gradient(to right, ${accentHex}, ${accentHex}cc)` }} />
-          <CardContent className="p-[var(--lifeos-card-padding)]">
+          <CardContent className="p-3 sm:p-[var(--lifeos-card-padding)]">
             <div className="flex items-center gap-2 mb-2">
               <CheckCircle2 className="h-4 w-4" style={{ color: accentHex }} />
               <span className="text-xs text-muted-foreground">{t('habits.today')}</span>
@@ -425,9 +425,9 @@ export function HabitsPage() {
             <style>{`[data-today-progress] > div { background: linear-gradient(to right, ${accentHex}, ${accentHex}cc) !important; }`}</style>
           </CardContent>
         </Card>
-        <Card className="overflow-hidden relative micro-hover">
+        <Card className="gap-1 overflow-hidden relative py-3 micro-hover sm:gap-6 sm:py-6">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-400 to-red-500" />
-          <CardContent className="p-[var(--lifeos-card-padding)]">
+          <CardContent className="p-3 sm:p-[var(--lifeos-card-padding)]">
             <div className="flex items-center gap-2 mb-2">
               <Trophy className="h-4 w-4 text-orange-500" />
               <span className="text-xs text-muted-foreground">{t('habits.bestStreak')}</span>
@@ -443,9 +443,9 @@ export function HabitsPage() {
             {longestStreakHabit && <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{displayHabitIcon(longestStreakHabit.icon)} {longestStreakHabit.name}</p>}
           </CardContent>
         </Card>
-        <Card className="overflow-hidden relative micro-hover">
+        <Card className="gap-1 overflow-hidden relative py-3 micro-hover sm:gap-6 sm:py-6">
           <div className="absolute top-0 left-0 right-0 h-1" style={{ background: `linear-gradient(to right, ${accentHex}cc, ${accentHex})` }} />
-          <CardContent className="p-[var(--lifeos-card-padding)]">
+          <CardContent className="p-3 sm:p-[var(--lifeos-card-padding)]">
             <div className="flex items-center gap-2 mb-2">
               <TrendingUp className="h-4 w-4" style={{ color: accentHex }} />
               <span className="text-xs text-muted-foreground">{t('habits.completionRate')}</span>
@@ -453,9 +453,9 @@ export function HabitsPage() {
             <p className="text-2xl font-bold">{avgCompletion}%</p>
           </CardContent>
         </Card>
-        <Card className="overflow-hidden relative micro-hover">
+        <Card className="gap-1 overflow-hidden relative py-3 micro-hover sm:gap-6 sm:py-6">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-orange-500" />
-          <CardContent className="p-[var(--lifeos-card-padding)]">
+          <CardContent className="p-3 sm:p-[var(--lifeos-card-padding)]">
             <div className="flex items-center gap-2 mb-2">
               <CalendarDays className="h-4 w-4 text-amber-500" />
               <span className="text-xs text-muted-foreground">{t('habits.thisWeek')}</span>
@@ -464,14 +464,6 @@ export function HabitsPage() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Habit Streak Calendar */}
-      {longestStreakHabit && (
-        <HabitStreakCalendar
-          habitLogs={longestStreakHabit.logs.map(d => ({ date: d }))}
-          streak={longestStreakHabit.streak}
-        />
-      )}
 
       {/* Edit Habit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
@@ -519,17 +511,17 @@ export function HabitsPage() {
       </Dialog>
 
       {/* View Tabs & Add Button */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs value={habitView} onValueChange={v => setHabitView(v as typeof habitView)}>
-          <TabsList className="h-8">
-            <TabsTrigger value="list" className="text-xs px-3 h-6"><List className="h-3.5 w-3.5 mr-1" />{t('tasks.list')}</TabsTrigger>
-            <TabsTrigger value="calendar" className="text-xs px-3 h-6"><Calendar className="h-3.5 w-3.5 mr-1" />{t('calendar.title')}</TabsTrigger>
-            <TabsTrigger value="analytics" className="text-xs px-3 h-6"><BarChart3 className="h-3.5 w-3.5 mr-1" />{t('habits.heatmap')}</TabsTrigger>
+          <TabsList className="h-11 md:h-8">
+            <TabsTrigger value="list" className="h-9 px-3 text-xs md:h-6"><List className="mr-1 h-3.5 w-3.5" />{t('tasks.list')}</TabsTrigger>
+            <TabsTrigger value="calendar" className="h-9 px-3 text-xs md:h-6"><Calendar className="mr-1 h-3.5 w-3.5" />{t('calendar.title')}</TabsTrigger>
+            <TabsTrigger value="analytics" className="h-9 px-3 text-xs md:h-6"><BarChart3 className="mr-1 h-3.5 w-3.5" />{t('habits.heatmap')}</TabsTrigger>
           </TabsList>
         </Tabs>
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button size="sm"><Plus className="h-4 w-4 mr-1.5" />{t('habits.newHabit')}</Button>
+            <Button size="sm" className="h-11 md:h-9"><Plus className="h-4 w-4 mr-1.5" />{t('habits.newHabit')}</Button>
           </DialogTrigger>
           <DialogContent aria-describedby={undefined}>
             <DialogHeader><DialogTitle>{t('habits.newHabit')}</DialogTitle><DialogDescription className="sr-only">{t('habits.createHabitSrOnly')}</DialogDescription></DialogHeader>
@@ -589,13 +581,13 @@ export function HabitsPage() {
                 <Card className="hover:shadow-md transition-all duration-200 overflow-hidden relative micro-hover">
                   <div className={cn('absolute left-0 top-0 bottom-0 w-1', habit.color)} />
                   <CardContent className="p-4 pl-5">
-                    <div className="flex items-center gap-4">
+                    <div className="flex flex-wrap items-center gap-3 sm:flex-nowrap sm:gap-4">
                       {/* Counter UI for targetCount > 1, checkbox for simple habits */}
                       {habit.targetCount > 1 ? (
                         <div className="relative shrink-0 flex flex-col items-center gap-1">
                           <div className="flex items-center gap-1">
                             <button
-                              className="w-6 h-6 rounded-full border border-border flex items-center justify-center hover:bg-accent transition-colors disabled:opacity-40"
+                              className="flex h-11 w-11 items-center justify-center rounded-full border border-border transition-colors hover:bg-accent disabled:opacity-40 sm:h-6 sm:w-6"
                               onClick={() => decrementHabitCount(habit.id)}
                               disabled={habit.todayCount <= 0}
                             >
@@ -606,7 +598,7 @@ export function HabitsPage() {
                               <span className="text-xs text-muted-foreground">/{habit.targetCount}</span>
                             </div>
                             <button
-                              className="w-6 h-6 rounded-full border border-border flex items-center justify-center hover:bg-accent transition-colors disabled:opacity-40"
+                              className="flex h-11 w-11 items-center justify-center rounded-full border border-border transition-colors hover:bg-accent disabled:opacity-40 sm:h-6 sm:w-6"
                               onClick={() => incrementHabitCount(habit.id)}
                               disabled={habit.todayCount >= habit.targetCount}
                             >
@@ -647,7 +639,7 @@ export function HabitsPage() {
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">{habit.description}</p>
                       </div>
-                      <div className="flex items-center gap-4 shrink-0">
+                      <div className="flex w-full basis-full items-center justify-between gap-3 pl-1 sm:w-auto sm:basis-auto sm:shrink-0 sm:gap-4 sm:pl-0">
                         <div className="flex items-center gap-1.5">
                           <Flame className={cn('h-4 w-4', habit.streak >= 7 ? 'text-orange-500 animate-fire' : habit.streak > 0 ? 'text-orange-400' : 'text-muted-foreground')} />
                           <span className={cn('text-sm font-semibold', habit.streak >= 7 && 'text-orange-600 dark:text-orange-400')}>{habit.streak}</span>
@@ -657,10 +649,10 @@ export function HabitsPage() {
                           <p className="text-sm font-semibold">{habit.completionRate}%</p>
                           <p className="text-[10px] text-muted-foreground">{t('habits.completion')}</p>
                         </div>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditDialog(habit)}>
+                        <Button variant="ghost" size="icon" className="h-11 w-11 sm:h-7 sm:w-7" onClick={() => openEditDialog(habit)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => deleteHabit(habit.id)}>
+                        <Button variant="ghost" size="icon" className="h-11 w-11 hover:text-destructive sm:h-7 sm:w-7" onClick={() => deleteHabit(habit.id)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
@@ -765,6 +757,14 @@ export function HabitsPage() {
             )
           })}
         </div>
+      )}
+
+      {/* Habit Streak Calendar */}
+      {longestStreakHabit && (
+        <HabitStreakCalendar
+          habitLogs={longestStreakHabit.logs.map(d => ({ date: d }))}
+          streak={longestStreakHabit.streak}
+        />
       )}
     </div>
   )
