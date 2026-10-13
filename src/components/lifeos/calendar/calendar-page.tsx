@@ -561,9 +561,9 @@ export function CalendarPage() {
           <div className="flex flex-wrap items-center gap-2">
             <Tabs value={calendarView} onValueChange={v => setCalendarView(v as typeof calendarView)}>
               <TabsList className="h-11 lg:h-8">
-                <TabsTrigger value="month" className="h-11 px-3 text-xs lg:h-6">{t('calendar.month')}</TabsTrigger>
-                <TabsTrigger value="week" className="h-11 px-3 text-xs lg:h-6">{t('calendar.week')}</TabsTrigger>
-                <TabsTrigger value="day" className="h-11 px-3 text-xs lg:h-6">{t('calendar.day')}</TabsTrigger>
+                <TabsTrigger value="month" className="h-11 min-w-11 px-3 text-xs lg:h-6 lg:min-w-0">{t('calendar.month')}</TabsTrigger>
+                <TabsTrigger value="week" className="h-11 min-w-11 px-3 text-xs lg:h-6 lg:min-w-0">{t('calendar.week')}</TabsTrigger>
+                <TabsTrigger value="day" className="h-11 min-w-11 px-3 text-xs lg:h-6 lg:min-w-0">{t('calendar.day')}</TabsTrigger>
               </TabsList>
             </Tabs>
             <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
