@@ -55,7 +55,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Switch } from '@/components/ui/switch'
 import { useAppStore } from '@/stores/app-store'
 import { useTranslation } from '@/lib/i18n'
-import { useDashboard, useTasks, useEvents, useHabits, useCreateTask, useCreateNote, useCreateHabit, useUpdateTask, useDashboardWidgets, useSaveDashboardWidgets } from '@/lib/api/hooks'
+import { useDashboard, useTasks, useEvents, useHabits, useCreateTask, useCreateNote, useCreateHabit, useUpdateTask, useDashboardWidgets, useSaveDashboardWidgets, useRecurringTaskSeries } from '@/lib/api/hooks'
 import { getTaskMetrics } from '@/lib/task-metrics'
 import { showToast } from '@/lib/toast'
 import { JournalPrompts } from '@/components/lifeos/dashboard/journal-prompts'
@@ -380,6 +380,7 @@ export function DashboardPage() {
   // Fetch real data from API
   const { data: dashboard, isLoading: dashboardLoading } = useDashboard()
   const { data: tasks, isLoading: tasksLoading } = useTasks()
+  const recurringTasksQuery = useRecurringTaskSeries()
   const { data: apiHabitsRaw } = useHabits()
   const { data: apiEvents } = useEvents({
     startDate: format(new Date(), 'yyyy-MM-dd'),
@@ -872,7 +873,7 @@ export function DashboardPage() {
         {/* Left Column (2/3) */}
         <div className="lg:col-span-2 lifeos-section-gap-y">
           {/* Stats Cards - redesigned with left border accent and hover elevation */}
-          {dashboardWidgets.includes('stats-cards') && <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
+          {dashboardWidgets.includes('stats-cards') && <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-4">
             <Card
               className="cursor-pointer rounded-xl shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 border-l-2 border-l-orange-400/50 group animate-fade-in-up"
               style={{ animationDelay: '0ms', animationFillMode: 'both' }}
@@ -893,6 +894,37 @@ export function DashboardPage() {
                       </div>
                     )}
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card
+              className="cursor-pointer rounded-xl shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 border-l-2 border-l-emerald-400/60 group animate-fade-in-up"
+              style={{ animationDelay: '30ms', animationFillMode: 'both' }}
+              onClick={() => setActiveModule('tasks')}
+              onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setActiveModule('tasks') } }}
+              role="button"
+              tabIndex={0}
+              aria-label={uiText('Recurring tasks')}
+            >
+              <CardContent className="p-3 sm:p-5 relative overflow-hidden">
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent-primary) 6%, transparent), color-mix(in srgb, var(--accent-primary-light) 3%, transparent))' }} />
+                <div className="relative">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="min-w-0 flex-1 text-[10px] sm:text-xs font-medium text-muted-foreground/70 uppercase tracking-wider truncate">{uiText('Recurring tasks')}</span>
+                    <Repeat className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground/40 shrink-0" />
+                  </div>
+                  <div className="mt-2 sm:mt-3">
+                    {recurringTasksQuery.isLoading ? <Skeleton className="h-8 w-16" /> : (
+                      <div className="flex items-end gap-1.5">
+                        <p className="text-xl sm:text-2xl font-bold tracking-tight tabular-nums">{recurringTasksQuery.data?.activeCount ?? '—'}</p>
+                        <span className="text-[10px] sm:text-xs text-muted-foreground/50 mb-0.5 truncate">{uiText('Active')}</span>
+                      </div>
+                    )}
+                  </div>
+                  <p className="mt-1 truncate text-[9px] sm:text-[10px] text-muted-foreground/60">
+                    {recurringTasksQuery.isLoading ? '…' : recurringTasksQuery.isError ? uiText('Status unavailable') : recurringTasksQuery.data?.schedulerEnabled ? uiText('Automatic continuation enabled') : uiText('Automatic continuation paused')}
+                  </p>
                 </div>
               </CardContent>
             </Card>

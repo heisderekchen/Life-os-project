@@ -1,4 +1,5 @@
 import { json } from './app/response.mjs';
+import { buildRecurringTaskSeries } from './recurring-task-series.mjs';
 
 const PROJECT_STATUSES = new Set(['active', 'paused', 'review', 'archived']);
 const CHECKPOINT_KINDS = new Set(['progress', 'blocker', 'review', 'capture']);
@@ -2197,6 +2198,15 @@ async function handleLifeOsProjectCompatibility(request, env, url, actor) {
 }
 
 async function handleLifeOsTasks(request, env, url, actor) {
+    if (url.pathname === '/api/personal-workbench/lifeos/recurring-tasks' && request.method === 'GET') {
+        const [taskRows, runRows] = await Promise.all([
+            env.DB.prepare(`SELECT id,title,status,recurrence,recurrence_config,due_date,updated_at,created_at,archived
+                FROM personal_workbench_lifeos_tasks`).all(),
+            env.DB.prepare(`SELECT source_task_id,generated_task_id FROM lifeos_task_recurrence_runs`).all(),
+        ]);
+        const result = buildRecurringTaskSeries(taskRows.results || [], runRows.results || []);
+        return json({ ...result, schedulerEnabled: env.LIFEOS_RECURRENCE_ENABLED === true });
+    }
     if (url.pathname === '/api/personal-workbench/lifeos/tasks' && request.method === 'GET') {
         const clauses = [];
         const bindings = [];

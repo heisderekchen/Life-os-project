@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAppStore } from '@/stores/app-store'
@@ -11,10 +11,11 @@ const fetchTaskCard = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/api/hooks', () => ({
   useTasks: () => ({ data: [
-    { id: 'task-ui-1', title: 'Selected task', description: 'Task notes', status: 'todo', priority: 'medium', tags: [], createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+    { id: 'task-ui-1', title: 'Selected task', description: 'Task notes', status: 'todo', priority: 'medium', recurrence: 'weekly', recurrenceConfig: '', startDate: '2026-10-01T15:30:00-07:00', estimatedMinutes: 0, actualMinutes: 0, tags: [{ tag: { name: 'label,with,commas' } }], createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
     { id: 'task-ui-2', title: 'Active task', description: '', status: 'in-progress', priority: 'high', tags: [], createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
     { id: 'task-ui-3', title: 'Done task', description: '', status: 'done', priority: 'low', tags: [], createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
   ], isLoading: false }),
+  useRecurringTaskSeries: () => ({ data: { series: [{ id: 'series-ui-1', currentTaskId: 'task-ui-1', title: 'Selected task', status: 'todo', recurrence: 'weekly', dueDate: null, updatedAt: null, archived: false }], activeCount: 1, schedulerEnabled: false }, isLoading: false, isError: false, refetch: vi.fn() }),
   useProjects: () => ({ data: [] }),
   useCreateTask: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateTask: () => ({ mutate: updateTask, isPending: false }),
@@ -45,6 +46,7 @@ describe.each([
 
     await user.click(screen.getByText('Selected task'))
 
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(await screen.findByText('Task card task-ui-1')).toBeInTheDocument()
     expect(screen.getByText('Research task-ui-1')).toBeInTheDocument()
     expect(screen.getByRole('region')).toHaveAttribute('aria-label', '任务详情')
@@ -58,9 +60,10 @@ describe.each([
 
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('region')).not.toBeInTheDocument()
-    expect(document.activeElement).toHaveAttribute('data-task-id', 'task-ui-1')
+    await waitFor(() => expect(document.activeElement).toHaveAttribute('data-task-id', 'task-ui-1'))
     await user.click(screen.getByText('Selected task'))
     expect(await screen.findByRole('region')).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
 
     await user.click(within(screen.getByRole('region')).getByRole('button', { name: '编辑' }))
     expect(screen.getByText('任务标题')).toBeInTheDocument()
@@ -93,11 +96,65 @@ describe.each([
     await user.click(within(screen.getByRole('region')).getByRole('button', { name: '编辑' }))
     await user.type(screen.getByLabelText('任务标题'), ' 修改')
     const confirmDiscard = vi.spyOn(window, 'confirm').mockReturnValue(false)
-    useAppStore.getState().setActiveModule('projects')
+    const beforeModuleChange = new CustomEvent('lifeos:before-module-change', { cancelable: true })
+    window.dispatchEvent(beforeModuleChange)
     expect(confirmDiscard).toHaveBeenCalledWith('放弃尚未保存的修改？')
-    expect(useAppStore.getState().activeModule).toBe('tasks')
+    expect(beforeModuleChange.defaultPrevented).toBe(true)
     expect(screen.getByRole('button', { name: '保存' })).toBeInTheDocument()
     confirmDiscard.mockRestore()
+  })
+
+  it('shows recurring series once and opens its current task in the shared dialog', async () => {
+    useAppStore.setState({ language: 'zh', activeModule: 'tasks' })
+    viewport.mobile = mobile
+    const user = userEvent.setup()
+    const queryClient = new QueryClient()
+    render(<QueryClientProvider client={queryClient}><TasksPage /></QueryClientProvider>)
+    await user.click(screen.getByRole('tab', { name: /持续化任务/ }))
+    expect(screen.getAllByText('自动续建已暂停').length).toBeGreaterThan(0)
+    const seriesCard = screen.getAllByRole('button').find(button => button.getAttribute('data-task-id') === 'task-ui-1')!
+    expect(seriesCard).toHaveAttribute('data-task-id', 'task-ui-1')
+    await user.click(seriesCard)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText('Task card task-ui-1')).toBeInTheDocument()
+  })
+
+  it('patches only changed fields and keeps zero durations and comma-containing tags intact', async () => {
+    updateTask.mockClear()
+    useAppStore.setState({ language: 'zh', activeModule: 'tasks' })
+    viewport.mobile = mobile
+    const user = userEvent.setup()
+    const queryClient = new QueryClient()
+    render(<QueryClientProvider client={queryClient}><TasksPage /></QueryClientProvider>)
+    await user.click(screen.getByText('Selected task'))
+    await user.click(within(screen.getByRole('region', { name: '任务详情' })).getByRole('button', { name: '编辑' }))
+    await user.clear(screen.getByLabelText('任务标题'))
+    await user.type(screen.getByLabelText('任务标题'), 'Renamed task')
+    expect(screen.getByText('label,with,commas')).toBeInTheDocument()
+    await user.type(screen.getByRole('textbox', { name: '添加标签' }), 'new tag{Enter}')
+    await user.click(screen.getByRole('button', { name: '保存' }))
+    expect(updateTask).toHaveBeenCalledWith({ id: 'task-ui-1', title: 'Renamed task', tags: ['label,with,commas', 'new tag'] }, expect.any(Object))
+  })
+
+  it('guards unsaved edits on Escape and backdrop close, then restores focus', async () => {
+    useAppStore.setState({ language: 'zh', activeModule: 'tasks' })
+    viewport.mobile = mobile
+    const user = userEvent.setup()
+    const queryClient = new QueryClient()
+    render(<QueryClientProvider client={queryClient}><TasksPage /></QueryClientProvider>)
+    const taskTrigger = screen.getByText('Selected task')
+    await user.click(taskTrigger)
+    await user.click(within(screen.getByRole('region', { name: '任务详情' })).getByRole('button', { name: '编辑' }))
+    await user.type(screen.getByLabelText('任务标题'), ' 修改')
+    const confirmDiscard = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    await user.keyboard('{Escape}')
+    expect(confirmDiscard).toHaveBeenCalledWith('放弃尚未保存的修改？')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    confirmDiscard.mockReturnValue(true)
+    await user.click(document.querySelector('[data-slot="dialog-overlay"]') as HTMLElement)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    confirmDiscard.mockRestore()
+    await waitFor(() => expect(document.activeElement).toHaveAttribute('data-task-id', 'task-ui-1'))
   })
 
   it('prioritizes work queues while keeping detailed status filters available', async () => {
@@ -113,18 +170,18 @@ describe.each([
     expect(within(queue).getByRole('button', { name: /待处理[\s\S]*0/ })).toBeInTheDocument()
     expect(within(queue).getByRole('button', { name: /进行中/ })).toBeInTheDocument()
     expect(within(queue).getByRole('button', { name: /待处理/ })).toBeInTheDocument()
-    expect(within(queue).getByRole('button', { name: /下一步/ })).toBeInTheDocument()
+    expect(within(queue).getByRole('button', { name: /下一步[\s\S]*1/ })).toBeInTheDocument()
     const scrollContainer = queue.closest<HTMLElement>('.overflow-y-auto')
     if (scrollContainer) scrollContainer.scrollTop = 180
-    await user.click(within(queue).getByRole('button', { name: /待处理/ }))
+    await user.click(within(queue).getByRole('button', { name: /待处理[\s\S]*0/ }))
     expect(screen.queryByText('Selected task')).not.toBeInTheDocument()
-    await user.click(within(queue).getByRole('button', { name: /下一步/ }))
+    await user.click(within(queue).getByRole('button', { name: /下一步[\s\S]*1/ }))
     expect(within(queue).getByRole('button', { name: /下一步[\s\S]*1/ })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByText('Selected task')).toBeInTheDocument()
     await user.click(screen.getByText('Selected task'))
     expect(await screen.findByRole('region', { name: '任务详情' })).toBeInTheDocument()
     await user.click(within(screen.getByRole('region', { name: '任务详情' })).getByRole('button', { name: '返回任务列表' }))
-    expect(screen.getByRole('button', { name: /下一步/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /下一步[\s\S]*1/ })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByText('Selected task')).toBeInTheDocument()
     if (scrollContainer) expect(scrollContainer.scrollTop).toBe(180)
 
@@ -144,3 +201,4 @@ describe.each([
     expect(await screen.findByText('Recovered goal')).toBeInTheDocument()
   })
 })
+

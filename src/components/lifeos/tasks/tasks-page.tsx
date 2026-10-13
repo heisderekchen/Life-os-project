@@ -22,6 +22,7 @@ import {
   CheckSquare,
   LayoutTemplate,
   RefreshCw,
+  Repeat,
   Check,
   MousePointer2,
   CalendarDays,
@@ -43,7 +44,6 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   ContextMenu,
@@ -59,7 +59,7 @@ import { useTaskStore, type Task, type Project } from '@/stores/task-store'
 import { useAppStore } from '@/stores/app-store'
 import { useTranslation } from '@/lib/i18n'
 import { showToast } from '@/lib/toast'
-import { useTasks, useProjects, useCreateTask, useUpdateTask, useDeleteTask } from '@/lib/api/hooks'
+import { useTasks, useProjects, useCreateTask, useUpdateTask, useDeleteTask, useRecurringTaskSeries } from '@/lib/api/hooks'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { AgentRunPanel } from '@/components/lifeos/tasks/agent-run-panel'
 import { TaskDetailExtensions } from '@/components/lifeos/tasks/task-detail-extensions'
@@ -164,10 +164,21 @@ function cn(...inputs: (string | undefined | false)[]) {
   return inputs.filter(Boolean).join(' ')
 }
 
+function taskDateInputValue(value: string | null | undefined) {
+  if (!value) return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10)
+}
+
+function sameStrings(left: string[], right: string[]) {
+  return left.length === right.length && left.every((value, index) => value === right[index])
+}
+
 // Map API task to local Task type
 function mapApiTask(apiTask: Record<string, unknown>): Task {
   const dueDate = apiTask.dueDate ? new Date(apiTask.dueDate as string).toISOString().split('T')[0] : null
-  const startDate = apiTask.startDate ? new Date(apiTask.startDate as string).toISOString().split('T')[0] : null
+  const startDate = apiTask.startDate ? String(apiTask.startDate) : null
   const completedAt = apiTask.completedAt ? new Date(apiTask.completedAt as string).toISOString() : null
   const tags = (apiTask.tags as Record<string, unknown>[])?.map((t: Record<string, unknown>) => {
     const tag = t.tag as Record<string, unknown>
@@ -183,8 +194,8 @@ function mapApiTask(apiTask: Record<string, unknown>): Task {
     dueDate,
     startDate,
     completedAt,
-    estimatedMinutes: (apiTask.estimatedMinutes as number) || null,
-    actualMinutes: (apiTask.actualMinutes as number) || null,
+    estimatedMinutes: (apiTask.estimatedMinutes as number | null | undefined) ?? null,
+    actualMinutes: (apiTask.actualMinutes as number | null | undefined) ?? null,
     projectId: (apiTask.projectId as string) || null,
     parentTaskId: (apiTask.parentTaskId as string) || null,
     recurrence: (apiTask.recurrence as string || null) as Task['recurrence'],
@@ -414,6 +425,7 @@ export function TasksPage() {
     'todo': t('tasks.todo'),
     'in-progress': t('tasks.inProgress'),
     'done': t('tasks.done'),
+    'cancelled': uiText('Cancelled'),
   }), [t])
   const accentHex = accentHexMap[accentColor] || '#10b981'
   const { data: apiTasks, isLoading } = useTasks()
@@ -432,8 +444,10 @@ export function TasksPage() {
     return (apiProjects as Record<string, unknown>[]).map(mapApiProject)
   }, [apiProjects])
   const projectNames = useMemo(() => new Map(projects.map(project => [project.id, project.name])), [projects])
+  const recurringTasksQuery = useRecurringTaskSeries()
 
   const [searchQuery, setSearchQuery] = useState('')
+  const [taskSection, setTaskSection] = useState<'mine' | 'recurring'>('mine')
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [selectedTaskCard, setSelectedTaskCard] = useState<TaskCard | null>(null)
   const [taskCardLoadState, setTaskCardLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -444,12 +458,28 @@ export function TasksPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   // Edit-task dialog state — populated when the user clicks "Edit" in the
   // context menu or double-clicks a task title.
-  const [editTask, setEditTask] = useState<{ id: string; title: string; description: string; priority: Task['priority']; dueDate: string; projectId: string; status: Task['status']; recurrence: Task['recurrence'] } | null>(null)
+  const [editTask, setEditTask] = useState<Pick<Task, 'id' | 'title' | 'description' | 'priority' | 'dueDate' | 'startDate' | 'projectId' | 'status' | 'recurrence' | 'recurrenceConfig' | 'estimatedMinutes' | 'actualMinutes'> & { tags: string[]; tagInput: string } | null>(null)
   const [handoffDraft, setHandoffDraft] = useState('')
   const isMobile = useIsMobile()
   const previousSelectedTaskId = useRef<string | null>(null)
 
   const selectedTask = useMemo(() => tasks.find(t => t.id === selectedTaskId), [tasks, selectedTaskId])
+
+  const taskEditHasChanges = useCallback(() => Boolean(editTask && selectedTask && (
+    editTask.title !== selectedTask.title
+    || editTask.description !== selectedTask.description
+    || editTask.priority !== selectedTask.priority
+    || editTask.status !== selectedTask.status
+    || taskDateInputValue(editTask.dueDate) !== taskDateInputValue(selectedTask.dueDate)
+    || taskDateInputValue(editTask.startDate) !== taskDateInputValue(selectedTask.startDate)
+    || editTask.projectId !== (selectedTask.projectId || '')
+    || editTask.recurrence !== (selectedTask.recurrence || 'none')
+    || editTask.recurrenceConfig !== (selectedTask.recurrenceConfig || '')
+    || editTask.estimatedMinutes !== selectedTask.estimatedMinutes
+    || editTask.actualMinutes !== selectedTask.actualMinutes
+    || !sameStrings(editTask.tags, selectedTask.tags)
+    || editTask.tagInput.trim().length > 0
+  )), [editTask, selectedTask])
 
   const loadSelectedTaskCard = useCallback(async (taskId: string) => {
     setTaskCardLoadState('loading')
@@ -479,51 +509,14 @@ export function TasksPage() {
   }, [selectedTask?.id, selectedTask?.description])
 
   useEffect(() => {
-    if (!selectedTaskId) return
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      event.preventDefault()
-      if (taskWorkspaceMode === 'edit') {
-        const changed = Boolean(editTask && selectedTask && (
-          editTask.title !== selectedTask.title
-          || editTask.description !== selectedTask.description
-          || editTask.priority !== selectedTask.priority
-          || editTask.status !== selectedTask.status
-          || editTask.dueDate !== (selectedTask.dueDate || '')
-          || editTask.projectId !== (selectedTask.projectId || '')
-          || editTask.recurrence !== (selectedTask.recurrence || 'none')
-        ))
-        if (changed && !window.confirm('放弃尚未保存的修改？')) return
-        setTaskWorkspaceMode('detail')
-        setEditTask(null)
-        return
-      }
-      setSelectedTaskId(null)
-      setTaskWorkspaceMode('detail')
-      setEditTask(null)
-    }
-    window.addEventListener('keydown', handleEscape)
-    return () => window.removeEventListener('keydown', handleEscape)
-  }, [selectedTaskId, taskWorkspaceMode, editTask, selectedTask])
-
-  useEffect(() => {
     if (taskWorkspaceMode !== 'edit') return
     const handleModuleChange = (event: Event) => {
       if (!(event instanceof CustomEvent)) return
-      const changed = Boolean(editTask && selectedTask && (
-        editTask.title !== selectedTask.title
-        || editTask.description !== selectedTask.description
-        || editTask.priority !== selectedTask.priority
-        || editTask.status !== selectedTask.status
-        || editTask.dueDate !== (selectedTask.dueDate || '')
-        || editTask.projectId !== (selectedTask.projectId || '')
-        || editTask.recurrence !== (selectedTask.recurrence || 'none')
-      ))
-      if (changed && !window.confirm('放弃尚未保存的修改？')) event.preventDefault()
+      if (taskEditHasChanges() && !window.confirm('放弃尚未保存的修改？')) event.preventDefault()
     }
     window.addEventListener('lifeos:before-module-change', handleModuleChange)
     return () => window.removeEventListener('lifeos:before-module-change', handleModuleChange)
-  }, [taskWorkspaceMode, editTask, selectedTask])
+  }, [taskWorkspaceMode, taskEditHasChanges])
 
   const filteredTasks = useMemo(() => {
     let result = tasks
@@ -610,7 +603,13 @@ export function TasksPage() {
     updateTaskMutation.mutate({ id, status: newStatus })
   }, [updateTaskMutation])
 
-  // Open the edit dialog pre-filled with a task's current values
+  const openTaskWorkspace = useCallback((id: string) => {
+    setEditTask(null)
+    setTaskWorkspaceMode('detail')
+    setSelectedTaskId(id)
+  }, [])
+
+  // Open the shared task workspace directly in edit mode.
   const openEditDialog = useCallback((task: Task) => {
     setEditTask({
       id: task.id,
@@ -618,39 +617,62 @@ export function TasksPage() {
       description: task.description || '',
       priority: task.priority,
       dueDate: task.dueDate || '',
+      startDate: task.startDate || '',
       projectId: task.projectId || '',
       status: task.status,
       recurrence: task.recurrence || 'none',
+      recurrenceConfig: task.recurrenceConfig || '',
+      estimatedMinutes: task.estimatedMinutes,
+      actualMinutes: task.actualMinutes,
+      tags: [...task.tags],
+      tagInput: '',
     })
     setSelectedTaskId(task.id)
     setTaskWorkspaceMode('edit')
   }, [])
 
   const handleUpdateTask = useCallback(() => {
-    if (!editTask || !editTask.title.trim()) return
-    updateTaskMutation.mutate({
-      id: editTask.id,
-      title: editTask.title,
-      description: editTask.description,
-      priority: editTask.priority,
-      dueDate: editTask.dueDate || null,
-      projectId: editTask.projectId || null,
-      status: editTask.status,
-      recurrence: editTask.recurrence !== 'none' ? editTask.recurrence : null,
-    }, {
+    if (!editTask || !selectedTask || !editTask.title.trim()) return
+    const patch: { id: string } & Record<string, unknown> = { id: editTask.id }
+    if (editTask.title !== selectedTask.title) patch.title = editTask.title
+    if (editTask.description !== selectedTask.description) patch.description = editTask.description
+    if (editTask.priority !== selectedTask.priority) patch.priority = editTask.priority
+    if (taskDateInputValue(editTask.dueDate) !== taskDateInputValue(selectedTask.dueDate)) patch.dueDate = taskDateInputValue(editTask.dueDate) || null
+    if (taskDateInputValue(editTask.startDate) !== taskDateInputValue(selectedTask.startDate)) patch.startDate = taskDateInputValue(editTask.startDate) || null
+    if ((editTask.projectId || null) !== (selectedTask.projectId || null)) patch.projectId = editTask.projectId || null
+    if (editTask.status !== selectedTask.status) patch.status = editTask.status
+    const recurrence = editTask.recurrence !== 'none' ? editTask.recurrence : null
+    if (recurrence !== selectedTask.recurrence) patch.recurrence = recurrence
+    const recurrenceConfig = editTask.recurrenceConfig || null
+    if (recurrenceConfig !== selectedTask.recurrenceConfig) patch.recurrenceConfig = recurrenceConfig
+    if (editTask.estimatedMinutes !== selectedTask.estimatedMinutes) patch.estimatedMinutes = editTask.estimatedMinutes
+    if (editTask.actualMinutes !== selectedTask.actualMinutes) patch.actualMinutes = editTask.actualMinutes
+    if (!sameStrings(editTask.tags, selectedTask.tags)) patch.tags = editTask.tags
+    if (Object.keys(patch).length === 1) {
+      setTaskWorkspaceMode('detail')
+      setEditTask(null)
+      return
+    }
+    updateTaskMutation.mutate(patch, {
       onSuccess: () => {
         setTaskWorkspaceMode('detail')
         setEditTask(null)
         showToast.success(t('toast.saved'))
       },
     })
-  }, [editTask, updateTaskMutation, t])
+  }, [editTask, selectedTask, updateTaskMutation, t])
 
   const closeTaskWorkspace = useCallback(() => {
     setSelectedTaskId(null)
     setTaskWorkspaceMode('detail')
     setEditTask(null)
   }, [])
+
+  const handleTaskWorkspaceOpenChange = useCallback((open: boolean) => {
+    if (open) return
+    if (taskWorkspaceMode === 'edit' && taskEditHasChanges() && !window.confirm('放弃尚未保存的修改？')) return
+    closeTaskWorkspace()
+  }, [taskWorkspaceMode, taskEditHasChanges, closeTaskWorkspace])
 
   const saveTaskHandoff = useCallback(() => {
     if (!selectedTask || !handoffDraft.trim()) return
@@ -714,19 +736,10 @@ export function TasksPage() {
   }, [newSubtask, selectedTaskId, createTaskMutation])
 
   const cancelTaskEdit = useCallback(() => {
-    const changed = Boolean(editTask && selectedTask && (
-      editTask.title !== selectedTask.title
-      || editTask.description !== selectedTask.description
-      || editTask.priority !== selectedTask.priority
-      || editTask.status !== selectedTask.status
-      || editTask.dueDate !== (selectedTask.dueDate || '')
-      || editTask.projectId !== (selectedTask.projectId || '')
-      || editTask.recurrence !== (selectedTask.recurrence || 'none')
-    ))
-    if (changed && !window.confirm('放弃尚未保存的修改？')) return
+    if (taskEditHasChanges() && !window.confirm('放弃尚未保存的修改？')) return
     setTaskWorkspaceMode('detail')
     setEditTask(null)
-  }, [editTask, selectedTask])
+  }, [taskEditHasChanges])
 
   const taskDetailContent = selectedTask ? (
     <div className="space-y-5">
@@ -848,10 +861,22 @@ export function TasksPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div><label className="mb-2 block text-sm font-medium">{t('tasks.priority')}</label><Select value={editTask.priority} onValueChange={(v) => setEditTask((p) => p && ({ ...p, priority: v as Task['priority'] }))}><SelectTrigger className="h-11 text-base"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="low">{t('tasks.low')}</SelectItem><SelectItem value="medium">{t('tasks.medium')}</SelectItem><SelectItem value="high">{t('tasks.high')}</SelectItem><SelectItem value="urgent">{t('tasks.urgent')}</SelectItem></SelectContent></Select></div>
             <div><label className="mb-2 block text-sm font-medium">{t('tasks.status')}</label><Select value={editTask.status} onValueChange={(v) => setEditTask((p) => p && ({ ...p, status: v as Task['status'] }))}><SelectTrigger className="h-11 text-base"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todo">{t('tasks.todo')}</SelectItem><SelectItem value="in-progress">{t('tasks.inProgress')}</SelectItem><SelectItem value="done">{t('tasks.done')}</SelectItem></SelectContent></Select></div>
-            <div><label className="mb-2 block text-sm font-medium">{t('tasks.dueDate')}</label><Input className="h-11 text-base" type="date" value={editTask.dueDate} onChange={(e) => setEditTask((p) => p && ({ ...p, dueDate: e.target.value }))} /></div>
+            <div><label className="mb-2 block text-sm font-medium">{uiText('Start date')}</label><Input className="h-11 text-base" type="date" value={taskDateInputValue(editTask.startDate)} onChange={(e) => setEditTask((p) => p && ({ ...p, startDate: e.target.value }))} /></div>
+            <div><label className="mb-2 block text-sm font-medium">{t('tasks.dueDate')}</label><Input className="h-11 text-base" type="date" value={taskDateInputValue(editTask.dueDate)} onChange={(e) => setEditTask((p) => p && ({ ...p, dueDate: e.target.value }))} /></div>
             <div><label className="mb-2 block text-sm font-medium">{t('tasks.project')}</label><Select value={editTask.projectId || 'none'} onValueChange={(v) => setEditTask((p) => p && ({ ...p, projectId: v === 'none' ? '' : v }))}><SelectTrigger className="h-11 text-base"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">—</SelectItem>{projects.map((pr) => <SelectItem key={pr.id} value={pr.id}>{pr.name}</SelectItem>)}</SelectContent></Select></div>
+            <div><label className="mb-2 block text-sm font-medium">{uiText('Estimated minutes')}</label><Input className="h-11 text-base" type="number" min="0" value={editTask.estimatedMinutes ?? ''} onChange={(e) => setEditTask((p) => p && ({ ...p, estimatedMinutes: e.target.value ? Number(e.target.value) : null }))} /></div>
+            <div><label className="mb-2 block text-sm font-medium">{uiText('Actual minutes')}</label><Input className="h-11 text-base" type="number" min="0" value={editTask.actualMinutes ?? ''} onChange={(e) => setEditTask((p) => p && ({ ...p, actualMinutes: e.target.value ? Number(e.target.value) : null }))} /></div>
           </div>
           <div><label className="mb-2 block text-sm font-medium">{t('tasks.composer.recurrence')}</label><Select value={editTask.recurrence || 'none'} onValueChange={(v) => setEditTask((p) => p && ({ ...p, recurrence: v as Task['recurrence'] }))}><SelectTrigger className="h-11 text-base"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">{t('tasks.composer.recurrenceNone')}</SelectItem><SelectItem value="daily">{t('habits.daily')}</SelectItem><SelectItem value="weekly">{t('habits.weekly')}</SelectItem><SelectItem value="monthly">{t('habits.monthly')}</SelectItem></SelectContent></Select></div>
+          {editTask.recurrence !== 'none' && <div><label className="mb-2 block text-sm font-medium">{uiText('Recurrence details')}</label><Input className="h-11 text-base" value={editTask.recurrenceConfig || ''} onChange={(e) => setEditTask((p) => p && ({ ...p, recurrenceConfig: e.target.value }))} placeholder={uiText('Optional recurrence configuration')} /></div>}
+          <div>
+            <label className="mb-2 block text-sm font-medium">{uiText('Tags')}</label>
+            <div className="flex gap-2">
+              <Input aria-label={uiText('Add tag')} className="h-11 text-base" value={editTask.tagInput} onChange={(e) => setEditTask((p) => p && ({ ...p, tagInput: e.target.value }))} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const value = editTask.tagInput.trim(); if (value && !editTask.tags.includes(value)) setEditTask((p) => p && ({ ...p, tags: [...p.tags, value], tagInput: '' })) } }} placeholder={uiText('Add a tag')} />
+              <Button type="button" variant="outline" className="h-11 shrink-0" onClick={() => { const value = editTask.tagInput.trim(); if (value && !editTask.tags.includes(value)) setEditTask((p) => p && ({ ...p, tags: [...p.tags, value], tagInput: '' })) }}>{uiText('Add')}</Button>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">{editTask.tags.map((tag, index) => <Badge key={`${index}-${tag}`} variant="secondary" className="gap-1.5 py-1">{tag}<button type="button" aria-label={`${uiText('Remove tag')} ${tag}`} onClick={() => setEditTask((p) => p && ({ ...p, tags: p.tags.filter((_, currentIndex) => currentIndex !== index) }))} className="rounded-full hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">×</button></Badge>)}</div>
+          </div>
         </div>
         <aside className="h-fit rounded-xl border border-border/60 bg-muted/20 p-4"><h3 className="text-sm font-semibold">{uiText('Task essentials')}</h3><p className="mt-2 text-xs leading-5 text-muted-foreground">{uiText('Set the task goal, timing, owner project and current status. Existing execution, subtasks and knowledge links stay attached.')}</p><div className="mt-4 space-y-3 text-xs"><p><span className="text-muted-foreground">{t('tasks.status')}</span><br /><span className="font-medium">{statusLabels[editTask.status]}</span></p><p><span className="text-muted-foreground">{t('tasks.project')}</span><br /><span className="font-medium">{editTask.projectId ? projectNames.get(editTask.projectId) : '—'}</span></p></div></aside>
       </div>
@@ -861,7 +886,7 @@ export function TasksPage() {
   return (
     <div className="flex h-full">
       {/* Main Content */}
-      <div className={cn('flex-1 flex flex-col min-w-0', selectedTask && 'hidden')}>
+      <div className="flex-1 flex flex-col min-w-0">
         {/* Productivity Score + Progress Bar */}
         <div className="px-4 pt-3 pb-1">
           <div className="flex items-center gap-3">
@@ -908,8 +933,17 @@ export function TasksPage() {
           </div>
         </div>
 
+        <div className="border-b border-border/50 px-4 pt-3">
+          <Tabs value={taskSection} onValueChange={(value) => setTaskSection(value as 'mine' | 'recurring')}>
+            <TabsList className="h-11 w-full justify-start rounded-none bg-transparent p-0">
+              <TabsTrigger value="mine" className="h-11 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary">{uiText('My tasks')}</TabsTrigger>
+              <TabsTrigger value="recurring" className="h-11 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary"><Repeat className="mr-2 h-4 w-4" />{uiText('Recurring tasks')} <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs tabular-nums">{recurringTasksQuery.data?.activeCount ?? '—'}</span></TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
         {/* Toolbar */}
-        <div className="p-4 border-b border-border/50 space-y-3">
+        {taskSection === 'mine' && <div className="p-4 border-b border-border/50 space-y-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <Tabs value={taskView} onValueChange={(v) => setTaskView(v as 'list' | 'board')}>
@@ -1317,10 +1351,10 @@ export function TasksPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-        </div>
+        </div>}
 
         {/* Task Content */}
-        <div className="flex-1 overflow-auto">
+        {taskSection === 'mine' ? <div className="flex-1 overflow-auto">
           {isLoading ? (
             <div className="p-4 space-y-3">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -1337,7 +1371,7 @@ export function TasksPage() {
               projects={projects}
               selectedTaskId={selectedTaskId}
               celebratingTaskId={celebratingTaskId}
-              onSelectTask={setSelectedTaskId}
+              onSelectTask={openTaskWorkspace}
               onToggleStatus={toggleTaskStatus}
               onDeleteTask={deleteTask}
               onEditTask={openEditDialog}
@@ -1356,18 +1390,36 @@ export function TasksPage() {
               projects={projects}
               selectedTaskId={selectedTaskId}
               celebratingTaskId={celebratingTaskId}
-              onSelectTask={setSelectedTaskId}
+              onSelectTask={openTaskWorkspace}
               onMoveTask={moveTask}
               onDeleteTask={deleteTask}
               onEditTask={openEditDialog}
             />
           )}
-        </div>
+        </div> : <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div><h2 className="text-base font-semibold">{uiText('Recurring tasks')}</h2><p className="mt-1 text-sm text-muted-foreground">{recurringTasksQuery.data?.schedulerEnabled ? uiText('Automatic continuation enabled') : uiText('Automatic continuation paused')}</p></div>
+            <Badge variant="outline">{recurringTasksQuery.data?.schedulerEnabled ? uiText('Automatic continuation enabled') : uiText('Automatic continuation paused')}</Badge>
+          </div>
+          {recurringTasksQuery.isLoading ? <div className="flex gap-3 overflow-hidden">{[0, 1, 2].map((item) => <Skeleton key={item} className="h-36 w-64 shrink-0 rounded-xl" />)}</div> : recurringTasksQuery.isError ? <div role="alert" className="flex items-center gap-3 rounded-lg border border-destructive/30 p-4 text-sm"><span>{uiText('Unable to load recurring tasks')}</span><Button variant="outline" size="sm" onClick={() => void recurringTasksQuery.refetch()}>{uiText('Retry')}</Button></div> : recurringTasksQuery.data?.series.length ? <div className="flex snap-x gap-3 overflow-x-auto overscroll-x-contain pb-3" aria-label={uiText('Recurring tasks')}>
+            {recurringTasksQuery.data.series.map((series) => {
+              const currentTask = tasks.find((task) => task.id === series.currentTaskId)
+              if (!currentTask) return null
+              const statusLabel = statusLabels[currentTask.status] || uiText('Status unavailable')
+              return <button key={series.id} type="button" data-task-id={currentTask.id} onClick={() => openTaskWorkspace(currentTask.id)} className="w-64 shrink-0 snap-start rounded-xl border border-border bg-card p-4 text-left shadow-sm transition hover:border-primary/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`${series.title}, ${statusLabel}, ${series.recurrence}`}>
+                <div className="flex items-start justify-between gap-3"><span className="line-clamp-2 font-semibold">{series.title}</span><Badge variant={currentTask.status === 'done' ? 'secondary' : 'outline'}>{statusLabel}</Badge></div>
+                <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground"><Repeat className="h-3.5 w-3.5" /><span>{uiText(series.recurrence)}</span></div>
+                <div className="mt-3 text-xs text-muted-foreground">{series.dueDate ? `${t('tasks.dueDate')}: ${series.dueDate}` : uiText('No due date')}</div>
+              </button>
+            })}
+          </div> : <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">{uiText('No recurring tasks')}</p>}
+        </div>}
       </div>
 
-      {/* Task workspace replaces the list in-place, so detail and editing never stack panels. */}
-      {selectedTask && (
-        <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background" aria-label={t('tasks.taskDetails')}>
+      <Dialog open={!!selectedTask} onOpenChange={handleTaskWorkspaceOpenChange}>
+        {selectedTask && <DialogContent className="flex h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-[min(92dvh,900px)] sm:w-[calc(100vw-2rem)] sm:max-w-5xl sm:rounded-xl sm:border" aria-describedby="task-workspace-description">
+          <DialogHeader className="sr-only"><DialogTitle>{taskWorkspaceMode === 'edit' ? t('tasks.editTask') : selectedTask.title}</DialogTitle><DialogDescription id="task-workspace-description">{t('tasks.taskDetails')}</DialogDescription></DialogHeader>
+          <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background" aria-label={t('tasks.taskDetails')}>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             <div className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-8 sm:py-8">
               {taskWorkspaceMode === 'edit' ? taskEditContent : taskDetailContent}
@@ -1381,8 +1433,9 @@ export function TasksPage() {
               </div>
             </div>
           )}
-        </section>
-      )}
+          </section>
+        </DialogContent>}
+      </Dialog>
 
       {/* Bulk Action Bar */}
       {selectionMode && selectedIds.size > 0 && (

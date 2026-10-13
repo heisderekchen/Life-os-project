@@ -66,6 +66,7 @@ const env = {
   PERSONAL_WORKBENCH_OWNER: process.env.PERSONAL_WORKBENCH_OWNER || 'heisderek',
   PERSONAL_WORKBENCH_OWNER_SETUP_ENABLED: process.env.PERSONAL_WORKBENCH_OWNER_SETUP_ENABLED || 'false',
   PERSONAL_WORKBENCH_OWNER_SETUP_GRANT: process.env.PERSONAL_WORKBENCH_OWNER_SETUP_GRANT || '',
+  LIFEOS_RECURRENCE_ENABLED: RECURRENCE_ENABLED,
   PLATFORM_WORKSPACES_JSON: process.env.PLATFORM_WORKSPACES_JSON || '',
   // Model identifiers only. The task-card catalog reads these to label each
   // provider entry with the operator-configured model; provider credentials
