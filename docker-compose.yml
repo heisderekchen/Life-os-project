@@ -16,7 +16,7 @@ services:
       BACKEND_URL: "http://localhost:8080"
       AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in the local ignored .env}
       PERSONAL_WORKBENCH_ENTRY_KEY: ${PERSONAL_WORKBENCH_ENTRY_KEY:?Set PERSONAL_WORKBENCH_ENTRY_KEY in the local ignored .env}
-      PERSONAL_WORKBENCH_OWNER: ${PERSONAL_WORKBENCH_OWNER:-lifeos-owner}
+      PERSONAL_WORKBENCH_OWNER: ${PERSONAL_WORKBENCH_OWNER:-heisderek}
     volumes:
       - life-os-data:/app/data
     healthcheck:

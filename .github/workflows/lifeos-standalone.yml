@@ -71,6 +71,8 @@ jobs:
       - run: node deploy/standalone/scripts/test-platform-migration.mjs
       - run: node deploy/standalone/scripts/test-http.mjs
       - run: node deploy/standalone/scripts/test-platform-http.mjs
+      - run: node deploy/standalone/scripts/test-owner-password-setup.mjs
+      - run: node --check deploy/standalone/scripts/initialize-owner-password.mjs
       - run: node deploy/standalone/scripts/test-task-cards.mjs
       - run: node deploy/standalone/scripts/test-task-cards-http.mjs
       - run: node deploy/standalone/scripts/test-research.mjs

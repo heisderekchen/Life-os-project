@@ -124,10 +124,10 @@ try {
   assert.equal(aiResponse.status, 200)
   const forwarded = agentRequests.at(-1)
   assert.equal(forwarded.headers.authorization, 'Bearer test-service-token')
-  assert.equal(forwarded.headers['x-workspace-subject'], 'lifeos-owner')
+  assert.equal(forwarded.headers['x-workspace-subject'], 'heisderek')
   assert.equal(forwarded.headers['idempotency-key'], 'test-unique')
   assert.equal(forwarded.headers['x-workspace-subject-signature'], signWorkspaceSubject({
-    subject: 'lifeos-owner', timestamp: forwarded.headers['x-workspace-subject-timestamp'],
+    subject: 'heisderek', timestamp: forwarded.headers['x-workspace-subject-timestamp'],
     nonce: forwarded.headers['x-workspace-subject-nonce'], method: 'POST', requestTarget: '/v1/runs',
     idempotencyKey: 'test-unique', body: aiRequestBody,
   }, 'test-signing-secret'))

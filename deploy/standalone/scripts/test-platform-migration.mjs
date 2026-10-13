@@ -25,7 +25,7 @@ const migrationDir = join(root, 'migrations')
 const migrationNames = readdirSync(migrationDir).filter(name => name.endsWith('.sql')).sort()
 const migrationSql = name => readFileSync(join(migrationDir, name), 'utf8')
 
-const OWNER = 'lifeos-owner'
+const OWNER = 'heisderek'
 const AUTH_SECRET = 'test-only-auth-secret'
 const ENTRY_KEY = 'test-only-entry-key'
 const B_PASSWORD = 'fixture-b-password-123'

@@ -39,7 +39,7 @@ const nextPort = await freePort()
 const origin = `https://127.0.0.1:${port}`
 const setupKey = Buffer.alloc(32, 9).toString('base64url')
 const setupGrant = `v2.production.${Math.floor(Date.now() / 1000) + 1200}.${setupKey}`
-const ownerName = 'lifeos-owner'
+const ownerName = 'heisderek'
 const ownerPassword = 'fixture-owner-password'
 const bPassword = 'fixture-b-password-123'
 
@@ -53,7 +53,7 @@ const child = spawn(process.execPath, [join(root, 'server.mjs')], {
     GATEWAY_PORT: String(port), NEXT_PORT: String(nextPort), NEXT_ROOT: nextDir,
     LIFEOS_LISTEN_HOST: '127.0.0.1',
     ENVIRONMENT: 'production', LIFEOS_PUBLIC_ORIGIN: origin, TRUSTED_PROXY_IP: '127.0.0.1',
-    PERSONAL_WORKBENCH_OWNER: ownerName,
+    PERSONAL_WORKBENCH_OWNER: '',
     PERSONAL_WORKBENCH_OWNER_SETUP_ENABLED: 'true', PERSONAL_WORKBENCH_OWNER_SETUP_GRANT: setupGrant,
     PLATFORM_WORKSPACES_JSON: JSON.stringify([
       { id: 'ws_ops_meta', slug: 'ops', displayName: '运营工作区', configured: false },
