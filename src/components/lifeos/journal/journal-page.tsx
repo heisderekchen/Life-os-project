@@ -215,6 +215,7 @@ export function JournalPage() {
   }, [newEntry, createEntryMutation, t])
 
   const openEditEntry = useCallback((entry: JournalEntry) => {
+    setSelectedEntryId(entry.id)
     setEditContent(entry.content)
     setEditDialogOpen(true)
   }, [])
@@ -283,15 +284,15 @@ export function JournalPage() {
             </Tabs>
             <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
               <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1.5" />{t('journal.newEntry')}</Button></DialogTrigger>
-              <DialogContent className="max-w-lg" aria-describedby={undefined}>
+              <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-lg overflow-y-auto overscroll-contain" aria-describedby={undefined}>
                 <DialogHeader><DialogTitle>{t('journal.newEntry')}</DialogTitle><DialogDescription className="sr-only">{uiText("Write a new journal entry")}</DialogDescription></DialogHeader>
                 <div className="space-y-4 py-2">
                   <div className="flex items-center gap-2">
-                    <div className="flex-1"><label className="text-sm font-medium mb-1.5 block">{t('journal.titleOptional')}</label><Input placeholder={t('journal.howWasYourDay')} value={newEntry.title} onChange={e => setNewEntry(p => ({ ...p, title: e.target.value }))} /></div>
+                    <div className="flex-1"><label className="text-sm font-medium mb-1.5 block">{t('journal.titleOptional')}</label><Input className="min-h-11 sm:min-h-0" placeholder={t('journal.howWasYourDay')} value={newEntry.title} onChange={e => setNewEntry(p => ({ ...p, title: e.target.value }))} /></div>
                     <div className="pt-5">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="sm" className="gap-1.5 h-9 shrink-0">
+                          <Button variant="outline" size="sm" className="gap-1.5 h-9 min-h-11 shrink-0 sm:min-h-0">
                             <LayoutTemplate className="h-3.5 w-3.5" />
                             {t('journal.template')}
                             <ChevronDown className="h-3 w-3 text-muted-foreground" />
@@ -340,9 +341,9 @@ export function JournalPage() {
                       {t('journal.gratitudeLabel')}
                     </label>
                     <div className="space-y-2">
-                      <Input placeholder="1. " value={newEntry.gratitude1} onChange={e => setNewEntry(p => ({ ...p, gratitude1: e.target.value }))} />
-                      <Input placeholder="2. " value={newEntry.gratitude2} onChange={e => setNewEntry(p => ({ ...p, gratitude2: e.target.value }))} />
-                      <Input placeholder="3. " value={newEntry.gratitude3} onChange={e => setNewEntry(p => ({ ...p, gratitude3: e.target.value }))} />
+                      <Input className="min-h-11 sm:min-h-0" placeholder="1. " value={newEntry.gratitude1} onChange={e => setNewEntry(p => ({ ...p, gratitude1: e.target.value }))} />
+                      <Input className="min-h-11 sm:min-h-0" placeholder="2. " value={newEntry.gratitude2} onChange={e => setNewEntry(p => ({ ...p, gratitude2: e.target.value }))} />
+                      <Input className="min-h-11 sm:min-h-0" placeholder="3. " value={newEntry.gratitude3} onChange={e => setNewEntry(p => ({ ...p, gratitude3: e.target.value }))} />
                     </div>
                   </div>
 
@@ -351,9 +352,9 @@ export function JournalPage() {
                     <div><label className="text-sm font-medium mb-2 block flex items-center gap-1.5"><Zap className="h-3.5 w-3.5 text-amber-500" />{t('journal.energyLabel')}: {newEntry.energy}%</label><Slider value={[newEntry.energy]} onValueChange={([v]) => setNewEntry(p => ({ ...p, energy: v }))} max={100} step={5} /></div>
                     <div><label className="text-sm font-medium mb-2 block flex items-center gap-1.5"><TrendingUp className="h-3.5 w-3.5 text-rose-500" />{t('journal.stressLabel')}: {newEntry.stress}%</label><Slider value={[newEntry.stress]} onValueChange={([v]) => setNewEntry(p => ({ ...p, stress: v }))} max={100} step={5} /></div>
                   </div>
-                  <div><label className="text-sm font-medium mb-1.5 block">{t('tasks.tags')}</label><Input placeholder={uiText("tag1, tag2")} value={newEntry.tags} onChange={e => setNewEntry(p => ({ ...p, tags: e.target.value }))} /></div>
+                  <div><label className="text-sm font-medium mb-1.5 block">{t('tasks.tags')}</label><Input className="min-h-11 sm:min-h-0" placeholder={uiText("tag1, tag2")} value={newEntry.tags} onChange={e => setNewEntry(p => ({ ...p, tags: e.target.value }))} /></div>
                 </div>
-                <DialogFooter><DialogClose asChild><Button variant="outline">{t('cancel')}</Button></DialogClose><Button onClick={handleAddEntry} disabled={createEntryMutation.isPending}>{t('journal.saveEntry')}</Button></DialogFooter>
+                <DialogFooter><DialogClose asChild><Button className="min-h-11 sm:min-h-0" variant="outline">{t('cancel')}</Button></DialogClose><Button className="min-h-11 sm:min-h-0" onClick={handleAddEntry} disabled={createEntryMutation.isPending}>{t('journal.saveEntry')}</Button></DialogFooter>
               </DialogContent>
             </Dialog>
           </div>
@@ -426,7 +427,8 @@ export function JournalPage() {
                             </div>
                             <div className="flex items-center gap-1">
                               {entry.isFavorite && <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />}
-                              <Button variant="ghost" size="icon" className="h-6 w-6 hover:text-destructive" onClick={(e) => { e.stopPropagation(); deleteEntry(entry.id) }}><Trash2 className="h-3 w-3" /></Button>
+                              <Button variant="ghost" size="icon" className="h-11 w-11 sm:h-7 sm:w-7" aria-label={`${uiText('Edit journal entry')}: ${entry.title || t('journal.journalEntry')}`} onClick={(e) => { e.stopPropagation(); openEditEntry(entry) }}><Pencil className="h-3.5 w-3.5" /></Button>
+                              <Button variant="ghost" size="icon" className="h-11 w-11 sm:h-7 sm:w-7 hover:text-destructive" aria-label={`${uiText('Delete journal entry')}: ${entry.title || t('journal.journalEntry')}`} onClick={(e) => { e.stopPropagation(); deleteEntry(entry.id) }}><Trash2 className="h-3.5 w-3.5" /></Button>
                             </div>
                           </div>
                           <p className="text-sm text-muted-foreground mt-2 line-clamp-3">{entry.content.replace(/## Gratitude[\s\S]*$/, '').trim()}</p>
@@ -484,12 +486,12 @@ export function JournalPage() {
 
       {/* Edit Entry Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-lg" aria-describedby={undefined}>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-lg overflow-y-auto overscroll-contain" aria-describedby={undefined}>
           <DialogHeader><DialogTitle>{t('edit')} {t('journal.journalEntry')}</DialogTitle><DialogDescription className="sr-only">{uiText("Edit journal entry")}</DialogDescription></DialogHeader>
           <div className="py-2">
             <RichTextEditor value={editContent} onChange={setEditContent} className="min-h-[250px]" />
           </div>
-          <DialogFooter><DialogClose asChild><Button variant="outline">{t('cancel')}</Button></DialogClose><Button onClick={handleUpdateEntry} disabled={updateEntryMutation.isPending}>{t('save')}</Button></DialogFooter>
+          <DialogFooter><DialogClose asChild><Button className="min-h-11 sm:min-h-0" variant="outline">{t('cancel')}</Button></DialogClose><Button className="min-h-11 sm:min-h-0" onClick={handleUpdateEntry} disabled={updateEntryMutation.isPending}>{t('save')}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
