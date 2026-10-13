@@ -194,6 +194,8 @@ Gemini as unavailable, exposes no credentials, and the UI never calls a provider
 See
 [docs/task-card-worker-routing.md](docs/task-card-worker-routing.md).
 
+For the existing legacy owner, initialize the account password locally with the root-only interactive TTY command `sudo node deploy/standalone/scripts/initialize-owner-password.mjs`. It hides both entries, verifies the legacy admin and workspace mapping, refuses initialized credentials, and atomically writes only the singleton owner credential while consuming setup authorization. The owner enters and confirms the password at the terminal; no password is passed in arguments or environment.
+
 ## Data migration and recovery
 
 Export from the authenticated current endpoint

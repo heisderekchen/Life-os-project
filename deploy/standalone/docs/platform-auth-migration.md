@@ -133,3 +133,8 @@ configurable operator metadata via `PLATFORM_WORKSPACES_JSON`, a JSON array of
 - The second business workspace is intentionally undefined: only configurable
   metadata/grants and a not-configured result exist until an implementation
   target is explicitly configured.
+
+
+## Safe first-password initialization
+
+On deployments where the platform administrator (`heisderek`) and the singleton legacy Life OS owner are the same operator, run `sudo node deploy/standalone/scripts/initialize-owner-password.mjs` from a trusted root terminal. The command hides and confirms the password, uses the existing PBKDF2-SHA256 credential format, verifies the immutable platform account and `ws_lifeos_legacy` grant, and refuses an already initialized owner. It writes only the `owner_id=1` credential in one transaction and closes the setup-grant replay state. It does not change the platform account hash, session version, or Life OS data.
