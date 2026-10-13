@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
+import { createD1Sqlite } from '../d1-sqlite.mjs';
+import { authenticatePlatformAccount } from '../src/platform-auth.mjs';
 import { derivePersonalWorkbenchPassword } from '../src/personal-workbench-auth.mjs';
 import { initializeOwnerPassword, readHidden } from './initialize-owner-password.mjs';
 
@@ -82,6 +84,21 @@ assert.equal(owner.setup_grant_revoked_at, timestamp.toISOString());
 assert.equal(owner.credential_created_at, timestamp.toISOString());
 const expected = Buffer.from(await derivePersonalWorkbenchPassword(password, Buffer.from(owner.password_salt,'hex'))).toString('hex');
 assert.equal(owner.password_hash, expected);
+const env = {
+  DB: createD1Sqlite(db), AUTH_SECRET: 'test-only-auth-secret',
+  PERSONAL_WORKBENCH_OWNER: 'heisderek', PERSONAL_WORKBENCH_ENTRY_KEY: 'test-only-entry-key',
+};
+const loginRequest = new Request('https://lifeos.example/api/platform/login', {
+  method: 'POST', headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ username: 'heisderek', password }),
+});
+const login = await authenticatePlatformAccount(env, loginRequest, 'heisderek', password);
+assert.equal(login.account.account_id, 'acct_legacy_owner');
+const wrongPassword = await authenticatePlatformAccount(env, new Request(loginRequest.url, {
+  method: 'POST', headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ username: 'heisderek', password: 'wrong password' }),
+}), 'heisderek', 'wrong password');
+assert.equal(wrongPassword.status, 401);
 const platform = db.prepare(`SELECT username,role,legacy_owner,enabled,session_version,password_hash
     FROM platform_accounts WHERE account_id='acct_legacy_owner'`).get();
 assert.deepEqual({ ...platform }, { username:'heisderek',role:'platform_admin',legacy_owner:1,enabled:1,session_version:7,password_hash:null });
@@ -105,4 +122,16 @@ wrongOwner.prepare(`UPDATE platform_accounts SET username='lifeos-owner' WHERE a
 await assert.rejects(initializeOwnerPassword(wrongOwner,password,password,timestamp), /not heisderek/);
 assert.equal(wrongOwner.prepare('SELECT password_hash FROM personal_workbench_owner_credentials WHERE owner_id=1').get().password_hash,null);
 wrongOwner.close();
+
+for (const [statement, args, message] of [
+  ["DELETE FROM platform_account_workspaces WHERE account_id='acct_legacy_owner'", [], /not assigned/],
+  ["UPDATE platform_accounts SET enabled=0 WHERE account_id='acct_legacy_owner'", [], /not heisderek/],
+  ["UPDATE platform_accounts SET role='member' WHERE account_id='acct_legacy_owner'", [], /not heisderek/],
+]) {
+  const denied = fixture();
+  denied.prepare(statement).run(...args);
+  await assert.rejects(initializeOwnerPassword(denied,password,password,timestamp), message);
+  assert.equal(denied.prepare('SELECT password_hash FROM personal_workbench_owner_credentials WHERE owner_id=1').get().password_hash,null);
+  denied.close();
+}
 console.log('owner password setup CLI transaction tests passed');
