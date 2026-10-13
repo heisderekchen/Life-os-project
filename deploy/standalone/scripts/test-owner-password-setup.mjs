@@ -1,8 +1,53 @@
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { derivePersonalWorkbenchPassword } from '../src/personal-workbench-auth.mjs';
-import { initializeOwnerPassword } from './initialize-owner-password.mjs';
+import { initializeOwnerPassword, readHidden } from './initialize-owner-password.mjs';
+
+function fakeTerminal() {
+  const input = new EventEmitter();
+  input.isTTY = true;
+  input.raw = false;
+  input.paused = true;
+  input.setRawMode = value => { input.raw = value; };
+  input.resume = () => { input.paused = false; };
+  input.pause = () => { input.paused = true; };
+  const output = { value: '', write(value) { output.value += value; } };
+  return { input, output };
+}
+
+{
+  const { input, output } = fakeTerminal();
+  const pending = readHidden('Password: ', { input, output });
+  assert.equal(input.raw, true);
+  assert.equal(input.paused, false);
+  input.emit('data', Buffer.from('private-value\n'));
+  assert.equal(await pending, 'private-value');
+  assert.equal(input.raw, false);
+  assert.equal(input.paused, true);
+  assert.equal(input.listenerCount('data'), 0);
+  const confirmation = readHidden('Confirm password: ', { input, output });
+  input.emit('data', Buffer.from('private-value\n'));
+  assert.equal(await confirmation, 'private-value');
+  assert.equal(input.raw, false);
+  assert.equal(input.paused, true);
+  assert.equal(output.value, 'Password: \nConfirm password: \n');
+}
+
+{
+  const { input, output } = fakeTerminal();
+  const pending = readHidden('Password: ', { input, output });
+  input.emit('data', Buffer.from('partial\u0003'));
+  await assert.rejects(pending, /Setup cancelled/);
+  assert.equal(input.raw, false);
+  assert.equal(input.paused, true);
+  assert.equal(input.listenerCount('data'), 0);
+}
+
+await assert.rejects(readHidden('Password: ', {
+  input: { isTTY: false }, output: { write() {} },
+}), /interactive root terminal/);
 
 function fixture() {
   const db = new DatabaseSync(':memory:');

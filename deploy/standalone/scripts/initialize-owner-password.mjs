@@ -95,19 +95,20 @@ export async function initializeOwnerPassword(db, password, confirmation, now = 
   }
 }
 
-async function readHidden(prompt) {
-  const input = process.stdin;
+export async function readHidden(prompt, { input = process.stdin, output = process.stdout } = {}) {
   if (!input.isTTY || typeof input.setRawMode !== 'function') fail('Run this command in an interactive root terminal.');
-  process.stdout.write(prompt);
-  input.setRawMode(true);
-  input.resume();
+  output.write(prompt);
   const decoder = new StringDecoder('utf8');
   const chars = [];
   return new Promise((resolve, reject) => {
+    let finished = false;
     const finish = (error) => {
+      if (finished) return;
+      finished = true;
       input.removeListener('data', onData);
-      input.setRawMode(false);
-      process.stdout.write('\n');
+      try { input.setRawMode(false); } catch {}
+      try { input.pause(); } catch {}
+      output.write('\n');
       if (error) reject(error); else resolve(chars.join(''));
     };
     const onData = (chunk) => {
@@ -119,6 +120,12 @@ async function readHidden(prompt) {
       }
     };
     input.on('data', onData);
+    try {
+      input.setRawMode(true);
+      input.resume();
+    } catch (error) {
+      finish(new Error('Unable to read hidden terminal input.'));
+    }
   });
 }
 
