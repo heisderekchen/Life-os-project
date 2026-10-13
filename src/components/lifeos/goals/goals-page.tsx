@@ -270,9 +270,9 @@ export function GoalsPage() {
       {/* Filters & Add */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-1.5 border-l-2 pl-3" style={{ borderLeftColor: `${accentHex}4D` }}>
-          <Button variant={categoryFilter === null ? 'secondary' : 'ghost'} size="sm" className="h-11 px-3 text-xs md:h-7" onClick={() => setCategoryFilter(null)}>{t('all')}</Button>
+          <Button variant={categoryFilter === null ? 'secondary' : 'ghost'} size="sm" className="h-11 px-3 text-xs lg:h-7" onClick={() => setCategoryFilter(null)}>{t('all')}</Button>
           {Object.entries(categoryColors).map(([key, color]) => (
-            <Button key={key} variant={categoryFilter === key ? 'secondary' : 'ghost'} size="sm" className="h-11 gap-1.5 px-3 text-xs md:h-7" onClick={() => setCategoryFilter(categoryFilter === key ? null : key)}>
+            <Button key={key} variant={categoryFilter === key ? 'secondary' : 'ghost'} size="sm" className="h-11 gap-1.5 px-3 text-xs lg:h-7" onClick={() => setCategoryFilter(categoryFilter === key ? null : key)}>
               <span className="text-sm">{categoryIcons[key]}</span>
               {t(`goals.${key}`)}
             </Button>
