@@ -105,8 +105,9 @@ try {
   assert.match(loginHtml, /私人 Life OS/)
   assert.match(loginHtml, /<meta name="viewport" content="width=device-width,initial-scale=1">/)
   assert.ok(loginHtml.includes('.box{box-sizing:border-box;width:min(360px,calc(100% - 40px))'))
-  assert.match(loginHtml, /id="username"/)
-  assert.match(loginHtml, /type="password"/)
+  assert.match(loginHtml, /<form id="login" method="post" action="\/api\/platform\/login">/)
+  assert.match(loginHtml, /id="username" name="username"/)
+  assert.match(loginHtml, /id="password" name="password" type="password"/)
   assert.match(loginHtml, /id="owner-setup"/)
   assert.match(loginHtml, /api\/personal-workbench\/owner-credential/)
   assert.match(loginHtml, /id="owner-setup-confirm"/)
@@ -166,6 +167,40 @@ try {
   const legacySession = await (await fetch(`${base}/api/platform/session`,
     { headers: { ...proxyHeaders, cookie: cookieOf(entry) } })).json()
   assert.equal(legacySession.principal.sessionType, 'legacy-entry')
+
+  // Native form submission works without JavaScript, preserves origin checks,
+  // never places the password in a URL, and keeps failures visible.
+  const nativeWrongPassword = new URLSearchParams({ username: ownerName, password: 'wrong-password-value' }).toString()
+  const nativeFailure = await rawRequest('/api/platform/login', {
+    method: 'POST',
+    headers: { ...proxyHeaders, origin, 'content-type': 'application/x-www-form-urlencoded' },
+    body: nativeWrongPassword,
+  })
+  assert.equal(nativeFailure.status, 401)
+  assert.match(nativeFailure.headers['content-type'] || '', /text\/html/)
+  assert.match(nativeFailure.text, /用户名或密码不正确/)
+  assert.equal(nativeFailure.text.includes('wrong-password-value'), false)
+  assert.equal(nativeFailure.headers['set-cookie'], undefined)
+  assert.equal((await rawRequest('/api/platform/login', {
+    method: 'POST',
+    headers: { ...proxyHeaders, origin: 'https://attacker.example', 'content-type': 'application/x-www-form-urlencoded' },
+    body: nativeWrongPassword,
+  })).status, 404)
+  assert.equal((await rawRequest('/api/platform/login', {
+    method: 'POST', headers: { ...proxyHeaders, 'content-type': 'application/x-www-form-urlencoded' },
+    body: nativeWrongPassword,
+  })).status, 404)
+  const nativeSuccess = await rawRequest('/api/platform/login', {
+    method: 'POST',
+    headers: { ...proxyHeaders, origin, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ username: ownerName, password: ownerPassword }).toString(),
+  })
+  assert.equal(nativeSuccess.status, 303)
+  assert.equal(nativeSuccess.headers.location, '/')
+  const nativeSetCookie = String(nativeSuccess.headers['set-cookie']?.[0] || nativeSuccess.headers['set-cookie'] || '')
+  assert.match(nativeSetCookie, /HttpOnly; Secure; SameSite=Strict/)
+  const nativeCookie = nativeSetCookie.split(';', 1)[0]
+  assert.equal((await fetch(base + '/workbench/', { headers: { ...proxyHeaders, cookie: nativeCookie } })).status, 200)
 
   // Unified account login for A.
   assert.equal((await fetch(`${base}/api/platform/login`, {
