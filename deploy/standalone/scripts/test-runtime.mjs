@@ -152,5 +152,20 @@ try {
   assert.equal(afterFailure.prepare('SELECT COUNT(*) AS n FROM personal_workbench_lifeos_projects').get().n, 3)
   afterFailure.close()
 } finally { rmSync(tempDir, { recursive: true, force: true }) }
+
+db.prepare(`INSERT INTO personal_workbench_lifeos_tasks
+  (id,title,status,priority,recurrence,due_date,archived,created_at,updated_at)
+  VALUES ('repeat-root','Weekly review','done','medium','weekly','2026-10-01',0,'2026-10-01','2026-10-01'),
+         ('repeat-next','Weekly review','in-progress','medium','weekly','2026-10-08',0,'2026-10-02','2026-10-03'),
+         ('daily-root','Daily check','todo','low','daily','2026-10-10',0,'2026-10-02','2026-10-02')`).run()
+db.prepare(`INSERT INTO lifeos_task_recurrence_runs(id,source_task_id,completion_key,generated_task_id,created_at)
+  VALUES ('repeat-link','repeat-root','2026-10-01T00:00:00.000Z','repeat-next','2026-10-02T00:00:00.000Z')`).run()
+const recurringResponse = await call('/api/personal-workbench/lifeos/recurring-tasks')
+assert.equal(recurringResponse.status, 200)
+const recurring = await recurringResponse.json()
+assert.equal(recurring.series.length, 2, 'generated instances collapse into one recurring series')
+assert.equal(recurring.activeCount, 2, 'only the latest active instance contributes once')
+assert.equal(recurring.schedulerEnabled, false, 'runtime must report the recurrence gate without implying execution')
+assert.equal(recurring.series.find(item => item.id === 'repeat-root')?.currentTaskId, 'repeat-next')
 console.log('Migrations, private API persistence, export/import, counts, foreign keys, and refusal checks passed.')
 db.close()

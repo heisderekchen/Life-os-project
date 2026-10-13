@@ -53,11 +53,39 @@ export function useTasks(filters?: { status?: string; priority?: string; project
   })
 }
 
+export interface RecurringTaskSeries {
+  id: string
+  currentTaskId: string
+  title: string
+  status: string
+  recurrence: 'daily' | 'weekly' | 'monthly'
+  dueDate: string | null
+  updatedAt: string | null
+  archived: boolean
+}
+
+export interface RecurringTaskSeriesResponse {
+  series: RecurringTaskSeries[]
+  activeCount: number
+  schedulerEnabled: boolean
+}
+
+export function useRecurringTaskSeries() {
+  return useQuery({
+    queryKey: ['recurring-task-series'],
+    queryFn: () => apiGet<RecurringTaskSeriesResponse>('/api/recurring-tasks'),
+    staleTime: 30_000,
+  })
+}
+
 export function useCreateTask() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: Record<string, unknown>) => apiPost('/api/tasks', data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['tasks'] }),
+      qc.invalidateQueries({ queryKey: ['recurring-task-series'] }),
+    ]),
   })
 }
 
@@ -66,7 +94,10 @@ export function useUpdateTask() {
   return useMutation({
     mutationFn: ({ id, ...data }: { id: string } & Record<string, unknown>) =>
       apiPatch(`/api/tasks/${id}`, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['tasks'] }),
+      qc.invalidateQueries({ queryKey: ['recurring-task-series'] }),
+    ]),
   })
 }
 
@@ -74,7 +105,10 @@ export function useDeleteTask() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => apiDelete(`/api/tasks/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['tasks'] }),
+      qc.invalidateQueries({ queryKey: ['recurring-task-series'] }),
+    ]),
   })
 }
 
@@ -679,3 +713,4 @@ export function useSaveDashboardWidgets() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['dashboard-widgets'] }),
   })
 }
+
