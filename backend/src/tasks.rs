@@ -107,6 +107,8 @@ pub struct TimeEntry {
 pub struct CalendarEvent {
     pub id: String,
     pub title: String,
+    pub event_type: String,
+    pub completed: bool,
     pub description: Option<String>,
     pub start_date: PrismaDateTime,
     pub end_date: Option<PrismaDateTime>,
@@ -208,6 +210,8 @@ fn calendar_event_from_row(row: &SqliteRow) -> Result<CalendarEvent, sqlx::Error
     Ok(CalendarEvent {
         id: row.try_get("id")?,
         title: row.try_get("title")?,
+        event_type: row.try_get("eventType")?,
+        completed: row.try_get::<i64, _>("completed")? != 0,
         description: row.try_get("description")?,
         start_date: PrismaDateTime(row.try_get::<i64, _>("startDate")?),
         end_date: row

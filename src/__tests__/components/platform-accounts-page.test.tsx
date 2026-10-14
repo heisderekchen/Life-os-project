@@ -21,7 +21,11 @@ afterEach(() => vi.unstubAllGlobals())
 
 describe('PlatformAccountsPage', () => {
   it('shows the account navigation after an admin session is confirmed', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ principal: { role: 'platform_admin' } })))
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => Promise.resolve(
+      String(input) === '/api/platform/session'
+        ? response({ principal: { role: 'platform_admin' } })
+        : response({ workspaces: [] }),
+    )))
 
     render(<Sidebar />)
 

@@ -16,6 +16,8 @@ describe('Calendar Store', () => {
     const event = {
       id: 'e1',
       title: 'Meeting',
+      eventType: 'event' as const,
+      completed: false,
       description: 'Work meeting',
       startDate: new Date().toISOString(),
       endDate: null,

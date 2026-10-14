@@ -7,6 +7,7 @@ import { useAppStore, type ModuleId } from '@/stores/app-store'
 import { useTranslation } from '@/lib/i18n'
 import {
   LayoutDashboard,
+  Bell,
   CheckSquare,
   FolderKanban,
   StickyNote,
@@ -30,6 +31,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { WorkspaceSwitcher } from '@/components/lifeos/myos/workspace-switcher'
 
 function SidebarContent({ collapsed }: { collapsed: boolean }) {
   const { activeModule, setActiveModule, setMobileSidebarOpen, enabledModules } = useAppStore()
@@ -50,11 +52,13 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
       title: t('nav.overview'),
       items: [
         { id: 'dashboard' as ModuleId, label: t('nav.dashboard'), icon: LayoutDashboard },
+        { id: 'myos' as ModuleId, label: t('nav.myos'), icon: LayoutDashboard },
       ],
     },
     {
       title: t('nav.productivity'),
       items: [
+        { id: 'reminders' as ModuleId, label: t('nav.reminders'), icon: Bell },
         { id: 'tasks' as ModuleId, label: t('nav.tasks'), icon: CheckSquare },
         { id: 'projects' as ModuleId, label: t('nav.projects'), icon: FolderKanban },
         { id: 'notes' as ModuleId, label: t('nav.notes'), icon: StickyNote },
@@ -91,7 +95,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
   const filteredSections = visibleSections.map(section => ({
     ...section,
     items: section.items.filter(item =>
-      item.id === 'accounts' || enabledModules.includes(item.id) || item.id === 'dashboard' || item.id === 'projects'
+      ['accounts', 'dashboard', 'myos', 'reminders', 'projects'].includes(item.id) || enabledModules.includes(item.id)
     )
   })).filter(section => section.items.length > 0)
 
@@ -103,7 +107,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
         collapsed && 'justify-center px-2'
       )}>
         {collapsed ? (
-          <img src={`${process.env.NEXT_PUBLIC_LIFEOS_BASE_PATH || ''}/logo.svg`} alt="Life OS" className="w-7 h-7 rounded-md" />
+          <img src={`${process.env.NEXT_PUBLIC_LIFEOS_BASE_PATH || ''}/logo.svg`} alt="myOS" className="w-7 h-7 rounded-md" />
         ) : (
           <div className="flex items-center gap-2">
             <img src={`${process.env.NEXT_PUBLIC_LIFEOS_BASE_PATH || ''}/logo.svg`} alt="" aria-hidden className="w-6 h-6 rounded-md shrink-0" />
@@ -112,12 +116,14 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
         )}
       </div>
 
+      {!collapsed ? <div className="px-2 pt-3"><WorkspaceSwitcher /></div> : null}
+
       {/* Navigation */}
       <ScrollArea className="flex-1 py-3">
         <nav className="px-2 space-y-4">
           <TooltipProvider delayDuration={0}>
             {filteredSections.map((section) => {
-              const primaryGroup = section.title === t('nav.overview') || section.title === t('nav.productivity')
+              const primaryGroup = section.title === t('nav.overview') || section.title === t('nav.productivity') || section.title === t('nav.administration')
               const links = (
                 <div className="space-y-px">
                   {section.items.map((mod) => {

@@ -35,6 +35,8 @@ function mapApiEvent(apiEvent: Record<string, unknown>): CalendarEvent {
   return {
     id: apiEvent.id as string,
     title: apiEvent.title as string,
+    eventType: apiEvent.eventType === 'reminder' ? 'reminder' : 'event',
+    completed: Boolean(apiEvent.completed),
     description: (apiEvent.description as string) || null,
     startDate: apiEvent.startDate as string,
     endDate: (apiEvent.endDate as string) || null,

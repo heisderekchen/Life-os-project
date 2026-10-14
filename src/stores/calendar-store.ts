@@ -6,6 +6,8 @@ export interface CalendarEvent {
   id: string
   sourceEventId?: string
   title: string
+  eventType: 'event' | 'reminder'
+  completed: boolean
   description: string | null
   startDate: string
   endDate: string | null

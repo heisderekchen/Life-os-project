@@ -22,7 +22,6 @@ import { CommandPalette } from './command-palette'
 import { GlobalSearchPanel } from './global-search-panel'
 import { SetupWizard } from './setup/setup-wizard'
 import { WelcomeScreen } from './welcome/welcome-screen'
-import { DashboardPage } from './dashboard/dashboard-page'
 import { TasksPage } from './tasks/tasks-page'
 import { ProjectsPage } from './projects/projects-page'
 import { NotesPage } from './notes/notes-page'
@@ -40,12 +39,17 @@ import { KeyboardShortcutsHelp, useKeyboardShortcuts } from './keyboard-shortcut
 import { FocusModeOverlay } from './focus-mode-overlay'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { Home, CheckSquare, Repeat, GraduationCap } from 'lucide-react'
+import { Bell, CheckSquare, Home, UserRound } from 'lucide-react'
 import { uiText } from '@/lib/i18n/interface-copy'
 import { useTranslation } from '@/lib/i18n'
+import { MyOsHome } from './myos/myos-home'
+import { MyOsPage } from './myos/myos-page'
+import { RemindersPage } from './reminders/reminders-page'
 
 const moduleComponents: Record<string, React.ComponentType> = {
-  dashboard: DashboardPage,
+  dashboard: MyOsHome,
+  reminders: RemindersPage,
+  myos: MyOsPage,
   tasks: TasksPage,
   projects: ProjectsPage,
   notes: NotesPage,
@@ -276,7 +280,7 @@ export function AppShell() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background px-6">
         <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 text-center shadow-sm">
-          <h1 className="text-lg font-semibold">Life OS</h1>
+          <h1 className="text-lg font-semibold">myOS</h1>
           {cloudState === 'loading' ? (
             <p className="mt-3 text-sm text-muted-foreground">Loading your cloud setup…</p>
           ) : (
@@ -299,7 +303,7 @@ export function AppShell() {
     return <SetupWizard />
   }
 
-  const ActiveComponent = moduleComponents[activeModule] || DashboardPage
+  const ActiveComponent = moduleComponents[activeModule] || MyOsHome
   const selectMobileModule = (module: ModuleId) => {
     setMobileSidebarOpen(false)
     setActiveModule(module)
@@ -349,11 +353,7 @@ export function AppShell() {
         </div>
       </div>
 
-      {!focusMode && isMobile && <MobilePrimaryNav activeModule={activeModule} directoryOpen={mobileSidebarOpen} browseCategory={mobileCategory} onCategory={category => {
-        if (mobileSidebarOpen && mobileCategory === category) { setMobileSidebarOpen(false); return }
-        setMobileCategory(category)
-        setMobileSidebarOpen(true)
-      }} />}
+      {!focusMode && isMobile && <MobilePrimaryNav activeModule={activeModule} onNavigate={selectMobileModule} />}
 
       <CommandPalette />
       <GlobalSearchPanel />
@@ -362,24 +362,21 @@ export function AppShell() {
   )
 }
 
-export function MobilePrimaryNav({ activeModule, directoryOpen, browseCategory, onCategory }: {
+export function MobilePrimaryNav({ activeModule, onNavigate }: {
   activeModule: ModuleId
-  directoryOpen: boolean
-  browseCategory: 'overview' | 'productivity' | 'wellness' | 'growth'
-  onCategory: (category: 'overview' | 'productivity' | 'wellness' | 'growth') => void
+  onNavigate: (module: ModuleId) => void
 }) {
   const { t } = useTranslation()
   const primary = [
-    { id: 'overview' as const, label: t('nav.overview'), icon: Home, modules: ['dashboard'] },
-    { id: 'productivity' as const, label: t('nav.productivity'), icon: CheckSquare, modules: ['tasks', 'projects', 'notes', 'calendar', 'time'] },
-    { id: 'wellness' as const, label: t('nav.wellness'), icon: Repeat, modules: ['habits', 'journal'] },
-    { id: 'growth' as const, label: t('nav.growth'), icon: GraduationCap, modules: ['goals', 'learning', 'finance'] },
+    { id: 'dashboard' as ModuleId, label: t('nav.overview'), icon: Home },
+    { id: 'reminders' as ModuleId, label: t('nav.reminders'), icon: Bell },
+    { id: 'tasks' as ModuleId, label: t('nav.tasks'), icon: CheckSquare },
+    { id: 'myos' as ModuleId, label: t('nav.myos'), icon: UserRound },
   ]
-  const activeCategory = directoryOpen ? browseCategory : primary.find(item => item.modules.includes(activeModule))?.id
   return (
     <nav aria-label={uiText('Primary navigation')} className="grid min-h-14 shrink-0 grid-cols-4 gap-1 border-t border-border bg-background/95 px-2 pt-1 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
       {primary.map(({ id, label, icon: Icon }) => (
-        <button key={id} type="button" aria-current={activeCategory === id ? 'page' : undefined} aria-pressed={activeCategory === id} onClick={() => onCategory(id)} className={activeCategory === id ? 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md bg-accent text-foreground' : 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md text-muted-foreground'}>
+        <button key={id} type="button" aria-current={activeModule === id ? 'page' : undefined} aria-pressed={activeModule === id} onClick={() => onNavigate(id)} className={activeModule === id ? 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md bg-accent text-foreground' : 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md text-muted-foreground'}>
           <Icon className="h-4 w-4" />
           <span className="text-[11px] font-medium">{label}</span>
         </button>

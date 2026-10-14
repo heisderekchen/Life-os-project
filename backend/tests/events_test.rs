@@ -9,6 +9,48 @@ use serde_json::{json, Value};
 use tower::ServiceExt;
 
 #[tokio::test]
+async fn reminders_are_persisted_separately_from_project_tasks() {
+    let (app, _temp_db) = common::setup_test_app().await;
+    let body = json!({
+        "title": "Call the clinic",
+        "eventType": "reminder",
+        "startDate": "2026-10-15T09:00:00Z"
+    });
+    let response = app.clone().oneshot(
+        Request::builder().uri("/api/events").method("POST")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).unwrap())).unwrap()
+    ).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let created: Value = serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_eq!(created["eventType"], "reminder");
+    assert_eq!(created["completed"], false);
+    assert!(created["taskId"].is_null());
+
+    let reminder_id = created["id"].as_str().unwrap();
+    let response = app.clone().oneshot(
+        Request::builder().uri(format!("/api/events/{reminder_id}")).method("PATCH")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&json!({"completed": true})).unwrap())).unwrap()
+    ).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let updated: Value = serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_eq!(updated["completed"], true);
+    assert_eq!(updated["eventType"], "reminder");
+
+    let linked_reminder = json!({
+        "title": "Invalid linked reminder", "eventType": "reminder",
+        "taskId": "task-that-does-not-exist", "startDate": "2026-10-15T09:00:00Z"
+    });
+    let response = app.oneshot(
+        Request::builder().uri("/api/events").method("POST")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&linked_reminder).unwrap())).unwrap()
+    ).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
 async fn test_events_crud_happy_path() {
     let (app, _temp_db) = common::setup_test_app().await;
 

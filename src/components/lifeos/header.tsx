@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useAppStore, type ModuleId } from '@/stores/app-store'
 import {
   Search,
+  Bell,
   Sun,
   Moon,
   Plus,
@@ -42,6 +43,7 @@ import { NotificationCenter } from '@/components/lifeos/notification-center'
 import { useTranslation } from '@/lib/i18n'
 import { useProfile } from '@/lib/api/hooks'
 import { showToast } from '@/lib/toast'
+import { WorkspaceSwitcher } from '@/components/lifeos/myos/workspace-switcher'
 
 export function Header() {
   const { activeModule, setCommandPaletteOpen, setGlobalSearchOpen, setActiveModule, toggleFocusMode, language, setLanguage } = useAppStore()
@@ -62,7 +64,9 @@ export function Header() {
 
   const moduleLabels: Record<ModuleId, string> = {
     dashboard: t('nav.dashboard'),
+    reminders: t('nav.reminders'),
     tasks: t('nav.tasks'),
+    myos: t('nav.myos'),
     projects: t('nav.projects'),
     notes: t('nav.notes'),
     habits: t('nav.habits'),
@@ -78,7 +82,9 @@ export function Header() {
 
   const moduleGroups: Record<ModuleId, string> = {
     dashboard: t('groups.home'),
+    reminders: t('groups.productivity'),
     tasks: t('groups.productivity'),
+    myos: t('groups.home'),
     projects: t('groups.productivity'),
     notes: t('groups.productivity'),
     habits: t('groups.wellness'),
@@ -124,7 +130,7 @@ export function Header() {
   const displayName = userName || 'User'
 
   return (
-    <header className="min-h-14 sm:min-h-12 z-30 bg-background/95 border-b border-border flex items-center justify-between px-2 sm:px-4 gap-1.5 sm:gap-4 shrink-0 backdrop-blur supports-[backdrop-filter]:bg-background/85">
+    <header className="min-h-14 sm:min-h-12 z-30 bg-background/95 border-b border-border flex flex-wrap items-center justify-between px-2 sm:px-4 gap-1.5 sm:gap-4 shrink-0 backdrop-blur supports-[backdrop-filter]:bg-background/85">
       {/* Left — breadcrumb */}
       <div className="flex items-center gap-1 sm:gap-2 min-w-0">
         <Breadcrumb className="min-w-0">
@@ -206,6 +212,10 @@ export function Header() {
               <CheckSquare className="h-4 w-4 mr-2" />
               {t('header.newTask')}
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setActiveModule('reminders')}>
+              <Bell className="h-4 w-4 mr-2" />
+              {t('nav.reminders')}
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => { setActiveModule('notes'); setCommandPaletteOpen(true) }}>
               <StickyNote className="h-4 w-4 mr-2" />
               {t('header.newNote')}
@@ -285,6 +295,7 @@ export function Header() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      {isMobile && <div className="w-full pb-2 sm:hidden"><WorkspaceSwitcher compact /></div>}
     </header>
   )
 }

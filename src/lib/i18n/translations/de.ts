@@ -1,7 +1,7 @@
 import type { TranslationKeys } from './en'
 
 const de: TranslationKeys = {
-  appName: 'Life OS',
+  appName: 'myOS',
 
   save: 'Speichern',
   cancel: 'Abbrechen',
@@ -48,7 +48,9 @@ const de: TranslationKeys = {
     wellness: 'Wohlbefinden',
     growth: 'Wachstum',
     dashboard: 'Dashboard',
+    reminders: 'Erinnerungen',
     tasks: 'Aufgaben',
+    myos: 'Mein Bereich',
     projects: 'Projekte',
     notes: 'Notizen',
     calendar: 'Kalender',
@@ -725,7 +727,7 @@ const de: TranslationKeys = {
     completeProfile: 'Vervollständigen Sie Ihr Profil, um alle Funktionen freizuschalten',
     baseCurrency: 'Basiswährung',
     baseCurrencyDesc: 'Alle Summen und Umrechnungen nutzen diese Währung',
-    currencyConverterApiNote: 'Wenn du das ausschaltest, wird die externe Kurs-API nicht angesprochen — Life OS läuft komplett offline und jedes Konto wird in seiner eigenen Währung angezeigt.',
+    currencyConverterApiNote: 'Wenn du das ausschaltest, wird die externe Kurs-API nicht angesprochen — myOS läuft komplett offline und jedes Konto wird in seiner eigenen Währung angezeigt.',
     // Finance Preferences (appearance tab)
     financePreferences: 'Finanzeinstellungen',
     financePreferencesDesc: 'Optionen des Finanzmoduls',
@@ -795,7 +797,7 @@ const de: TranslationKeys = {
     totalRecords: 'Gesamtdatensätze',
     activityStreak: 'Aktivitätsserie',
     accountCreated: 'Konto erstellt',
-    aboutTitle: 'Über Life OS',
+    aboutTitle: 'Über myOS',
     aboutDesc: 'Ihr persönliches Lebensorganisationssystem',
     version: 'Version',
     license: 'Lizenz',
@@ -805,10 +807,10 @@ const de: TranslationKeys = {
   setup: {
     brandLine1: 'Willkommen.',
     brandLine2: 'Lass uns deinen Arbeitsbereich einrichten.',
-    brandSub: 'Ein paar schnelle Entscheidungen, damit sich Life OS wie zuhause anfühlt.',
+    brandSub: 'Ein paar schnelle Entscheidungen, damit sich myOS wie zuhause anfühlt.',
     stepOf: 'Schritt {n} von {total}',
     steps: [
-      { title: 'Willkommen', description: 'Starte mit Life OS' },
+      { title: 'Willkommen', description: 'Starte mit myOS' },
       { title: 'Sprache', description: 'Wähle deine Sprache' },
       { title: 'Speicher', description: 'Wo deine Daten leben' },
       { title: 'Erscheinungsbild', description: 'Mach es dir zu eigen' },
@@ -829,7 +831,7 @@ const de: TranslationKeys = {
       tagline: 'Atme durch. Lass uns dein Zuhause einrichten.',
       cta: 'Los geht\'s',
       ctaHint: 'Weniger als eine Minute',
-      brandName: 'Life OS',
+      brandName: 'myOS',
       brandTagline: 'Dein privater Raum, um zu leben, denken und wachsen.',
       rotators: [
         'Deine Aufgaben, ruhig geordnet.',
@@ -839,12 +841,12 @@ const de: TranslationKeys = {
         'Dein Leben, an einem Ort.',
       ],
     },
-    introParagraph: 'Life OS bringt deine Aufgaben, Gewohnheiten, Notizen, Finanzen und Ziele in einen ruhigen, privaten Raum. Lass es uns zu deinem machen — es dauert nur eine Minute.',
+    introParagraph: 'myOS bringt deine Aufgaben, Gewohnheiten, Notizen, Finanzen und Ziele in einen ruhigen, privaten Raum. Lass es uns zu deinem machen — es dauert nur eine Minute.',
     nameLabel: 'Wie sollen wir dich nennen?',
     namePlaceholder: 'Dein Name',
     nameHelp: 'Wird verwendet, um dein Erlebnis zu personalisieren. Du kannst es jederzeit ändern.',
     featureChips: { tasks: 'Aufgaben', habits: 'Gewohnheiten', journal: 'Tagebuch', finance: 'Finanzen', goals: 'Ziele' },
-    storageParagraph: 'Life OS speichert alles lokal mit SQLite — keine Konfiguration, vollständig privat und jederzeit exportierbar.',
+    storageParagraph: 'myOS speichert alles lokal mit SQLite — keine Konfiguration, vollständig privat und jederzeit exportierbar.',
     recommended: 'Empfohlen',
     storageSubtitle: 'Lokaler, datenschutzorientierter Speicher',
     storageFeatures: ['Keine Konfiguration', 'Bleibt auf deinem Gerät', 'Schnell & leicht', 'Jederzeit exportieren'],
@@ -892,7 +894,7 @@ const de: TranslationKeys = {
     importBackupDesc: 'Aus einem Life-OS-Export wiederherstellen',
     importDrop: 'Klicke zum Auswählen oder ziehe dein .json-Backup hierher',
     importDropSub: 'Aufgaben, Notizen, Gewohnheiten, Tagebuch, Finanzen, Ziele & Lernen',
-    freshNote: 'Wir richten Life OS mit ein paar Beispieldaten ein, damit du dich zurechtfindest. Ändere oder lösche sie, wann immer du willst.',
+    freshNote: 'Wir richten myOS mit ein paar Beispieldaten ein, damit du dich zurechtfindest. Ändere oder lösche sie, wann immer du willst.',
     allSetHeading: 'Alles bereit',
     allSetSub: 'Überprüfe deine Auswahl und starte, wenn du bereit bist.',
     sName: 'Name',
@@ -907,7 +909,7 @@ const de: TranslationKeys = {
     skipSetup: 'Einrichtung überspringen',
     back: 'Zurück',
     continue: 'Weiter',
-    launch: 'Life OS starten',
+    launch: 'myOS starten',
     settingUp: 'Wird eingerichtet…',
   },
 

@@ -1,6 +1,6 @@
 const en = {
   // App
-  appName: 'Life OS',
+  appName: 'myOS',
   
   // Common
   save: 'Save',
@@ -50,7 +50,9 @@ const en = {
     wellness: 'Wellness',
     growth: 'Growth',
     dashboard: 'Dashboard',
+    reminders: 'Reminders',
     tasks: 'Tasks',
+    myos: 'My space',
     projects: 'Projects',
     notes: 'Notes',
     calendar: 'Calendar',
@@ -763,7 +765,7 @@ const en = {
     completeProfile: 'Complete your profile to unlock all features',
     baseCurrency: 'Base currency',
     baseCurrencyDesc: 'All totals and conversions use this currency',
-    currencyConverterApiNote: 'Turn this off to skip the external rate API entirely — Life OS will then run fully offline and show each account in its own currency only.',
+    currencyConverterApiNote: 'Turn this off to skip the external rate API entirely — myOS will then run fully offline and show each account in its own currency only.',
     // Finance Preferences (appearance tab)
     financePreferences: 'Finance Preferences',
     financePreferencesDesc: 'Configure finance module options',
@@ -838,7 +840,7 @@ const en = {
     activityStreak: 'Activity Streak',
     accountCreated: 'Account Created',
     // About
-    aboutTitle: 'About Life OS',
+    aboutTitle: 'About myOS',
     aboutDesc: 'Your personal life operating system',
     version: 'Version',
     license: 'License',
@@ -849,10 +851,10 @@ const en = {
   setup: {
     brandLine1: 'Welcome.',
     brandLine2: "Let's set up your workspace.",
-    brandSub: 'A few quick choices to make Life OS feel like home.',
+    brandSub: 'A few quick choices to make myOS feel like home.',
     stepOf: 'Step {n} of {total}',
     steps: [
-      { title: 'Welcome', description: 'Get started with Life OS' },
+      { title: 'Welcome', description: 'Get started with myOS' },
       { title: 'Language', description: 'Choose your language' },
       { title: 'Storage', description: 'Where your data lives' },
       { title: 'Appearance', description: 'Make it feel like yours' },
@@ -873,7 +875,7 @@ const en = {
       tagline: "Take a breath. Let's set up your home.",
       cta: "Let's begin",
       ctaHint: 'Less than a minute',
-      brandName: 'Life OS',
+      brandName: 'myOS',
       brandTagline: 'Your private space to live, think and grow.',
       rotators: [
         'Your tasks, calmly organized.',
@@ -883,7 +885,7 @@ const en = {
         'Your life, in one place.',
       ],
     },
-    introParagraph: "Life OS brings your tasks, habits, notes, finances and goals into one calm, private workspace. Let's make it yours — it only takes a minute.",
+    introParagraph: "myOS brings your tasks, habits, notes, finances and goals into one calm, private workspace. Let's make it yours — it only takes a minute.",
     nameLabel: 'What should we call you?',
     namePlaceholder: 'Your name',
     nameHelp: 'Used to personalize your experience. You can change it anytime.',
@@ -944,10 +946,10 @@ const en = {
     startFresh: 'Start fresh',
     startFreshDesc: 'Begin with sample data to explore',
     importBackup: 'Import backup',
-    importBackupDesc: 'Restore from a Life OS export',
+    importBackupDesc: 'Restore from a myOS export',
     importDrop: 'Click to select or drop your .json backup',
     importDropSub: 'Tasks, notes, habits, journal, finance, goals & learning',
-    freshNote: "We'll set up Life OS with a little sample data so you can find your way around. Modify or delete it whenever you like.",
+    freshNote: "We'll set up myOS with a little sample data so you can find your way around. Modify or delete it whenever you like.",
     allSetHeading: "You're all set",
     allSetSub: 'Review your choices and launch when ready.',
     sName: 'Name',
@@ -962,7 +964,7 @@ const en = {
     skipSetup: 'Skip setup',
     back: 'Back',
     continue: 'Continue',
-    launch: 'Launch Life OS',
+    launch: 'Launch myOS',
     settingUp: 'Setting up…',
   },
 

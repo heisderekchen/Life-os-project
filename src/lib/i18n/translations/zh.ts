@@ -1,5 +1,5 @@
 const zh = {
-  "appName": "Life OS",
+  "appName": "myOS",
   "save": "保存",
   "cancel": "取消",
   "delete": "删除",
@@ -43,7 +43,9 @@ const zh = {
     "wellness": "身心健康",
     "growth": "成长",
     "dashboard": "仪表盘",
+    "reminders": "提醒",
     "tasks": "任务",
+    "myos": "我的",
     "projects": "项目",
     "notes": "笔记",
     "calendar": "日历",
@@ -777,7 +779,7 @@ const zh = {
     "totalRecords": "记录总数",
     "activityStreak": "连续活跃",
     "accountCreated": "创建日期",
-    "aboutTitle": "关于 Life OS",
+    "aboutTitle": "关于 myOS",
     "aboutDesc": "你的个人生活工作台",
     "version": "版本",
     "license": "许可证",
@@ -786,12 +788,12 @@ const zh = {
   "setup": {
     "brandLine1": "欢迎。",
     "brandLine2": "一起设置你的工作台。",
-    "brandSub": "简单设置几项，让 Life OS 更合你的习惯。",
+    "brandSub": "简单设置几项，让 myOS 更合你的习惯。",
     "stepOf": "第 {n} 步，共 {total} 步",
     "steps": [
       {
         "title": "欢迎",
-        "description": "开始使用 Life OS"
+        "description": "开始使用 myOS"
       },
       {
         "title": "语言",
@@ -834,7 +836,7 @@ const zh = {
       "tagline": "放松一下，开始设置你的工作台。",
       "cta": "开始设置",
       "ctaHint": "不到一分钟",
-      "brandName": "Life OS",
+      "brandName": "myOS",
       "brandTagline": "整理生活、记录想法、持续成长的个人空间。",
       "rotators": [
         "有条理地管理任务。",
@@ -844,7 +846,7 @@ const zh = {
         "把生活安排在一起。"
       ]
     },
-    "introParagraph": "Life OS 把任务、习惯、笔记、财务与目标集中在一个工作台里，花一分钟完成设置。",
+    "introParagraph": "myOS 把任务、习惯、笔记、财务与目标集中在一个工作台里，花一分钟完成设置。",
     "nameLabel": "怎么称呼你？",
     "namePlaceholder": "你的名字",
     "nameHelp": "用于个性化显示，你可以随时修改。",
@@ -961,7 +963,7 @@ const zh = {
     "startFresh": "重新开始",
     "startFreshDesc": "使用示例数据开始体验",
     "importBackup": "导入备份",
-    "importBackupDesc": "从 Life OS 导出文件恢复",
+    "importBackupDesc": "从 myOS 导出文件恢复",
     "importDrop": "点击选择或拖入 JSON 备份文件",
     "importDropSub": "任务、笔记、习惯、日志、财务、目标与学习",
     "freshNote": "将提供少量示例数据帮助你熟悉功能，可随时修改或删除。",
@@ -979,7 +981,7 @@ const zh = {
     "skipSetup": "跳过设置",
     "back": "返回",
     "continue": "继续",
-    "launch": "进入 Life OS",
+    "launch": "进入 myOS",
     "settingUp": "正在设置…"
   },
   "commandPalette": {

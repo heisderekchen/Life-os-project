@@ -2,7 +2,7 @@ import type { TranslationKeys } from './en'
 
 const tr: TranslationKeys = {
   // App
-  appName: 'Life OS',
+  appName: 'myOS',
   
   // Common
   save: 'Kaydet',
@@ -52,7 +52,9 @@ const tr: TranslationKeys = {
     wellness: 'Sağlık',
     growth: 'Gelişim',
     dashboard: 'Panel',
+    reminders: 'Hatırlatıcılar',
     tasks: 'Görevler',
+    myos: 'Alanım',
     projects: 'Projeler',
     notes: 'Notlar',
     calendar: 'Takvim',
@@ -747,7 +749,7 @@ const tr: TranslationKeys = {
     completeProfile: 'Tüm özellikleri açmak için profilinizi tamamlayın',
     baseCurrency: 'Ana para birimi',
     baseCurrencyDesc: 'Tüm toplamlar ve çevirmeler bu para birimi üzerinden',
-    currencyConverterApiNote: 'Bunu kapatınca dış kur API\'sine hiç istek atılmaz — Life OS tamamen çevrimdışı çalışır, her hesap kendi para biriminde gösterilir.',
+    currencyConverterApiNote: 'Bunu kapatınca dış kur API\'sine hiç istek atılmaz — myOS tamamen çevrimdışı çalışır, her hesap kendi para biriminde gösterilir.',
     dangerZone: 'Tehlikeli Bölge',
     irreversibleActions: 'Geri alınamaz işlemler',
     resetSetupWizard: 'Kurulum Sihirbazını Sıfırla',
@@ -822,7 +824,7 @@ const tr: TranslationKeys = {
     activityStreak: 'Aktivite Serisi',
     accountCreated: 'Hesap Oluşturulma',
     // About
-    aboutTitle: 'Life OS Hakkında',
+    aboutTitle: 'myOS Hakkında',
     aboutDesc: 'Kişisel yaşam işletim sisteminiz',
     version: 'Sürüm',
     license: 'Lisans',
@@ -833,10 +835,10 @@ const tr: TranslationKeys = {
   setup: {
     brandLine1: 'Hoş geldiniz.',
     brandLine2: 'Çalışma alanınızı kuralım.',
-    brandSub: "Life OS'u kendinize ait hissettirecek birkaç hızlı seçim.",
+    brandSub: "myOS'u kendinize ait hissettirecek birkaç hızlı seçim.",
     stepOf: 'Adım {n} / {total}',
     steps: [
-      { title: 'Hoş geldiniz', description: 'Life OS ile başlayın' },
+      { title: 'Hoş geldiniz', description: 'myOS ile başlayın' },
       { title: 'Dil', description: 'Dilinizi seçin' },
       { title: 'Depolama', description: 'Verileriniz nerede saklanır' },
       { title: 'Görünüm', description: 'Size ait hissettirin' },
@@ -857,7 +859,7 @@ const tr: TranslationKeys = {
       tagline: 'Derin bir nefes al. Hadi evini kuralım.',
       cta: 'Hadi başlayalım',
       ctaHint: 'Bir dakikadan kısa',
-      brandName: 'Life OS',
+      brandName: 'myOS',
       brandTagline: 'Yaşaman, düşünmen ve gelişmen için özel alanın.',
       rotators: [
         'Görevlerin, sakince düzenli.',
@@ -867,7 +869,7 @@ const tr: TranslationKeys = {
         'Tüm hayatın, tek yerde.',
       ],
     },
-    introParagraph: 'Life OS; görevlerinizi, alışkanlıklarınızı, notlarınızı, finansınızı ve hedeflerinizi tek bir sakin ve özel çalışma alanında toplar. Hadi onu sizinki yapalım — yalnızca bir dakika sürer.',
+    introParagraph: 'myOS; görevlerinizi, alışkanlıklarınızı, notlarınızı, finansınızı ve hedeflerinizi tek bir sakin ve özel çalışma alanında toplar. Hadi onu sizinki yapalım — yalnızca bir dakika sürer.',
     nameLabel: 'Size nasıl hitap edelim?',
     namePlaceholder: 'Adınız',
     nameHelp: 'Deneyiminizi kişiselleştirmek için kullanılır. İstediğiniz zaman değiştirebilirsiniz.',
@@ -878,7 +880,7 @@ const tr: TranslationKeys = {
       finance: 'Finans',
       goals: 'Hedefler',
     },
-    storageParagraph: 'Life OS her şeyi SQLite ile yerel olarak saklar — sıfır yapılandırma, tamamen özel ve istediğiniz zaman dışa aktarılabilir.',
+    storageParagraph: 'myOS her şeyi SQLite ile yerel olarak saklar — sıfır yapılandırma, tamamen özel ve istediğiniz zaman dışa aktarılabilir.',
     recommended: 'Önerilen',
     storageSubtitle: 'Yerel öncelikli, gizlilik odaklı depolama',
     storageFeatures: ['Sıfır yapılandırma', 'Cihazınızda kalır', 'Hızlı ve hafif', 'İstediğinizde dışa aktarın'],
@@ -928,10 +930,10 @@ const tr: TranslationKeys = {
     startFresh: 'Sıfırdan başla',
     startFreshDesc: 'Keşfetmek için örnek verilerle başlayın',
     importBackup: 'Yedeği içe aktar',
-    importBackupDesc: 'Bir Life OS dışa aktarımından geri yükleyin',
+    importBackupDesc: 'Bir myOS dışa aktarımından geri yükleyin',
     importDrop: '.json yedeğinizi seçmek için tıklayın veya buraya bırakın',
     importDropSub: 'Görevler, notlar, alışkanlıklar, günlük, finans, hedefler ve öğrenme',
-    freshNote: 'Yolunuzu bulabilmeniz için Life OS\'u biraz örnek veriyle kuracağız. İstediğiniz zaman değiştirin veya silin.',
+    freshNote: 'Yolunuzu bulabilmeniz için myOS\'u biraz örnek veriyle kuracağız. İstediğiniz zaman değiştirin veya silin.',
     allSetHeading: 'Her şey hazır',
     allSetSub: 'Seçimlerinizi gözden geçirin ve hazır olduğunuzda başlatın.',
     sName: 'Ad',
@@ -946,7 +948,7 @@ const tr: TranslationKeys = {
     skipSetup: 'Kurulumu atla',
     back: 'Geri',
     continue: 'Devam',
-    launch: 'Life OS\'u başlat',
+    launch: 'myOS\'u başlat',
     settingUp: 'Kuruluyor…',
   },
 

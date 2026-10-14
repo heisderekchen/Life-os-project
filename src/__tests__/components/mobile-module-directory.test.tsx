@@ -31,16 +31,26 @@ describe('mobile module directory', () => {
     expect(screen.getByRole('button', { name: /笔记/ })).toBeInTheDocument()
   })
 
-  it('shows exactly four primary categories and only the browsed category as current', () => {
+  it('shows the four myOS destinations and marks the current page', () => {
     useAppStore.setState({ language: 'zh' })
-    render(<MobilePrimaryNav activeModule="dashboard" directoryOpen browseCategory="productivity" onCategory={vi.fn()} />)
+    render(<MobilePrimaryNav activeModule="dashboard" onNavigate={vi.fn()} />)
     const nav = screen.getByRole('navigation', { name: '主导航' })
     const current = within(nav).getAllByRole('button').filter(button => button.getAttribute('aria-current') === 'page')
     expect(current).toHaveLength(1)
-    expect(current[0]).toHaveTextContent('效率')
+    expect(current[0]).toHaveTextContent('概览')
     expect(within(nav).getAllByRole('button').filter(button => button.className.includes('bg-accent'))).toHaveLength(1)
     expect(within(nav).getAllByRole('button')).toHaveLength(4)
-    expect(within(nav).queryByRole('button', { name: '设置' })).not.toBeInTheDocument()
+    expect(within(nav).getByRole('button', { name: '提醒' })).toBeInTheDocument()
+    expect(within(nav).getByRole('button', { name: '任务' })).toBeInTheDocument()
+    expect(within(nav).getByRole('button', { name: '我的' })).toBeInTheDocument()
+  })
+
+  it('navigates directly to reminders from the mobile primary nav', async () => {
+    const onNavigate = vi.fn()
+    useAppStore.setState({ language: 'zh' })
+    render(<MobilePrimaryNav activeModule="dashboard" onNavigate={onNavigate} />)
+    await userEvent.setup().click(screen.getByRole('button', { name: '提醒' }))
+    expect(onNavigate).toHaveBeenCalledWith('reminders')
   })
 
   it('closes the category directory back to the current page', async () => {

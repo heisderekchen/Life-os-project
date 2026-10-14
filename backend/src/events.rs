@@ -26,6 +26,8 @@ pub(crate) struct TaskMini {
 pub(crate) struct CalendarEvent {
     id: String,
     title: String,
+    event_type: String,
+    completed: bool,
     description: Option<String>,
     start_date: PrismaDateTime,
     end_date: Option<PrismaDateTime>,
@@ -53,6 +55,8 @@ fn event_from_row(
     Ok(CalendarEvent {
         id: r.try_get("id")?,
         title: r.try_get("title")?,
+        event_type: r.try_get("eventType")?,
+        completed: r.try_get::<i64, _>("completed")? != 0,
         description: r.try_get("description")?,
         start_date: PrismaDateTime(r.try_get::<i64, _>("startDate")?),
         end_date: r.try_get::<Option<i64>, _>("endDate")?.map(PrismaDateTime),
@@ -146,23 +150,33 @@ pub async fn create_event(
         .filter(|s| !s.is_empty())
         .ok_or_else(|| AppError::BadRequest("Title is required".to_string()))?
         .to_string();
+    let event_type = body.get("eventType").and_then(|v| v.as_str()).unwrap_or("event");
+    if !matches!(event_type, "event" | "reminder") {
+        return Err(AppError::BadRequest("eventType must be event or reminder".to_string()));
+    }
+    let task_id = truthy_str(&body, "taskId");
+    if event_type == "reminder" && task_id.is_some() {
+        return Err(AppError::BadRequest("Reminders cannot be linked to project tasks".to_string()));
+    }
     let start_ms = opt_ms(&body, "startDate")
         .ok_or_else(|| AppError::BadRequest("startDate is required".to_string()))?;
     let id = gen_id();
     let now = now_ms();
 
     sqlx::query(
-        "INSERT INTO CalendarEvent (id, title, description, startDate, endDate, allDay, color, location, recurrence, recurrenceConfig, taskId, createdAt, updatedAt) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO CalendarEvent (id, title, eventType, completed, description, startDate, endDate, allDay, color, location, recurrence, recurrenceConfig, taskId, createdAt, updatedAt) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
-    .bind(&id).bind(&title).bind(truthy_str(&body, "description"))
+    .bind(&id).bind(&title).bind(event_type)
+    .bind(if body.get("completed").and_then(|v| v.as_bool()).unwrap_or(false) { 1_i64 } else { 0_i64 })
+    .bind(truthy_str(&body, "description"))
     .bind(start_ms).bind(opt_ms(&body, "endDate"))
     .bind(if body.get("allDay").and_then(|v| v.as_bool()).unwrap_or(false) { 1_i64 } else { 0_i64 })
     .bind(str_or(&body, "color", "#6b7280"))
     .bind(truthy_str(&body, "location"))
     .bind(truthy_str(&body, "recurrence"))
     .bind(truthy_str(&body, "recurrenceConfig"))
-    .bind(truthy_str(&body, "taskId"))
+    .bind(task_id)
     .bind(now).bind(now)
     .execute(&st.db).await?;
 
@@ -202,18 +216,36 @@ pub async fn update_event(
     Path(id): Path<String>,
     Json(body): Json<Value>,
 ) -> Result<Json<CalendarEvent>, AppError> {
-    let exists: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM CalendarEvent WHERE id = ?")
+    let existing = sqlx::query("SELECT taskId, eventType FROM CalendarEvent WHERE id = ?")
         .bind(&id)
-        .fetch_one(&st.db)
+        .fetch_optional(&st.db)
         .await?;
-    if exists == 0 {
-        return Err(AppError::NotFound("Event not found".to_string()));
+    let existing = existing.ok_or_else(|| AppError::NotFound("Event not found".to_string()))?;
+    let existing_task_id: Option<String> = existing.try_get("taskId")?;
+    let existing_event_type: String = existing.try_get("eventType")?;
+    let event_type = body.get("eventType").and_then(|v| v.as_str()).unwrap_or(&existing_event_type);
+    if !matches!(event_type, "event" | "reminder") {
+        return Err(AppError::BadRequest("eventType must be event or reminder".to_string()));
+    }
+    let next_task_id = match body.get("taskId") {
+        Some(Value::String(value)) if !value.is_empty() => Some(value.as_str()),
+        Some(Value::Null) | Some(Value::String(_)) => None,
+        _ => existing_task_id.as_deref(),
+    };
+    if event_type == "reminder" && next_task_id.is_some() {
+        return Err(AppError::BadRequest("Reminders cannot be linked to project tasks".to_string()));
     }
     let now = now_ms();
     let mut qb: QueryBuilder<Sqlite> = QueryBuilder::new("UPDATE CalendarEvent SET ");
     let mut first = true;
     if let Some(v) = body.get("title").and_then(|v| v.as_str()) {
         crate::push_set!(qb, first, "title = ", v.to_string());
+    }
+    if body.get("eventType").is_some() {
+        crate::push_set!(qb, first, "eventType = ", event_type.to_string());
+    }
+    if let Some(v) = patch_bool(&body, "completed") {
+        crate::push_set!(qb, first, "completed = ", if v { 1_i64 } else { 0_i64 });
     }
     if let Some(v) = patch_str(&body, "description") {
         crate::push_set!(qb, first, "description = ", v);

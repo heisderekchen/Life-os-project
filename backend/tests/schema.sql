@@ -417,6 +417,8 @@ CREATE TABLE "CourseResource" (
 CREATE TABLE "CalendarEvent" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "title" TEXT NOT NULL,
+    "eventType" TEXT NOT NULL DEFAULT 'event',
+    "completed" BOOLEAN NOT NULL DEFAULT false,
     "description" TEXT,
     "startDate" INTEGER NOT NULL,
     "endDate" INTEGER,
