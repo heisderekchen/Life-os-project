@@ -120,9 +120,12 @@ test('mobile task queue uses the available height and scrolls normally at phone 
     console.log(`mobile fixture page text: ${(await page.locator('body').innerText()).slice(0, 1800)}`)
     await expect(page.getByText('Mobile fixture task 01', { exact: true })).toBeVisible()
     await expect(page.getByText('Active', { exact: true })).toBeVisible()
-    const overdueLabel = page.getByText('Overdue', { exact: true })
+    const overdueLabel = page.getByText('Overdue', { exact: true }).first()
     await expect(overdueLabel).toBeVisible()
-    expect(await overdueLabel.evaluate((element) => element.scrollWidth <= element.clientWidth + 1), `no truncated queue label at ${width}px`).toBe(true)
+    expect(await overdueLabel.evaluate((element) => {
+      const container = element.parentElement
+      return Boolean(container) && getComputedStyle(container).textOverflow !== 'ellipsis' && container.scrollWidth <= container.clientWidth + 1
+    }), `no truncated queue label at ${width}px`).toBe(true)
     await expect(page.getByRole('button', { name: 'In progress: 1' })).toBeVisible()
 
     const list = page.locator('div.overflow-y-auto.overscroll-contain').filter({
