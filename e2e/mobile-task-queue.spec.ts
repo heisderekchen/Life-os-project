@@ -124,7 +124,8 @@ test('mobile task queue uses the available height and scrolls normally at phone 
     await expect(overdueLabel).toBeVisible()
     expect(await overdueLabel.evaluate((element) => {
       const container = element.parentElement
-      return Boolean(container) && getComputedStyle(container).textOverflow !== 'ellipsis' && container.scrollWidth <= container.clientWidth + 1
+      if (!container) return false
+      return getComputedStyle(container).textOverflow !== 'ellipsis' && container.scrollWidth <= container.clientWidth + 1
     }), `no truncated queue label at ${width}px`).toBe(true)
     await expect(page.getByRole('button', { name: 'In progress: 1' })).toBeVisible()
 
