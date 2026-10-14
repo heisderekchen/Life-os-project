@@ -47,6 +47,7 @@ export function QuickCapture() {
 
   // Auto-focus on mount
   useEffect(() => {
+    if (window.matchMedia('(max-width: 767px)').matches) return
     const timer = setTimeout(() => {
       inputRef.current?.focus()
     }, 300)
@@ -55,7 +56,7 @@ export function QuickCapture() {
 
   // Auto-focus when expanded
   useEffect(() => {
-    if (expanded) {
+    if (expanded && !window.matchMedia('(max-width: 767px)').matches) {
       const timer = setTimeout(() => {
         inputRef.current?.focus()
       }, 150)
