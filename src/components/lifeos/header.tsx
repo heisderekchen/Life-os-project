@@ -184,7 +184,7 @@ export function Header() {
       )}
 
       {/* Right */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 max-[360px]:gap-0">
           <Button variant="outline" size="sm" className="h-11 min-w-11 sm:min-w-[88px] shrink-0 px-2 text-xs" aria-label={language === 'zh' ? 'Switch to English' : '切换到中文'} title={language === 'zh' ? '切换到 English' : 'Switch to 中文'} onClick={() => setLanguage(language === 'zh' ? 'en' : 'zh')}><span className="sm:hidden">{language === 'zh' ? '中' : 'EN'}</span><span className="hidden sm:inline">中文 / English</span></Button>
         {isMobile && (
           <Button variant="ghost" size="icon" className="h-11 w-11" aria-label={t('header.searchEverything')} onClick={() => setGlobalSearchOpen(true)}>

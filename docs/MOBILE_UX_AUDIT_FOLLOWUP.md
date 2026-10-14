@@ -1,0 +1,38 @@
+# Life OS mobile UX audit (follow-up)
+
+**Baseline:** production `main` at `105fbf03e0d2dcc2caa0c21a0cdd4a1d95ac09a0` (PR #16).  
+**Scope:** this follow-up adds captures at 320/390/430 CSS px and targeted behavior checks with local fixtures. The inherited `docs/MOBILE_UX_AUDIT.md` records the full menu pass at 360/390/430/1280px, with extra 640/700/768 checks on Calendar and Habits.  
+**Production access:** the public `/workbench/` page rendered its login screen. Authenticated product routes were not available in this browser session, and no real account credentials were entered.
+
+## Menu and page coverage
+
+The menu inventory from `app-shell` and the page components includes Dashboard, Tasks, Calendar, Goals, Habits, Learning, Journal, Notes, Projects, Time, Finance, Settings, and the admin-only Accounts page. Tasks also has My Tasks and Recurring Tasks tabs; Task Editor is a task detail state. Before/after screenshots are in the companion evidence archive. A first pass captured the 13 menu destinations at 320/390/430 px; core task flows were recaptured from the exact production baseline and current feature source after waiting for fixture data.
+
+| Page / state | Observed issue | Change / disposition | Evidence and verification |
+| --- | --- | --- | --- |
+| Dashboard | Auto-focused Quick Capture moved the initial mobile viewport and could summon the keyboard before the user chose to type. | Suppress mount/expand auto-focus below 768px; desktop behavior remains. | Before/after 320/390/430 screenshots; local fixture confirms initial scroll stays at top and input is not focused. |
+| Tasks — My Tasks | At 320px, “Needs attention” was truncated in the queue summary. | Reduce only that compact queue label to 11px on narrow screens; touch targets and body text remain unchanged. | Before/after 320/390/430 screenshots; label fits at 320px. |
+| Tasks — Task Editor | Eight-row description area consumed too much of a short phone viewport; save action could be pushed below a keyboard-height viewport. | Use a 4-row, 112px mobile minimum description field, retain 188px minimum from `sm`, and keep fixed footer controls. | Before/after 320/390/430 screenshots; local fixture checked editor open/edit navigation, 44px save button visibility at 500px viewport height, Back, and Escape. No save was submitted. |
+| Tasks — Recurring Tasks | Fixed-width horizontal cards required sideways browsing even when there was room to show useful content. | Replace horizontal strip with a one-column mobile grid and 2/3-column wider grids; loading skeletons use the same grid. | Before/after 320/390/430 screenshots; local fixture verified card bounds and opening the linked task. |
+| Journal | View tabs and New Entry competed for one row on a phone. | Allow the toolbar to wrap while preserving the primary action's intrinsic width. | Before/after 320/390/430 screenshots; tab changes and open/cancel dialog checked locally; no write submitted. |
+| Finance | View tabs and transaction action could crowd/clip on narrow widths. | Wrap the view tabs and stack the toolbar; make New Transaction full width on phones. | Before/after 320/390/430 screenshots; Overview/Budgets/Transactions/Analytics selection and open/cancel dialog checked locally; no write submitted. |
+| Settings | Six settings destinations were presented as a horizontal scroller, hiding choices offscreen. | Show a two-column phone grid with 44px minimum buttons; retain a vertical desktop navigation. | Before/after 320/390/430 screenshots; all six tabs checked locally. |
+| Header at 320px | Header actions crowded the title. | Remove only the 4px gaps at <=360px; each control remains 44px. | Screenshots across the supported mobile widths. |
+| Calendar, Goals, Habits, Learning, Notes, Projects, Time | Included in route inventory and screenshot scan. No source changes in this follow-up. | Reviewed for viewport fit, clipping, horizontal overflow, loading overlays, and first-screen density; see archive for captures. | 320/390/430 fixture captures. Targeted state-by-state behavior was not exhaustively exercised for these pages. |
+| Accounts (admin) | Admin-only destination. | No permission or account behavior changed. | Screenshot/route access used role fixtures; normal-user absence and admin fixture navigation were checked in the earlier audit pass. Not production-account verified. |
+
+## Verification
+
+- Final-source checks: `npm run typecheck` passed; `npm run lint` passed with 0 errors and 5 existing unused-disable warnings; `npm test` passed (26 files / 177 tests); `git diff --check` passed. `npm run build -- --webpack` passed after providing a temporary local mock for the existing Google-hosted Geist font CSS, using Geist font binaries bundled with Next.js. The normal build attempt could not reach `fonts.googleapis.com`; no app source or committed build configuration was changed for this workaround.
+- Local deterministic fixtures, not production data: document width stayed within the viewport in all 39 follow-up route/width samples (no `documentElement` or body overflow).
+- Targeted local interactions: task tab selection, task editor entry/navigation/close, recurring card navigation, Journal and Finance tabs plus dialog cancel, Settings tab selection, and role-gated Accounts visibility/navigation.
+- Screenshot set: the follow-up archive has 13 menu destinations at 320/390/430px; core Dashboard, Tasks, Task Editor, and Recurring Tasks before/after captures use the exact baseline and settled after state. The inherited audit records the separate 360/390/430/1280px review and additional breakpoints.
+- The follow-up screenshot metric file contains six browser-reported errors on captures (two empty-manifest errors and four “Invalid or unexpected token” messages on fixture-loaded pages); they did not appear in targeted interaction runs. Treat those individual captures as visual evidence only, not as a clean console pass. The inherited audit's final settled capture set reports no runtime errors.
+- 360px and desktop were not recaptured for the six follow-up layout edits in this isolated pass; their documented coverage is from the inherited audit state. This follow-up source change is limited to responsive utility classes and the mobile Quick Capture focus condition.
+- Actual iOS Safari/soft-keyboard/VoiceOver behavior still requires final verification. A 500px viewport-height check approximates the reduced visible area while a keyboard is present; it is not a native keyboard test.
+- The user-provided Library reference image could not be materialized after the allowed bounded retry. The visual review therefore used the app's existing UI and local screenshots, not that reference image.
+- No production data was changed, no production scheduler/security setting was touched, and no merge/deployment was performed.
+
+## Design approach
+
+This is a restrained mobile refinement that keeps the incumbent Life OS visual system and workflow. The work prioritizes the first viewport, avoids reducing readable body text or touch targets, and reflows dense controls before introducing horizontal scrolling. The requested skill entrypoints were read from `/Users/heisderek/.codex/skills/impeccable/SKILL.md` and `/Users/heisderek/.codex/skills/taste/SKILL.md`; Impeccable's `reference/craft-floor.md` was also read. Taste's installed `references/` directory is absent in this environment, so its reference files were not available during this follow-up. The Impeccable detector ran once and reported five warnings on existing border/easing/palette patterns. Those warnings are outside the touched layout behavior and were not broadened into an unrequested redesign.

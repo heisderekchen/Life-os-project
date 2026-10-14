@@ -274,16 +274,16 @@ export function JournalPage() {
     <div className="flex h-full animate-page-enter">
       <div className="flex-1 flex flex-col min-w-0">
         <div className="p-4 border-b border-border/50 space-y-[var(--lifeos-list-gap)]">
-          <div className="flex items-center justify-between">
-            <Tabs value={journalView} onValueChange={v => setJournalView(v as typeof journalView)}>
-              <TabsList className="h-8">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Tabs value={journalView} onValueChange={v => setJournalView(v as typeof journalView)} className="min-w-0 max-w-full">
+              <TabsList className="h-auto max-w-full flex-wrap">
                 <TabsTrigger value="timeline" className="text-xs px-3 h-6"><Clock className="h-3.5 w-3.5 mr-1" />{t('journal.timeline')}</TabsTrigger>
                 <TabsTrigger value="calendar" className="text-xs px-3 h-6"><CalendarDays className="h-3.5 w-3.5 mr-1" />{t('calendar.title')}</TabsTrigger>
                 <TabsTrigger value="list" className="text-xs px-3 h-6"><List className="h-3.5 w-3.5 mr-1" />{t('tasks.list')}</TabsTrigger>
               </TabsList>
             </Tabs>
             <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-              <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1.5" />{t('journal.newEntry')}</Button></DialogTrigger>
+              <DialogTrigger asChild><Button size="sm" className="shrink-0"><Plus className="h-4 w-4 mr-1.5" />{t('journal.newEntry')}</Button></DialogTrigger>
               <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-lg overflow-y-auto overscroll-contain" aria-describedby={undefined}>
                 <DialogHeader><DialogTitle>{t('journal.newEntry')}</DialogTitle><DialogDescription className="sr-only">{uiText("Write a new journal entry")}</DialogDescription></DialogHeader>
                 <div className="space-y-4 py-2">

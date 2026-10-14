@@ -287,12 +287,12 @@ export function SettingsPage() {
       <div className="flex flex-col gap-4 md:flex-row md:gap-6">
         {/* Sidebar Tabs */}
         <div className="w-full shrink-0 md:w-48">
-          <nav aria-label={t('settings.title')} className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 md:mx-0 md:flex-col md:overflow-visible md:px-0 md:pb-0">
+          <nav aria-label={t('settings.title')} className="grid grid-cols-2 gap-1 md:grid-cols-1 md:flex md:flex-col md:overflow-visible">
             {tabs.map(tab => {
               const Icon = tab.icon
               const isActive = activeTab === tab.id
               return (
-                <button key={tab.id} aria-pressed={isActive} className={cn('relative flex min-h-11 shrink-0 items-center gap-2.5 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-colors duration-200 md:w-full', isActive ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground')} onClick={() => setActiveTab(tab.id)}>
+                <button key={tab.id} aria-pressed={isActive} className={cn('relative flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium transition-colors duration-200 md:w-full', isActive ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground')} onClick={() => setActiveTab(tab.id)}>
                   {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[4px] h-6 rounded-r-full" style={{ background: `linear-gradient(to bottom, ${activeAccentHex}, ${activeAccentHex}cc)` }} />}
                   <Icon className="h-4 w-4" />{tab.label}
                 </button>

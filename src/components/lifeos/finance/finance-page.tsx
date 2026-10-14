@@ -897,10 +897,10 @@ export function FinancePage() {
       )}
 
       {/* View Tabs */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Tabs value={financeView} onValueChange={v => setFinanceView(v as typeof financeView)}>
-            <TabsList className="h-8"><TabsTrigger value="overview" className="text-xs px-3 h-6 tab-transition">{t('nav.overview')}</TabsTrigger><TabsTrigger value="budget" className="text-xs px-3 h-6 tab-transition">{t('finance.budgets')}</TabsTrigger><TabsTrigger value="transactions" className="text-xs px-3 h-6 tab-transition">{t('finance.transactions')}</TabsTrigger><TabsTrigger value="analytics" className="text-xs px-3 h-6 tab-transition">{t('finance.analytics')}</TabsTrigger></TabsList>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <Tabs value={financeView} onValueChange={v => setFinanceView(v as typeof financeView)} className="min-w-0 max-w-full">
+            <TabsList className="h-auto max-w-full flex-wrap"><TabsTrigger value="overview" className="text-xs px-3 h-6 tab-transition">{t('nav.overview')}</TabsTrigger><TabsTrigger value="budget" className="text-xs px-3 h-6 tab-transition">{t('finance.budgets')}</TabsTrigger><TabsTrigger value="transactions" className="text-xs px-3 h-6 tab-transition">{t('finance.transactions')}</TabsTrigger><TabsTrigger value="analytics" className="text-xs px-3 h-6 tab-transition">{t('finance.analytics')}</TabsTrigger></TabsList>
           </Tabs>
           {financeView === 'transactions' && (
             <label className="cursor-pointer">
@@ -955,7 +955,7 @@ export function FinancePage() {
           </Button>
         </div>
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-          <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1.5" />{t('finance.newTransaction')}</Button></DialogTrigger>
+          <DialogTrigger asChild><Button size="sm" className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-1.5" />{t('finance.newTransaction')}</Button></DialogTrigger>
           <DialogContent aria-describedby={undefined}>
             <DialogHeader><DialogTitle>{t('finance.newTransaction')}</DialogTitle><DialogDescription className="sr-only">{uiText("Add a new financial transaction")}</DialogDescription></DialogHeader>
             <div className="space-y-4 py-2">
