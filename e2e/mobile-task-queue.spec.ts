@@ -119,6 +119,8 @@ test('mobile task queue uses the available height and scrolls normally at phone 
     await page.screenshot({ path: `test-results/mobile-task-queue-${width}-diagnostic.png` })
     console.log(`mobile fixture page text: ${(await page.locator('body').innerText()).slice(0, 1800)}`)
     await expect(page.getByText('Mobile fixture task 01', { exact: true })).toBeVisible()
+    await expect(page.getByText('Active', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'In progress: 1' })).toBeVisible()
 
     const list = page.locator('div.overflow-y-auto.overscroll-contain').filter({
       has: page.locator('[data-task-id="mobile-fixture-01"]'),
