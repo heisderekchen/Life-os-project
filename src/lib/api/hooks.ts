@@ -640,10 +640,12 @@ export function useSearch(query: string) {
 // ============================================
 // Calendar Events
 // ============================================
-export function useEvents(filters?: { startDate?: string; endDate?: string }) {
+export function useEvents(filters?: { startDate?: string; endDate?: string; limit?: number }) {
   return useQuery({
     queryKey: ['events', filters],
-    queryFn: () => apiGet<{ events: unknown[]; total: number }>('/api/events', filters as Record<string, string>),
+    queryFn: () => apiGet<{ events: unknown[]; total: number }>('/api/events', Object.fromEntries(
+      Object.entries(filters || {}).map(([key, value]) => [key, String(value)]),
+    )),
   })
 }
 

@@ -101,7 +101,7 @@ const chinese: Record<string, string> = {
   "declining": "下降中",
   "stable": "稳定",
   "Today's Entries": "今日记录",
-  "Life OS": "Life OS",
+  "Life OS": "myOS",
   "Save": "保存",
   "Cancel": "取消",
   "Delete": "删除",

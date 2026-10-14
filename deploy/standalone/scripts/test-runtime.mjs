@@ -183,5 +183,61 @@ const changedSeries = changed.series.find(item => item.id === 'repeat-root')
 assert.equal(changedSeries?.currentTaskId, 'repeat-next', 'series lineage remains available when the historical root is no longer recurring')
 assert.equal(changedSeries?.recurrence, 'monthly', 'the current instance cadence is authoritative')
 assert.equal(changed.activeCount, 2, 'the active count follows the current recurring instance')
-console.log('Migrations, private API persistence, export/import, counts, foreign keys, and refusal checks passed.')
+
+// Verify additive reminder migration compatibility and persistence across a
+// real SQLite file reopen using only local test data.
+const persistenceDir = mkdtempSync(join(tmpdir(), 'lifeos-reminder-persistence-'))
+try {
+  const persistencePath = join(persistenceDir, 'lifeos.sqlite')
+  const diskDb = new DatabaseSync(persistencePath)
+  diskDb.exec('PRAGMA foreign_keys=ON; CREATE TABLE lifeos_schema_migrations(name TEXT PRIMARY KEY)')
+  for (const name of readdirSync(join(root, 'migrations')).filter(v => v.endsWith('.sql') && v !== '0096_lifeos_reminder_fields.sql').sort()) {
+    diskDb.exec(readFileSync(join(root, 'migrations', name), 'utf8'))
+  }
+  diskDb.prepare(`INSERT INTO lifeos_calendar_events
+    (id,title,description,start_date,all_day,color,created_at,updated_at)
+    VALUES ('legacy-event','Legacy calendar event','keep me','2026-10-12T09:00:00.000Z',0,'#123456',?,?)`)
+    .run('2026-10-10T00:00:00.000Z', '2026-10-10T00:00:00.000Z')
+  diskDb.exec(readFileSync(join(root, 'migrations/0096_lifeos_reminder_fields.sql'), 'utf8'))
+  const diskEnv = { DB: createD1Sqlite(diskDb), PERSONAL_WORKBENCH_OWNER: 'lifeos-owner' }
+  const diskCall = async (path, method = 'GET', body) => {
+    const request = new Request(`https://lifeos.test${path}`, {
+      method,
+      headers: body === undefined ? {} : { 'content-type': 'application/json' },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    })
+    return handlePersonalWorkbench(request, diskEnv, new URL(request.url), auth)
+  }
+  const legacyResponse = await diskCall('/api/personal-workbench/lifeos/events?limit=10')
+  const legacyPayload = await legacyResponse.json()
+  assert.equal(legacyPayload.events[0].eventType, 'event', 'pre-migration calendar rows retain their event behavior')
+  assert.equal(legacyPayload.events[0].completed, false, 'legacy event defaults to incomplete without losing its fields')
+  assert.equal(legacyPayload.events[0].description, 'keep me')
+
+  const created = await diskCall('/api/personal-workbench/lifeos/events', 'POST', {
+    title: 'Persisted reminder', eventType: 'reminder', startDate: '2026-10-13T10:00:00.000Z', completed: false,
+  })
+  assert.equal(created.status, 201)
+  const reminder = await created.json()
+  assert.equal(reminder.eventType, 'reminder')
+  assert.equal((await diskCall(`/api/personal-workbench/lifeos/events/${reminder.id}`, 'PATCH', { completed: true })).status, 200)
+  diskDb.close()
+
+  const reopenedDb = new DatabaseSync(persistencePath)
+  const reopenedEnv = { DB: createD1Sqlite(reopenedDb), PERSONAL_WORKBENCH_OWNER: 'lifeos-owner' }
+  const reopenedCall = async path => {
+    const request = new Request(`https://lifeos.test${path}`)
+    return handlePersonalWorkbench(request, reopenedEnv, new URL(request.url), auth)
+  }
+  const reloaded = await reopenedCall('/api/personal-workbench/lifeos/events?limit=10')
+  const reloadedPayload = await reloaded.json()
+  const savedReminder = reloadedPayload.events.find(item => item.id === reminder.id)
+  assert.ok(savedReminder, 'reminder survives closing and reopening the SQLite database')
+  assert.equal(savedReminder.eventType, 'reminder')
+  assert.equal(savedReminder.completed, true, 'completion state survives a database reopen')
+  assert.ok(reloadedPayload.events.some(item => item.id === 'legacy-event' && item.eventType === 'event'))
+  reopenedDb.close()
+} finally { rmSync(persistenceDir, { recursive: true, force: true }) }
+
+console.log('Migrations, private API persistence, export/import, counts, foreign keys, refusal checks, reminder SQLite reload, and legacy event compatibility passed.')
 db.close()

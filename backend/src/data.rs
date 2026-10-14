@@ -489,10 +489,12 @@ pub async fn import_data(
                 .unwrap_or("")
                 .to_string();
             let _ = sqlx::query(
-                "INSERT OR REPLACE INTO CalendarEvent (id, title, description, startDate, endDate, allDay, color, location, taskId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                "INSERT OR REPLACE INTO CalendarEvent (id, title, eventType, completed, description, startDate, endDate, allDay, color, location, taskId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             )
             .bind(&id)
             .bind(e.get("title").and_then(|v| v.as_str()).unwrap_or(""))
+            .bind(e.get("eventType").and_then(|v| v.as_str()).unwrap_or("event"))
+            .bind(if e.get("completed").and_then(|v| v.as_bool()).unwrap_or(false) { 1_i64 } else { 0_i64 })
             .bind(e.get("description").and_then(|v| v.as_str()))
             .bind(e.get("startDate").and_then(|v| v.as_i64()).unwrap_or(now))
             .bind(e.get("endDate").and_then(|v| v.as_i64()))

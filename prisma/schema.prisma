@@ -533,6 +533,8 @@ model CourseResource {
 model CalendarEvent {
   id          String   @id @default(cuid())
   title       String
+  eventType   String   @default("event") // event, reminder
+  completed   Boolean  @default(false)
   description String?
   startDate   DateTime
   endDate     DateTime?

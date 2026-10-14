@@ -1002,6 +1002,7 @@ async function lifeOsTaskDetail(env, row) {
 function lifeOsEvent(row, task = null) {
     return {
         id: row.id, title: row.title, description: row.description,
+        eventType: row.event_type || 'event', completed: Boolean(row.completed),
         startDate: dateForLifeOs(row.start_date), endDate: dateForLifeOs(row.end_date),
         allDay: Boolean(row.all_day), color: row.color, location: row.location,
         recurrence: row.recurrence, recurrenceConfig: row.recurrence_config,
@@ -1049,13 +1050,16 @@ async function handleLifeOsEvents(request, env, url, actor) {
         const startDate = parseLifeOsDate(body.startDate);
         const endDate = body.endDate == null || body.endDate === '' ? null : parseLifeOsDate(body.endDate);
         if (!title) return json({ error: 'Title is required' }, 400);
+        const eventType = body.eventType || 'event';
+        if (!['event', 'reminder'].includes(eventType)) return json({ error: 'eventType must be event or reminder' }, 400);
         if (startDate === undefined || (body.endDate != null && body.endDate !== '' && endDate === undefined)) return json({ error: 'startDate is required or date format is invalid' }, 400);
         const taskId = body.taskId || null;
+        if (eventType === 'reminder' && taskId) return json({ error: 'Reminders cannot be linked to project tasks' }, 400);
         if (taskId && !await env.DB.prepare('SELECT id FROM personal_workbench_lifeos_tasks WHERE id=?').bind(taskId).first()) return notFound();
         const id = lifeOsId(); const timestamp = nowIso();
         await env.DB.prepare(`INSERT INTO lifeos_calendar_events
-            (id,title,description,start_date,end_date,all_day,color,location,recurrence,recurrence_config,task_id,created_at,updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(id, title, body.description ?? null, startDate, endDate,
+            (id,title,event_type,completed,description,start_date,end_date,all_day,color,location,recurrence,recurrence_config,task_id,created_at,updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(id, title, eventType, body.completed ? 1 : 0, body.description ?? null, startDate, endDate,
             body.allDay ? 1 : 0, text(body.color, 40) || '#6b7280', body.location ?? null,
             body.recurrence || null, body.recurrenceConfig || null, taskId, timestamp, timestamp).run();
         await auditLifeOs(env, actor, 'calendar-event.created', id, { title, taskId });
@@ -1075,14 +1079,18 @@ async function handleLifeOsEvents(request, env, url, actor) {
     const body = await bodyOf(request);
     const title = body.title === undefined ? existing.title : text(body.title, 500);
     if (!title) return json({ error: 'Title is required' }, 400);
+    const eventType = body.eventType === undefined ? (existing.event_type || 'event') : body.eventType;
+    if (!['event', 'reminder'].includes(eventType)) return json({ error: 'eventType must be event or reminder' }, 400);
     const updateDate = (key, oldValue) => body[key] === undefined ? oldValue : (body[key] == null || body[key] === '' ? null : parseLifeOsDate(body[key]));
     const startDate = updateDate('startDate', existing.start_date); const endDate = updateDate('endDate', existing.end_date);
     if (startDate === undefined || (body.endDate !== undefined && body.endDate != null && body.endDate !== '' && endDate === undefined)) return json({ error: 'Invalid date format' }, 400);
     const taskId = body.taskId === undefined ? existing.task_id : (body.taskId || null);
+    if (eventType === 'reminder' && taskId) return json({ error: 'Reminders cannot be linked to project tasks' }, 400);
     if (taskId && !await env.DB.prepare('SELECT id FROM personal_workbench_lifeos_tasks WHERE id=?').bind(taskId).first()) return notFound();
-    await env.DB.prepare(`UPDATE lifeos_calendar_events SET title=?,description=?,start_date=?,end_date=?,all_day=?,color=?,location=?,
+    await env.DB.prepare(`UPDATE lifeos_calendar_events SET title=?,event_type=?,completed=?,description=?,start_date=?,end_date=?,all_day=?,color=?,location=?,
         recurrence=?,recurrence_config=?,task_id=?,updated_at=? WHERE id=?`).bind(
-        title, body.description === undefined ? existing.description : body.description, startDate, endDate,
+        title, eventType, body.completed === undefined ? existing.completed : (body.completed ? 1 : 0),
+        body.description === undefined ? existing.description : body.description, startDate, endDate,
         body.allDay === undefined ? existing.all_day : (body.allDay ? 1 : 0),
         body.color === undefined ? existing.color : text(body.color, 40),
         body.location === undefined ? existing.location : body.location,

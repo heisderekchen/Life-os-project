@@ -15,16 +15,16 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Life OS - Personal Life Operating System",
-  description: "Your personal life operating system. Manage tasks, notes, habits, finances, health, goals, and more — all in one place.",
+  title: "myOS - Work & Life, in one",
+  description: "myOS brings personal tasks, reminders, projects, and life data together in one workspace.",
   icons: {
     icon: [{ url: `${process.env.LIFEOS_BASE_PATH || ""}/logo.svg`, type: "image/svg+xml" }],
     shortcut: `${process.env.LIFEOS_BASE_PATH || ""}/logo.svg`,
     apple: `${process.env.LIFEOS_BASE_PATH || ""}/logo.svg`,
   },
   openGraph: {
-    title: "Life OS",
-    description: "Your personal life operating system — calm, private, all in one place.",
+    title: "myOS",
+    description: "Work and life, in one private workspace.",
   },
 };
 
