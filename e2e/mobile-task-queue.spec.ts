@@ -25,16 +25,18 @@ const fixtureTasks = Array.from({ length: 10 }, (_, index) => ({
 
 test('mobile task queue uses the available height and scrolls normally at phone widths', async ({ page }) => {
   await page.addInitScript(() => {
-    window.localStorage.setItem('lifeos-app-store', JSON.stringify({
-      state: {
-        activeModule: 'tasks',
-        welcomeSeen: true,
-        setupComplete: true,
-        language: 'en',
-        enabledModules: ['dashboard', 'tasks', 'projects', 'notes', 'habits', 'journal', 'finance', 'goals', 'learning', 'calendar', 'time', 'settings'],
-      },
-      version: 0,
-    }))
+    try {
+      window.localStorage.setItem('lifeos-app-store', JSON.stringify({
+        state: {
+          activeModule: 'tasks',
+          welcomeSeen: true,
+          setupComplete: true,
+          language: 'en',
+          enabledModules: ['dashboard', 'tasks', 'projects', 'notes', 'habits', 'journal', 'finance', 'goals', 'learning', 'calendar', 'time', 'settings'],
+        },
+        version: 0,
+      }))
+    } catch {}
   })
 
   await page.route('**/api/**', async (route) => {
@@ -66,9 +68,13 @@ test('mobile task queue uses the available height and scrolls normally at phone 
     }
   })
 
+  const appPath = process.env.NEXT_PUBLIC_LIFEOS_BASE_PATH
+    ? `${process.env.NEXT_PUBLIC_LIFEOS_BASE_PATH.replace(/\/$/, '')}/`
+    : '/'
+
   for (const width of [360, 390, 430]) {
     await page.setViewportSize({ width, height: 844 })
-    await page.goto('/')
+    await page.goto(appPath)
     await expect(page.getByText('Mobile fixture task 01', { exact: true })).toBeVisible()
 
     const list = page.locator('div.overflow-y-auto.overscroll-contain').filter({
@@ -111,7 +117,7 @@ test('mobile task queue uses the available height and scrolls normally at phone 
   }
 
   await page.setViewportSize({ width: 1280, height: 900 })
-  await page.goto('/')
+  await page.goto(appPath)
   await expect(page.getByText('Being worked on', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: /Add Task/i })).toBeVisible()
 })
