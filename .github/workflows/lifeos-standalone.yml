@@ -48,6 +48,18 @@ jobs:
       - run: bun run lint
       - run: bun run test
       - run: bun run build
+      - name: Install Chromium for mobile viewport verification
+        run: bunx playwright install --with-deps chromium
+      - name: Verify mobile task list height, scrolling, and desktop labels
+        run: bunx playwright test --config=playwright.mobile.config.ts e2e/mobile-task-queue.spec.ts
+      - name: Upload mobile viewport screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-task-queue-visual
+          path: test-results/mobile-task-queue-*.png
+          if-no-files-found: warn
+          retention-days: 7
       - name: Package portable Node 24 runtime
         run: bash deploy/standalone/scripts/build-node-bundle.sh /tmp/lifeos-standalone-node.tar.gz
       - name: Publish portable Node 24 runtime artifact
