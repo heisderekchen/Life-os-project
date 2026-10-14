@@ -893,16 +893,16 @@ export function TasksPage() {
           </div>
           <div className="grid grid-cols-4 divide-x divide-border/70 overflow-hidden border-y border-border/70">
             {([
-              { id: 'in-progress', label: uiText('In progress'), count: tasks.filter(task => task.status === 'in-progress' && !isOverdueOpenTask(task)).length, note: uiText('Being worked on') },
-              { id: 'attention', label: uiText('Needs attention'), count: overdueTasks.length, note: uiText('Overdue') },
-              { id: 'all', label: uiText('All tasks'), count: tasks.length, note: uiText('Every status') },
-              { id: 'todo', label: uiText('Next up'), count: tasks.filter(task => task.status === 'todo' && !isOverdueOpenTask(task)).length, note: uiText('Ready to start') },
+              { id: 'in-progress', label: uiText('In progress'), mobileLabel: uiText('Active'), count: tasks.filter(task => task.status === 'in-progress' && !isOverdueOpenTask(task)).length, note: uiText('Being worked on') },
+              { id: 'attention', label: uiText('Needs attention'), mobileLabel: uiText('Overdue'), count: overdueTasks.length, note: uiText('Overdue') },
+              { id: 'all', label: uiText('All tasks'), mobileLabel: uiText('All'), count: tasks.length, note: uiText('Every status') },
+              { id: 'todo', label: uiText('Next up'), mobileLabel: uiText('Next'), count: tasks.filter(task => task.status === 'todo' && !isOverdueOpenTask(task)).length, note: uiText('Ready to start') },
             ] as const).map((queue) => {
               const selected = queueFilter === queue.id && taskFilter === 'all'
               return (
-                <button key={queue.id} type="button" aria-pressed={selected} onClick={() => { setQueueFilter(queue.id); setTaskFilter('all') }} className={cn('flex min-h-11 flex-col justify-center gap-0.5 px-1.5 py-1 text-center transition-colors hover:bg-accent/40 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:min-h-[76px] sm:items-stretch sm:gap-0 sm:px-4 sm:py-3 sm:text-left', selected && 'bg-accent/45')}>
+                <button key={queue.id} type="button" aria-label={`${queue.label}: ${queue.count}`} aria-pressed={selected} onClick={() => { setQueueFilter(queue.id); setTaskFilter('all') }} className={cn('flex min-h-11 flex-col justify-center gap-0.5 px-1.5 py-1 text-center transition-colors hover:bg-accent/40 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:min-h-[76px] sm:items-stretch sm:gap-0 sm:px-4 sm:py-3 sm:text-left', selected && 'bg-accent/45')}>
                   <span className="flex min-w-0 items-baseline justify-center gap-1 sm:justify-between sm:gap-2">
-                    <span className="truncate text-[11px] font-semibold leading-tight sm:text-sm">{queue.label}</span>
+                    <span className="truncate text-xs font-semibold leading-tight sm:text-sm"><span className="sm:hidden">{queue.mobileLabel}</span><span className="hidden sm:inline">{queue.label}</span></span>
                     <span className="text-sm font-semibold tabular-nums sm:text-lg">{queue.count}</span>
                   </span>
                   <span className="hidden truncate text-[11px] text-muted-foreground sm:mt-1 sm:block">{queue.note}</span>
