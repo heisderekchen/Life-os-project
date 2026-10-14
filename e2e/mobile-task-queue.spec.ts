@@ -108,6 +108,7 @@ test('mobile task queue uses the available height and scrolls normally at phone 
     expect(metrics.listBottom, `list clears bottom navigation at ${width}px`).toBeLessThanOrEqual(metrics.navTop + 1)
     expect(metrics.documentWidth, `no horizontal overflow at ${width}px`).toBeLessThanOrEqual(metrics.viewportWidth)
     expect(metrics.scrollHeight, `list has content to scroll at ${width}px`).toBeGreaterThan(metrics.clientHeight)
+    console.log(`mobile viewport ${width}px layout metrics: ${JSON.stringify(metrics)}`)
 
     await page.screenshot({ path: `test-results/mobile-task-queue-${width}-top.png` })
     await list.evaluate((element) => element.scrollTo({ top: element.scrollHeight, behavior: 'instant' }))
