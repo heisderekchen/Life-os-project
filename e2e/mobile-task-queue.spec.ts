@@ -64,6 +64,10 @@ test('mobile task queue uses the available height and scrolls normally at phone 
       else if (path.endsWith('/api/tasks')) payload = tasks
       else if (path.endsWith('/api/projects')) payload = []
       else if (path.endsWith('/api/recurring-tasks')) payload = { series: [], activeCount: 0, schedulerEnabled: false }
+      else if (path.endsWith('/api/notifications')) payload = []
+      else if (path.endsWith('/api/profile')) payload = {}
+      else if (path.endsWith('/api/platform/session')) payload = { principal: { role: 'user' } }
+      else if (path.endsWith('/api/platform/workspaces')) payload = []
       if (payload !== undefined) {
         return Promise.resolve(new Response(JSON.stringify(payload), {
           status: 200,
