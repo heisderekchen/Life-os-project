@@ -4,6 +4,7 @@ import { create } from 'zustand'
 
 export interface CalendarEvent {
   id: string
+  sourceEventId?: string
   title: string
   description: string | null
   startDate: string

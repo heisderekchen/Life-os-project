@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import {
-  Plus, Target, CalendarDays, Trash2, CheckCircle2, Circle, Filter,
+  Plus, Target, CalendarDays, Trash2, CheckCircle2, Circle, Filter, Pencil,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -48,7 +48,18 @@ const categoryGradientTo: Record<string, string> = {
 
 function cn(...inputs: (string | undefined | false)[]) { return inputs.filter(Boolean).join(' ') }
 
-function mapApiGoal(apiGoal: Record<string, unknown>): Goal {
+type GoalEditFields = Pick<Goal, 'id' | 'title' | 'description' | 'category' | 'targetDate'>
+
+export function buildGoalEditChanges(original: GoalEditFields, edited: GoalEditFields): Partial<Omit<GoalEditFields, 'id'>> {
+  const changes: Partial<Omit<GoalEditFields, 'id'>> = {}
+  if (edited.title !== original.title) changes.title = edited.title.trim()
+  if (edited.description !== original.description) changes.description = edited.description
+  if (edited.category !== original.category) changes.category = edited.category
+  if (edited.targetDate !== original.targetDate) changes.targetDate = edited.targetDate || null
+  return changes
+}
+
+export function mapApiGoal(apiGoal: Record<string, unknown>): Goal {
   const milestones: Milestone[] = ((apiGoal.milestones as Record<string, unknown>[]) || []).map(m => ({
     id: m.id as string,
     goalId: (m.goalId as string) || '',
@@ -72,7 +83,7 @@ function mapApiGoal(apiGoal: Record<string, unknown>): Goal {
     status: ((apiGoal.status as string) || 'not-started') as Goal['status'],
     progress,
     startDate: apiGoal.startDate ? new Date(apiGoal.startDate as string).toISOString().split('T')[0] : null,
-    targetDate: apiGoal.targetDate ? new Date(apiGoal.targetDate as string).toISOString().split('T')[0] : null,
+    targetDate: typeof apiGoal.targetDate === 'string' ? apiGoal.targetDate.slice(0, 10) : null,
     completedAt: apiGoal.completedAt ? new Date(apiGoal.completedAt as string).toISOString().split('T')[0] : null,
     parentGoalId: (apiGoal.parentGoalId as string) || null,
     tags,
@@ -145,6 +156,8 @@ export function GoalsPage() {
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
   const [expandedGoalId, setExpandedGoalId] = useState<string | null>(null)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [editingGoal, setEditingGoal] = useState<GoalEditFields | null>(null)
+  const [editingGoalOriginal, setEditingGoalOriginal] = useState<GoalEditFields | null>(null)
   const [celebratingMilestone, setCelebratingMilestone] = useState<string | null>(null)
   const [milestoneReachedGoalId, setMilestoneReachedGoalId] = useState<string | null>(null)
   const [newGoal, setNewGoal] = useState({ title: '', description: '', category: 'personal' as Goal['category'], targetDate: '' })
@@ -210,6 +223,38 @@ export function GoalsPage() {
       }
     })
   }, [newGoal, createGoalMutation, t])
+
+  const openEditGoal = useCallback((goal: Goal) => {
+    const initial: GoalEditFields = {
+      id: goal.id,
+      title: goal.title,
+      description: goal.description,
+      category: goal.category,
+      targetDate: goal.targetDate,
+    }
+    setEditingGoal(initial)
+    setEditingGoalOriginal(initial)
+  }, [])
+
+  const closeEditGoal = useCallback(() => {
+    setEditingGoal(null)
+    setEditingGoalOriginal(null)
+  }, [])
+
+  const handleUpdateGoal = useCallback(() => {
+    if (!editingGoal || !editingGoalOriginal || !editingGoal.title.trim()) return
+    const changes = buildGoalEditChanges(editingGoalOriginal, editingGoal)
+    if (Object.keys(changes).length === 0) {
+      closeEditGoal()
+      return
+    }
+    updateGoalMutation.mutate({ id: editingGoal.id, ...changes }, {
+      onSuccess: () => {
+        closeEditGoal()
+        showToast.success(t('toast.saved'))
+      },
+    })
+  }, [editingGoal, editingGoalOriginal, updateGoalMutation, closeEditGoal, t])
 
   // Category color picker for create dialog
   const categoryColorPicker = (
@@ -291,6 +336,20 @@ export function GoalsPage() {
             <DialogFooter><DialogClose asChild><Button variant="outline">{t('cancel')}</Button></DialogClose><Button onClick={handleAddGoal} disabled={createGoalMutation.isPending}>{t('create')}</Button></DialogFooter>
           </DialogContent>
         </Dialog>
+        <Dialog open={Boolean(editingGoal)} onOpenChange={open => { if (!open) closeEditGoal() }}>
+          <DialogContent aria-describedby={undefined}>
+            <DialogHeader><DialogTitle>{t('edit')} {t('goals.title')}</DialogTitle><DialogDescription className="sr-only">{t('goals.title')}</DialogDescription></DialogHeader>
+            {editingGoal && <div className="space-y-4 py-2">
+              <div><label htmlFor="goal-edit-title" className="mb-1.5 block text-sm font-medium">{t('goals.goalTitle')}</label><Input id="goal-edit-title" autoFocus placeholder={t('goals.whatDoYouWantToAchieve')} value={editingGoal.title} onChange={event => setEditingGoal(current => current && ({ ...current, title: event.target.value }))} /></div>
+              <div><label htmlFor="goal-edit-description" className="mb-1.5 block text-sm font-medium">{t('goals.description')}</label><Textarea id="goal-edit-description" placeholder={t('goals.describeYourGoal')} value={editingGoal.description} onChange={event => setEditingGoal(current => current && ({ ...current, description: event.target.value }))} /></div>
+              <div className="space-y-2"><p id="goal-edit-category-label" className="mb-1.5 block text-sm font-medium">{t('goals.category')}</p><div role="group" aria-labelledby="goal-edit-category-label" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {Object.keys(categoryColors).map(key => <button key={key} type="button" aria-pressed={editingGoal.category === key} className={cn('flex min-h-11 items-center gap-2 rounded-lg border-2 px-3 py-2 text-sm transition-all', editingGoal.category === key ? 'border-primary bg-primary/5' : 'border-border/50 hover:border-primary/30 hover:bg-accent/50')} onClick={() => setEditingGoal(current => current && ({ ...current, category: key as Goal['category'] }))}><span>{categoryIcons[key]}</span><span className="truncate">{t(`goals.${key}`)}</span></button>)}
+              </div></div>
+              <div><label htmlFor="goal-edit-target-date" className="mb-1.5 block text-sm font-medium">{t('goals.targetDate')}</label><Input id="goal-edit-target-date" type="date" value={editingGoal.targetDate || ''} onChange={event => setEditingGoal(current => current && ({ ...current, targetDate: event.target.value || null }))} /></div>
+            </div>}
+            <DialogFooter className="flex-col-reverse sm:flex-row"><Button type="button" variant="outline" className="min-h-11" onClick={closeEditGoal}>{t('cancel')}</Button><Button className="min-h-11" onClick={handleUpdateGoal} disabled={!editingGoal?.title.trim() || updateGoalMutation.isPending}>{t('save')}</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Goals List */}
@@ -369,7 +428,8 @@ export function GoalsPage() {
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
                           {goal.targetDate && <Badge variant="outline" className="text-[10px]"><CalendarDays className="h-3 w-3 mr-1" />{goal.targetDate}</Badge>}
-                          <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={(e) => { e.stopPropagation(); deleteGoal(goal.id) }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="h-11 w-11 lg:h-7 lg:w-7" aria-label={`${t('edit')} ${goal.title}`} onClick={(e) => { e.stopPropagation(); openEditGoal(goal) }}><Pencil className="h-3.5 w-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="h-11 w-11 lg:h-7 lg:w-7 hover:text-destructive" aria-label={`${t('delete')} ${goal.title}`} onClick={(e) => { e.stopPropagation(); deleteGoal(goal.id) }}><Trash2 className="h-3.5 w-3.5" /></Button>
                         </div>
                       </div>
                       <AnimatePresence>

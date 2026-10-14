@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { CalendarEvent } from '@/stores/calendar-store'
 import { useEvents, useCreateEvent, useUpdateEvent, useDeleteEvent } from '@/lib/api/hooks'
@@ -48,15 +48,21 @@ function mapApiEvent(apiEvent: Record<string, unknown>): CalendarEvent {
 }
 
 // Event Pill with left border color
-function EventPill({ event, compact = false }: { event: CalendarEvent; compact?: boolean }) {
-  const [showTooltip, setShowTooltip] = useState(false)
+function EventPill({ event, compact = false, onClick }: { event: CalendarEvent; compact?: boolean; onClick: () => void }) {
   const startTime = event.allDay ? '' : format(new Date(event.startDate), 'H:mm')
   const isRecurring = event.recurrence && event.recurrence !== 'none'
 
   const pill = (
-    <div
+    <button
+      type="button"
+      aria-label={event.title}
+      title={event.description || undefined}
+      onClick={mouseEvent => {
+        mouseEvent.stopPropagation()
+        onClick()
+      }}
       className={cn(
-        'text-[10px] leading-tight px-1.5 py-0.5 rounded truncate transition-all duration-200 cursor-pointer hover:opacity-80 flex items-center gap-1',
+        'flex min-h-11 w-full items-center gap-1 truncate rounded px-1.5 py-0.5 text-left text-xs leading-tight transition-all duration-200 hover:opacity-80 lg:min-h-0 lg:text-[10px]',
         compact ? 'border-l-2' : 'border-l-[3px]'
       )}
       style={{
@@ -64,29 +70,14 @@ function EventPill({ event, compact = false }: { event: CalendarEvent; compact?:
         backgroundColor: event.color + '18',
         color: event.color,
       }}
-      onMouseEnter={() => setShowTooltip(true)}
-      onMouseLeave={() => setShowTooltip(false)}
     >
       {isRecurring && <RefreshCw className="h-2.5 w-2.5 shrink-0" />}
       <span className="truncate">
         {startTime && <span className="font-medium">{startTime} </span>}
         {event.title}
       </span>
-    </div>
+    </button>
   )
-
-  if (showTooltip && event.description) {
-    return (
-      <Tooltip open={showTooltip}>
-        <TooltipTrigger asChild>{pill}</TooltipTrigger>
-        <TooltipContent side="top" className="max-w-[200px] text-xs">
-          <p className="font-medium">{event.title}</p>
-          {startTime && <p className="text-muted-foreground mt-0.5">{startTime}{event.endDate && ` - ${format(new Date(event.endDate), 'H:mm')}`}</p>}
-          {event.description && <p className="text-muted-foreground mt-1 line-clamp-3">{event.description}</p>}
-        </TooltipContent>
-      </Tooltip>
-    )
-  }
 
   return pill
 }
@@ -151,6 +142,7 @@ export function CalendarPage() {
         instances.push({
           ...event,
           id: `${event.id}-${currentDate.toISOString()}`,
+          sourceEventId: event.sourceEventId ?? event.id,
           startDate: newStartDate.toISOString(),
           endDate: newEndDate ? newEndDate.toISOString() : null,
         })
@@ -246,7 +238,7 @@ export function CalendarPage() {
   }, [newEvent, createEventMutation, t])
 
   const openEditEvent = useCallback((event: CalendarEvent) => {
-    setEditEvent({ id: event.id, title: event.title, description: event.description || '', color: event.color, location: event.location || '' })
+    setEditEvent({ id: event.sourceEventId ?? event.id, title: event.title, description: event.description || '', color: event.color, location: event.location || '' })
     setEditDialogOpen(true)
   }, [])
 
@@ -357,7 +349,7 @@ export function CalendarPage() {
                 </div>
                 <div className="space-y-0.5">
                   {dayEvents.slice(0, 3).map(event => (
-                    <EventPill key={event.id} event={event} compact />
+                    <EventPill key={event.id} event={event} compact onClick={() => openEditEvent(event)} />
                   ))}
                   {dayEvents.length > 3 && (
                     <div className="text-[10px] text-muted-foreground pl-1">+{dayEvents.length - 3} {t('calendar.more')}</div>
@@ -411,7 +403,7 @@ export function CalendarPage() {
                 return (
                   <div key={`${day.toISOString()}-${hour}`} className="min-h-[40px] border-b border-r border-border/20 p-0.5">
                     {dayEvents.map(event => (
-                      <EventPill key={event.id} event={event} />
+                      <EventPill key={event.id} event={event} onClick={() => openEditEvent(event)} />
                     ))}
                   </div>
                 )
