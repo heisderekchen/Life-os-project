@@ -42,6 +42,7 @@ test('mobile task queue uses the available height and scrolls normally at phone 
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url())
     const path = url.pathname
+    console.log(`mobile fixture API: ${route.request().method()} ${path}`)
     if (path.endsWith('/api/app-state')) {
       await route.fulfill({ json: {
         initialized: true,
@@ -75,6 +76,9 @@ test('mobile task queue uses the available height and scrolls normally at phone 
   for (const width of [360, 390, 430]) {
     await page.setViewportSize({ width, height: 844 })
     await page.goto(appPath)
+    console.log(`mobile fixture page: ${page.url()} width=${width}`)
+    await page.screenshot({ path: `test-results/mobile-task-queue-${width}-diagnostic.png` })
+    console.log(`mobile fixture page text: ${(await page.locator('body').innerText()).slice(0, 1800)}`)
     await expect(page.getByText('Mobile fixture task 01', { exact: true })).toBeVisible()
 
     const list = page.locator('div.overflow-y-auto.overscroll-contain').filter({
