@@ -538,8 +538,6 @@ export function TasksPage() {
   const inProgressTasks = filteredTasks.filter(t => t.status === 'in-progress')
   const doneTasks = filteredTasks.filter(t => t.status === 'done')
 
-  // Productivity Score & Completion Progress
-  const taskCompletionPct = tasks.length > 0 ? Math.round((tasks.filter(t => t.status === 'done').length / tasks.length) * 100) : 0
   const overdueTasks = tasks.filter(t => {
     return isOverdueOpenTask(t)
   })
@@ -857,7 +855,7 @@ export function TasksPage() {
       <div className="grid min-w-0 gap-8 lg:grid-cols-[minmax(0,1fr)_260px]">
         <div className="space-y-5" onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleUpdateTask() } }}>
           <div><label className="mb-2 block text-sm font-medium">{t('tasks.taskTitle')}</label><Input aria-label={t('tasks.taskTitle')} autoFocus={!isMobile} className="h-12 text-base" value={editTask.title} onChange={(e) => setEditTask((p) => p && ({ ...p, title: e.target.value }))} /></div>
-          <div><label className="mb-2 block text-sm font-medium">{t('tasks.description')}</label><Textarea rows={4} className="min-h-28 resize-y text-base leading-6 sm:min-h-[188px]" value={editTask.description} onChange={(e) => setEditTask((p) => p && ({ ...p, description: e.target.value }))} /></div>
+          <div><label className="mb-2 block text-sm font-medium">{t('tasks.description')}</label><Textarea rows={8} className="resize-y text-base leading-6" value={editTask.description} onChange={(e) => setEditTask((p) => p && ({ ...p, description: e.target.value }))} /></div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div><label className="mb-2 block text-sm font-medium">{t('tasks.priority')}</label><Select value={editTask.priority} onValueChange={(v) => setEditTask((p) => p && ({ ...p, priority: v as Task['priority'] }))}><SelectTrigger className="h-11 text-base"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="low">{t('tasks.low')}</SelectItem><SelectItem value="medium">{t('tasks.medium')}</SelectItem><SelectItem value="high">{t('tasks.high')}</SelectItem><SelectItem value="urgent">{t('tasks.urgent')}</SelectItem></SelectContent></Select></div>
             <div><label className="mb-2 block text-sm font-medium">{t('tasks.status')}</label><Select value={editTask.status} onValueChange={(v) => setEditTask((p) => p && ({ ...p, status: v as Task['status'] }))}><SelectTrigger className="h-11 text-base"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todo">{t('tasks.todo')}</SelectItem><SelectItem value="in-progress">{t('tasks.inProgress')}</SelectItem><SelectItem value="done">{t('tasks.done')}</SelectItem></SelectContent></Select></div>
@@ -884,74 +882,55 @@ export function TasksPage() {
   ) : null
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full min-h-0">
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Productivity Score + Progress Bar */}
-        <div className="px-4 pt-3 pb-1">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-md border border-border flex items-center justify-center text-xs font-bold text-foreground bg-muted/40">
-                {taskCompletionPct}%
-              </div>
-              <div>
-                <p className="text-xs font-semibold">{t('tasks.productivityScore')}</p>
-                <p className="text-[10px] text-muted-foreground">{uiText('All tasks')}: {tasks.filter(t => t.status === 'done').length} {uiText("of")} {tasks.length} {t('tasks.tasksDone')}</p>
-              </div>
-            </div>
-            <div className="flex-1">
-              <div className="h-2 bg-muted/50 rounded-full overflow-hidden">
-                <div className="h-full rounded-full animate-day-progress" style={{ width: `${taskCompletionPct}%`, background: `linear-gradient(to right, ${accentHex}, ${accentHex}cc)` }} />
-              </div>
-            </div>
-          </div>
-        </div>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
 
-        <div role="group" aria-label={uiText('Task queue')} className="px-4 pt-4">
-          <div className="mb-2 flex items-baseline justify-between">
+        <div role="group" aria-label={uiText('Task queue')} className="shrink-0 px-2 pt-2 sm:px-4 sm:pt-4">
+          <div className="mb-1.5 flex items-baseline justify-between sm:mb-2">
             <h2 className="text-sm font-semibold">{uiText('Your work')}</h2>
             <span className="text-xs text-muted-foreground">{tasks.length} {uiText('tasks in view')}</span>
           </div>
-          <div className="grid grid-cols-2 divide-x divide-y divide-border/70 overflow-hidden border-y border-border/70 sm:grid-cols-4 sm:divide-y-0">
+          <div className="grid grid-cols-4 divide-x divide-border/70 overflow-hidden border-y border-border/70">
             {([
               { id: 'in-progress', label: uiText('In progress'), count: tasks.filter(task => task.status === 'in-progress' && !isOverdueOpenTask(task)).length, note: uiText('Being worked on') },
               { id: 'attention', label: uiText('Needs attention'), count: overdueTasks.length, note: uiText('Overdue') },
-              { id: 'todo', label: uiText('Next up'), count: tasks.filter(task => task.status === 'todo' && !isOverdueOpenTask(task)).length, note: uiText('Ready to start') },
               { id: 'all', label: uiText('All tasks'), count: tasks.length, note: uiText('Every status') },
+              { id: 'todo', label: uiText('Next up'), count: tasks.filter(task => task.status === 'todo' && !isOverdueOpenTask(task)).length, note: uiText('Ready to start') },
             ] as const).map((queue) => {
               const selected = queueFilter === queue.id && taskFilter === 'all'
               return (
-                <button key={queue.id} type="button" aria-pressed={selected} onClick={() => { setQueueFilter(queue.id); setTaskFilter('all') }} className={cn('min-h-[76px] px-3 py-3 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:min-h-[84px] sm:px-4', selected && 'bg-accent/45')}>
-                  <span className="flex items-baseline justify-between gap-2">
-                    <span className="min-w-0 truncate text-[11px] font-semibold sm:text-sm">{queue.label}</span>
-                    <span className="text-lg font-semibold tabular-nums">{queue.count}</span>
+                <button key={queue.id} type="button" aria-pressed={selected} onClick={() => { setQueueFilter(queue.id); setTaskFilter('all') }} className={cn('flex min-h-11 flex-col justify-center gap-0.5 px-1.5 py-1 text-center transition-colors hover:bg-accent/40 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:min-h-[76px] sm:items-stretch sm:gap-0 sm:px-4 sm:py-3 sm:text-left', selected && 'bg-accent/45')}>
+                  <span className="flex min-w-0 items-baseline justify-center gap-1 sm:justify-between sm:gap-2">
+                    <span className="truncate text-[11px] font-semibold leading-tight sm:text-sm">{queue.label}</span>
+                    <span className="text-sm font-semibold tabular-nums sm:text-lg">{queue.count}</span>
                   </span>
-                  <span className="mt-1 block truncate text-[11px] text-muted-foreground">{queue.note}</span>
+                  <span className="hidden truncate text-[11px] text-muted-foreground sm:mt-1 sm:block">{queue.note}</span>
                 </button>
               )
             })}
           </div>
         </div>
 
-        <div className="border-b border-border/50 px-4 pt-3">
+        <div className="shrink-0 border-b border-border/50 px-2 pt-1.5 sm:px-4 sm:pt-3">
           <Tabs value={taskSection} onValueChange={(value) => setTaskSection(value as 'mine' | 'recurring')}>
-            <TabsList className="h-11 w-full justify-start rounded-none bg-transparent p-0">
-              <TabsTrigger value="mine" className="h-11 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary">{uiText('My tasks')}</TabsTrigger>
-              <TabsTrigger value="recurring" className="h-11 rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary"><Repeat className="mr-2 h-4 w-4" />{uiText('Recurring tasks')} <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs tabular-nums">{recurringTasksQuery.data?.activeCount ?? '—'}</span></TabsTrigger>
+            <TabsList className="h-10 w-full justify-start rounded-none bg-transparent p-0 sm:h-11">
+              <TabsTrigger value="mine" className="h-10 rounded-none border-b-2 border-transparent px-3 text-xs data-[state=active]:border-primary sm:h-11 sm:px-4 sm:text-sm">{uiText('My tasks')}</TabsTrigger>
+              <TabsTrigger value="recurring" className="h-10 rounded-none border-b-2 border-transparent px-3 text-xs data-[state=active]:border-primary sm:h-11 sm:px-4 sm:text-sm"><Repeat className="mr-1.5 h-4 w-4 sm:mr-2" />{uiText('Recurring tasks')} <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[11px] tabular-nums sm:ml-2 sm:px-2 sm:text-xs">{recurringTasksQuery.data?.activeCount ?? '—'}</span></TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
 
         {/* Toolbar */}
-        {taskSection === 'mine' && <div className="p-4 border-b border-border/50 space-y-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
+        {taskSection === 'mine' && <div className="shrink-0 space-y-2 border-b border-border/50 p-2 sm:space-y-3 sm:p-4">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2">
               <Tabs value={taskView} onValueChange={(v) => setTaskView(v as 'list' | 'board')}>
-                <TabsList className="h-auto min-h-11">
-                  <TabsTrigger value="list" className="text-xs px-3 min-h-11">
+                <TabsList className="h-11">
+                  <TabsTrigger value="list" className="min-h-11 px-2.5 text-xs sm:px-3">
                     <List className="h-3.5 w-3.5 mr-1" />{t('tasks.list')}
                   </TabsTrigger>
-                  <TabsTrigger value="board" className="text-xs px-3 min-h-11">
+                  <TabsTrigger value="board" className="min-h-11 px-2.5 text-xs sm:px-3">
                     <LayoutGrid className="h-3.5 w-3.5 mr-1" />{t('tasks.board')}
                   </TabsTrigger>
                 </TabsList>
@@ -960,19 +939,21 @@ export function TasksPage() {
                 <Button
                   variant={selectionMode ? 'secondary' : 'ghost'}
                   size="sm"
-                  className="h-7 text-xs gap-1.5"
+                  aria-label={selectionMode ? t('cancel') : t('tasks.selection.select')}
+                  className="h-11 w-11 gap-1.5 px-0 text-xs sm:h-9 sm:w-auto sm:px-3"
                   onClick={() => {
                     setSelectionMode(prev => !prev)
                     setSelectedIds(new Set())
                   }}
                 >
                   <MousePointer2 className="h-3.5 w-3.5" />
-                  {selectionMode ? t('cancel') : t('tasks.selection.select')}
+                  <span className="hidden sm:inline">{selectionMode ? t('cancel') : t('tasks.selection.select')}</span>
+                  <span className="sr-only sm:hidden">{selectionMode ? t('cancel') : t('tasks.selection.select')}</span>
                 </Button>
               )}
               <details className="group/status relative">
-                <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-md border px-3 text-xs font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground [&::-webkit-details-marker]:hidden">
-                  {uiText('Status filters')}<ChevronDown className="ml-2 h-3.5 w-3.5 transition-transform group-open/status:rotate-180" />
+                <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-md border px-2.5 text-xs font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground [&::-webkit-details-marker]:hidden sm:px-3">
+                  <span className="hidden sm:inline">{uiText('Status filters')}</span><span className="sm:hidden">{uiText('Filter')}</span><ChevronDown className="ml-1.5 h-3.5 w-3.5 transition-transform group-open/status:rotate-180 sm:ml-2" />
                 </summary>
                 <div className="absolute left-0 top-full z-20 mt-1 flex min-w-44 flex-col rounded-lg border bg-popover p-1 shadow-lg">
                   {(['all', 'todo', 'in-progress', 'done'] as const).map((filter) => {
@@ -988,11 +969,11 @@ export function TasksPage() {
                 </div>
               </details>
             </div>
-            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <div className="flex items-center gap-1.5 self-start sm:self-auto sm:gap-2">
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1.5">
-                    <LayoutTemplate className="h-4 w-4" />{t('tasks.templates')}
+                  <Button variant="outline" size="sm" aria-label={t('tasks.templates')} className="h-11 w-11 gap-1.5 px-0 sm:h-9 sm:w-auto sm:px-3">
+                    <LayoutTemplate className="h-4 w-4" /><span className="hidden sm:inline">{t('tasks.templates')}</span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-64 p-2" align="end">
@@ -1018,8 +999,8 @@ export function TasksPage() {
               </Popover>
               <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm">
-                    <Plus className="h-4 w-4 mr-1.5" />{t('tasks.addTask')}
+                  <Button size="sm" aria-label={t('tasks.addTask')} className="h-11 w-11 p-0 sm:h-9 sm:w-auto sm:px-3">
+                    <Plus className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">{t('tasks.addTask')}</span>
                   </Button>
                 </DialogTrigger>
               <DialogContent
@@ -1346,7 +1327,7 @@ export function TasksPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder={`${t('search')}...`}
-              className="pl-9 h-9"
+              className="h-11 pl-9 sm:h-9"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -1354,7 +1335,7 @@ export function TasksPage() {
         </div>}
 
         {/* Task Content */}
-        {taskSection === 'mine' ? <div className="flex-1 overflow-auto">
+        {taskSection === 'mine' ? <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {isLoading ? (
             <div className="p-4 space-y-3">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -1401,12 +1382,12 @@ export function TasksPage() {
             <div><h2 className="text-base font-semibold">{uiText('Recurring tasks')}</h2><p className="mt-1 text-sm text-muted-foreground">{recurringTasksQuery.data?.schedulerEnabled ? uiText('Automatic continuation enabled') : uiText('Automatic continuation paused')}</p></div>
             <Badge variant="outline">{recurringTasksQuery.data?.schedulerEnabled ? uiText('Automatic continuation enabled') : uiText('Automatic continuation paused')}</Badge>
           </div>
-          {recurringTasksQuery.isLoading ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map((item) => <Skeleton key={item} className="h-36 w-full rounded-xl" />)}</div> : recurringTasksQuery.isError ? <div role="alert" className="flex items-center gap-3 rounded-lg border border-destructive/30 p-4 text-sm"><span>{uiText('Unable to load recurring tasks')}</span><Button variant="outline" size="sm" onClick={() => void recurringTasksQuery.refetch()}>{uiText('Retry')}</Button></div> : recurringTasksQuery.data?.series.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label={uiText('Recurring tasks')}>
+          {recurringTasksQuery.isLoading ? <div className="flex gap-3 overflow-hidden">{[0, 1, 2].map((item) => <Skeleton key={item} className="h-36 w-64 shrink-0 rounded-xl" />)}</div> : recurringTasksQuery.isError ? <div role="alert" className="flex items-center gap-3 rounded-lg border border-destructive/30 p-4 text-sm"><span>{uiText('Unable to load recurring tasks')}</span><Button variant="outline" size="sm" onClick={() => void recurringTasksQuery.refetch()}>{uiText('Retry')}</Button></div> : recurringTasksQuery.data?.series.length ? <div className="flex snap-x gap-3 overflow-x-auto overscroll-x-contain pb-3" aria-label={uiText('Recurring tasks')}>
             {recurringTasksQuery.data.series.map((series) => {
               const currentTask = tasks.find((task) => task.id === series.currentTaskId)
               if (!currentTask) return null
               const statusLabel = statusLabels[currentTask.status] || uiText('Status unavailable')
-              return <button key={series.id} type="button" data-task-id={currentTask.id} onClick={() => openTaskWorkspace(currentTask.id)} className="min-w-0 rounded-xl border border-border bg-card p-4 text-left shadow-sm transition hover:border-primary/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`${series.title}, ${statusLabel}, ${series.recurrence}`}>
+              return <button key={series.id} type="button" data-task-id={currentTask.id} onClick={() => openTaskWorkspace(currentTask.id)} className="w-64 shrink-0 snap-start rounded-xl border border-border bg-card p-4 text-left shadow-sm transition hover:border-primary/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`${series.title}, ${statusLabel}, ${series.recurrence}`}>
                 <div className="flex items-start justify-between gap-3"><span className="line-clamp-2 font-semibold">{series.title}</span><Badge variant={currentTask.status === 'done' ? 'secondary' : 'outline'}>{statusLabel}</Badge></div>
                 <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground"><Repeat className="h-3.5 w-3.5" /><span>{uiText(series.recurrence)}</span></div>
                 <div className="mt-3 text-xs text-muted-foreground">{series.dueDate ? `${t('tasks.dueDate')}: ${series.dueDate}` : uiText('No due date')}</div>
@@ -1439,13 +1420,13 @@ export function TasksPage() {
 
       {/* Bulk Action Bar */}
       {selectionMode && selectedIds.size > 0 && (
-        <div className="lifeos-float-above-bottom fixed left-1/2 -translate-x-1/2 flex items-center gap-2 bg-card border border-border rounded-full shadow-lg px-3 sm:px-4 py-2 z-50 max-w-[calc(100vw-1rem)] overflow-x-auto">
+        <div className="lifeos-float-above-bottom fixed left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-card border border-border rounded-full shadow-lg px-2 sm:gap-2 sm:px-4 py-1.5 sm:py-2 z-50 max-w-[calc(100vw-1rem)] overflow-x-auto">
           <span className="text-sm font-medium">{selectedIds.size} {uiText("seçildi")}</span>
           <Separator orientation="vertical" className="h-4" />
-          <Button size="sm" variant="ghost" onClick={handleBulkDone}>
+          <Button size="sm" variant="ghost" className="h-11 shrink-0 px-2 sm:px-3" onClick={handleBulkDone}>
             <Check className="h-4 w-4 mr-1" /> {uiText("Tamamla")}
           </Button>
-          <Button size="sm" variant="ghost" className="text-destructive" onClick={handleBulkDelete}>
+          <Button size="sm" variant="ghost" className="h-11 shrink-0 px-2 text-destructive sm:px-3" onClick={handleBulkDelete}>
             <Trash2 className="h-4 w-4 mr-1" /> {uiText("Sil")}
           </Button>
         </div>
@@ -1499,9 +1480,9 @@ function Listview({ tasks, projects, selectedTaskId, celebratingTaskId, onSelect
   }
 
   return (
-    <div className="space-y-2 p-3 sm:p-4">
+    <div className="space-y-1.5 p-2 sm:space-y-2 sm:p-4">
       {selectionMode && (
-        <div className="flex items-center gap-3 px-4 py-2 bg-muted/30 border-b border-border/50">
+        <div className="flex min-h-11 items-center gap-3 px-2 py-1.5 bg-muted/30 border-b border-border/50 sm:px-4">
           <Checkbox
             checked={allSelected}
             onCheckedChange={() => {
@@ -1528,7 +1509,7 @@ function Listview({ tasks, projects, selectedTaskId, celebratingTaskId, onSelect
             aria-label={`${uiText('Open task details')}: ${task.title}`}
             aria-expanded={selectedTaskId === task.id}
             className={cn(
-              'task-summary-card group grid min-w-0 cursor-pointer gap-3 border-l-[3px] px-3.5 py-3.5 transition-all duration-200 hover:bg-accent/20 sm:rounded-xl sm:border sm:border-border/60 sm:px-4 sm:py-4',
+              'task-summary-card group grid min-w-0 cursor-pointer gap-2 border-l-[3px] px-2.5 py-2 transition-colors duration-200 hover:bg-accent/20 sm:gap-3 sm:rounded-xl sm:border sm:border-border/60 sm:px-4 sm:py-4',
               priorityBorderColors[task.priority],
               task.status === 'done' && '[&_.task-title]:text-muted-foreground [&_.task-title]:line-through',
               isCelebrating && 'animate-celebrate',
@@ -1545,13 +1526,13 @@ function Listview({ tasks, projects, selectedTaskId, celebratingTaskId, onSelect
             }}
             onDoubleClick={(e) => { if (selectionMode) return; e.stopPropagation(); onEditTask?.(task) }}
           >
-            <div className="flex min-w-0 items-start gap-3">
+            <div className="flex min-w-0 items-start gap-2 sm:gap-3">
               {selectionMode ? (
                 <Checkbox checked={isSelected} onCheckedChange={() => onToggleSelect?.(task.id)} onClick={(e) => e.stopPropagation()} className="mt-1" />
               ) : (
                 <Checkbox checked={task.status === 'done'} onCheckedChange={() => onToggleStatus(task.id)} onClick={(e) => e.stopPropagation()} className={cn('mt-1 transition-all duration-200', task.status === 'done' && 'animate-check-pop')} />
               )}
-              <div className="min-w-0 flex-1 space-y-2.5">
+              <div className="min-w-0 flex-1 space-y-1.5 sm:space-y-2.5">
                 <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                   <Badge className={cn(`${priorityColors[task.priority]} rounded-full border-0 px-2 py-0.5 text-[10px] font-semibold`, task.priority === 'urgent' && 'animate-pulse-urgent')}>{t(`tasks.${task.priority}`)}</Badge>
                   <Badge variant="outline" className="rounded-full text-[10px]">{task.status === 'in-progress' ? t('tasks.inProgress') : task.status === 'todo' ? t('tasks.todo') : t('tasks.done')}</Badge>
@@ -1562,10 +1543,10 @@ function Listview({ tasks, projects, selectedTaskId, celebratingTaskId, onSelect
                 <div className="min-w-0">
                   <p className={cn('task-title break-words text-[15px] font-semibold leading-snug', task.status === 'done' && 'line-through-animate text-muted-foreground')}>{task.title}</p>
                 </div>
-                {(splitTaskDescription(task.description).handoff || splitTaskDescription(task.description).body) && <div className="rounded-md bg-muted/30 px-3 py-2"><p className="text-[10px] font-medium text-muted-foreground">{splitTaskDescription(task.description).handoff ? uiText('Latest progress') : uiText('Task materials')}</p><p className="mt-1 line-clamp-2 break-words text-xs leading-relaxed text-foreground/75">{splitTaskDescription(task.description).handoff || splitTaskDescription(task.description).body}</p></div>}
-                {task.tags.length > 0 && <div className="flex flex-wrap gap-1">{task.tags.slice(0, 5).map(tag => <Badge key={tag} variant="outline" className="max-w-full truncate px-1.5 py-0 text-[10px]">#{tag}</Badge>)}{task.tags.length > 5 && <span className="text-[10px] text-muted-foreground">+{task.tags.length - 5}</span>}</div>}
-                {!selectionMode && <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-2">
-                  <span className="text-[11px] text-muted-foreground">{uiText('Open task details')}</span>
+                {(splitTaskDescription(task.description).handoff || splitTaskDescription(task.description).body) && <div className="rounded-md bg-muted/30 px-2 py-1 sm:px-3 sm:py-2"><p className="hidden text-[10px] font-medium text-muted-foreground sm:block">{splitTaskDescription(task.description).handoff ? uiText('Latest progress') : uiText('Task materials')}</p><p className="line-clamp-1 break-words text-[11px] leading-snug text-foreground/75 sm:mt-1 sm:line-clamp-2 sm:text-xs sm:leading-relaxed">{splitTaskDescription(task.description).handoff || splitTaskDescription(task.description).body}</p></div>}
+                {task.tags.length > 0 && <div className="flex flex-nowrap gap-1 overflow-hidden sm:flex-wrap">{task.tags.slice(0, 5).map(tag => <Badge key={tag} variant="outline" className="max-w-[40vw] shrink-0 truncate px-1.5 py-0 text-[10px]">#{tag}</Badge>)}{task.tags.length > 5 && <span className="shrink-0 text-[10px] text-muted-foreground">+{task.tags.length - 5}</span>}</div>}
+                {!selectionMode && <div className="flex flex-wrap items-center justify-between gap-1.5 border-t border-border/50 pt-1.5 sm:gap-2 sm:pt-2">
+                  <span className="hidden text-[11px] text-muted-foreground sm:inline">{uiText('Open task details')}</span>
                   <div className="flex flex-wrap items-center gap-1">
                     {onMoveTask && task.status !== 'done' && <Button variant="outline" size="sm" className="h-11" onClick={(e) => { e.stopPropagation(); onMoveTask(task.id, task.status === 'todo' ? 'in-progress' : 'done') }}>{task.status === 'todo' ? uiText('Start') : t('tasks.markComplete')}</Button>}
                     <Button variant="ghost" size="icon" className="h-11 w-11" onClick={(e) => { e.stopPropagation(); onEditTask?.(task) }} title={t('edit')} aria-label={`${t('edit')}: ${task.title}`}><Edit3 className="h-3.5 w-3.5" /></Button>
