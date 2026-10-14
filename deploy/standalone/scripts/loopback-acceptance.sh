@@ -81,7 +81,8 @@ const health = await fetch(`${base}/internal/health`).then(r => r.json())
 assert.deepEqual(health, { ok: true, recurrenceEnabled: false })
 const login = await fetch(`${base}/workbench/`)
 assert.equal(login.status, 200)
-assert.match(await login.text(), /私人 Life OS/)
+assert.match(await login.text(), /<title>myOS · 统一登录<\/title>/)
+assert.match(await login.text(), /HappySpa 工作台 · myOS/)
 const commonHeaders = { origin, 'x-forwarded-proto': 'https', 'content-type': 'application/json' }
 const entry = await fetch(`${base}/api/personal-workbench/entry`, {
   method: 'POST', headers: commonHeaders,
