@@ -24,6 +24,21 @@ const fixtureTasks = Array.from({ length: 10 }, (_, index) => ({
 }))
 
 test('mobile task queue uses the available height and scrolls normally at phone widths', async ({ page }) => {
+  const cloudState = {
+    initialized: true,
+    appInitialized: true,
+    preferencesVersion: true,
+    hasLifeOsData: true,
+    setupComplete: true,
+    revision: 'mobile-visual-fixture',
+    preferences: {
+      setupComplete: true,
+      language: 'en',
+      enabledModules: ['dashboard', 'tasks', 'projects', 'notes', 'habits', 'journal', 'finance', 'goals', 'learning', 'calendar', 'time', 'settings'],
+      animationsEnabled: false,
+    },
+  }
+
   await page.addInitScript(() => {
     try {
       window.localStorage.setItem('lifeos-app-store', JSON.stringify({
@@ -38,6 +53,26 @@ test('mobile task queue uses the available height and scrolls normally at phone 
       }))
     } catch {}
   })
+
+  await page.addInitScript(({ state, tasks }) => {
+    const realFetch = window.fetch.bind(window)
+    window.fetch = (input, init) => {
+      const requestUrl = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      const path = new URL(requestUrl, window.location.origin).pathname
+      let payload: unknown
+      if (path.endsWith('/api/app-state')) payload = state
+      else if (path.endsWith('/api/tasks')) payload = tasks
+      else if (path.endsWith('/api/projects')) payload = []
+      else if (path.endsWith('/api/recurring-tasks')) payload = { series: [], activeCount: 0, schedulerEnabled: false }
+      if (payload !== undefined) {
+        return Promise.resolve(new Response(JSON.stringify(payload), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }))
+      }
+      return realFetch(input, init)
+    }
+  }, { state: cloudState, tasks: fixtureTasks })
 
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url())
