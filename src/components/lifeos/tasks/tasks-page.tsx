@@ -901,9 +901,9 @@ export function TasksPage() {
               const selected = queueFilter === queue.id && taskFilter === 'all'
               return (
                 <button key={queue.id} type="button" aria-label={`${queue.label}: ${queue.count}`} aria-pressed={selected} onClick={() => { setQueueFilter(queue.id); setTaskFilter('all') }} className={cn('flex min-h-11 flex-col justify-center gap-0.5 px-1.5 py-1 text-center transition-colors hover:bg-accent/40 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:min-h-[76px] sm:items-stretch sm:gap-0 sm:px-4 sm:py-3 sm:text-left', selected && 'bg-accent/45')}>
-                  <span className="flex min-w-0 items-baseline justify-center gap-1 sm:justify-between sm:gap-2">
-                    <span className="truncate text-xs font-semibold leading-tight sm:text-sm"><span className="sm:hidden">{queue.mobileLabel}</span><span className="hidden sm:inline">{queue.label}</span></span>
-                    <span className="text-sm font-semibold tabular-nums sm:text-lg">{queue.count}</span>
+                  <span className="flex min-w-0 flex-col items-center justify-center gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-2">
+                    <span className="text-xs font-semibold leading-tight sm:truncate sm:text-sm"><span className="sm:hidden">{queue.mobileLabel}</span><span className="hidden sm:inline">{queue.label}</span></span>
+                    <span className="text-xs font-semibold tabular-nums sm:text-lg">{queue.count}</span>
                   </span>
                   <span className="hidden truncate text-[11px] text-muted-foreground sm:mt-1 sm:block">{queue.note}</span>
                 </button>
