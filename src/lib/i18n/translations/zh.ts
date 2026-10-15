@@ -63,6 +63,7 @@ const zh = {
     "focusMode": "专注模式",
     "workbench": "工作台",
     "appsChannels": "应用与渠道",
+    "projectList": "项目列表",
     "otherWorkspaces": "其他工作台",
     "loadingWorkspaces": "正在读取已授权工作台…",
     "workspacesUnavailable": "工作台列表暂不可用",

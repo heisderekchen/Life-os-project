@@ -53,6 +53,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
   const [projects, setProjects] = useState<{ id?: string; name?: string; archived?: boolean }[]>([])
   const [projectsStatus, setProjectsStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
+  const [appsOpen, setAppsOpen] = useState(true)
 
   useEffect(() => {
     let active = true
@@ -92,9 +93,14 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
       ],
     },
     {
-      title: t('nav.appsChannels'),
+      title: t('nav.projects'),
       items: [
         { id: 'projects' as ModuleId, label: t('nav.projects'), icon: FolderKanban },
+      ],
+    },
+    {
+      title: t('nav.appsChannels'),
+      items: [
         { id: 'myos' as ModuleId, label: t('nav.myos'), icon: LayoutDashboard },
         { id: 'notes' as ModuleId, label: t('nav.notes'), icon: StickyNote },
         { id: 'calendar' as ModuleId, label: t('nav.calendar'), icon: CalendarDays },
@@ -148,7 +154,8 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
         <nav className="px-2 space-y-4">
           <TooltipProvider delayDuration={0}>
             {filteredSections.map((section) => {
-              const primaryGroup = section.title === t('nav.workbench') || section.title === t('nav.administration')
+              const primaryGroup = section.title === t('nav.workbench') || section.title === t('nav.projects') || section.title === t('nav.administration')
+              const activeInSection = section.items.some(item => item.id === activeModule)
               const links = (
                 <div className="space-y-px">
                   {section.items.map((mod) => {
@@ -162,8 +169,12 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
                         className={cn(
                           'w-full flex items-center gap-2.5 rounded-md text-sm transition-colors duration-150',
                           collapsed ? 'justify-center px-2 py-2' : 'min-h-11 px-2 py-2',
-                          isActive ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground hover:text-foreground hover:bg-accent/60'
+                          isActive ? 'font-medium' : 'text-muted-foreground hover:text-foreground hover:bg-accent/60'
                         )}
+                        style={isActive ? {
+                          color: 'var(--accent-primary)',
+                          backgroundColor: 'color-mix(in srgb, var(--accent-primary) 12%, transparent)',
+                        } : undefined}
                       >
                         <Icon className="h-4 w-4 shrink-0" />
                         {!collapsed && <span className="truncate">{mod.label}</span>}
@@ -180,7 +191,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
                 {links}
               </div>
               return (
-                <details key={section.title} className="group/nav rounded-md" open={section.items.some(item => item.id === activeModule)}>
+                <details key={section.title} className="group/nav rounded-md" open={appsOpen || activeInSection} onToggle={event => setAppsOpen(event.currentTarget.open)}>
                   <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-md px-2 text-xs font-semibold text-muted-foreground hover:bg-accent/50 hover:text-foreground [&::-webkit-details-marker]:hidden">
                     <span>{section.title}</span><ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open/nav:rotate-180" />
                   </summary>
@@ -192,7 +203,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
 
           {!collapsed ? <div className="pt-1">
             <div className="mb-1 flex min-h-7 items-center justify-between px-2">
-              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">{t('nav.projects')}</p>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">{t('nav.projectList')}</p>
               <button type="button" className="rounded px-1 text-[11px] text-muted-foreground hover:text-foreground" onClick={() => handleNav('projects')}>全部</button>
             </div>
             {projectsStatus === 'loading' ? <p className="px-2 py-2 text-xs text-muted-foreground">正在读取项目…</p>
@@ -244,9 +255,10 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
                   className={cn(
                     'w-full flex items-center justify-center px-2 py-2 rounded-md transition-colors duration-150',
                     activeModule === 'settings'
-                      ? 'bg-accent text-foreground'
+                      ? ''
                       : 'text-muted-foreground hover:text-foreground hover:bg-accent/60'
                   )}
+                  style={activeModule === 'settings' ? { color: 'var(--accent-primary)', backgroundColor: 'color-mix(in srgb, var(--accent-primary) 12%, transparent)' } : undefined}
                 >
                   <Settings className="h-4 w-4" />
                 </button>
@@ -259,9 +271,10 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
               className={cn(
                 'w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors duration-150',
                 activeModule === 'settings'
-                  ? 'bg-accent text-foreground font-medium'
+                  ? 'font-medium'
                   : 'text-muted-foreground hover:text-foreground hover:bg-accent/60'
               )}
+              style={activeModule === 'settings' ? { color: 'var(--accent-primary)', backgroundColor: 'color-mix(in srgb, var(--accent-primary) 12%, transparent)' } : undefined}
             >
               <Settings className="h-4 w-4 shrink-0" />
               <span>{t('nav.settings')}</span>

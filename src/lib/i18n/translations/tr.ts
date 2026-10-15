@@ -72,6 +72,7 @@ const tr: TranslationKeys = {
     focusMode: 'Odak Modu',
     workbench: 'Çalışma Alanı',
     appsChannels: 'Uygulamalar ve kanallar',
+    projectList: 'Proje listesi',
     otherWorkspaces: 'Diğer çalışma alanları',
     loadingWorkspaces: 'Çalışma alanları yükleniyor…',
     workspacesUnavailable: 'Çalışma alanları kullanılamıyor',

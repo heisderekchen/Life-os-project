@@ -68,6 +68,7 @@ const es: TranslationKeys = {
     focusMode: 'Modo enfoque',
     workbench: 'Espacio de trabajo',
     appsChannels: 'Apps y canales',
+    projectList: 'Lista de proyectos',
     otherWorkspaces: 'Otros espacios',
     loadingWorkspaces: 'Cargando espacios…',
     workspacesUnavailable: 'Espacios no disponibles',

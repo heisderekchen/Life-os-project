@@ -68,6 +68,7 @@ const en = {
     focusMode: 'Focus Mode',
     workbench: 'Workbench',
     appsChannels: 'Apps & channels',
+    projectList: 'Project list',
     otherWorkspaces: 'Other workspaces',
     loadingWorkspaces: 'Loading workspaces…',
     workspacesUnavailable: 'Workspaces are unavailable',
