@@ -1,5 +1,7 @@
 import { json } from './app/response.mjs';
 import { buildRecurringTaskSeries } from './recurring-task-series.mjs';
+import { importLifeOsTasks, previewLifeOsTaskImport } from './lifeos-task-import.mjs';
+import { normalizeDotTaskExport } from './dot-task-export.mjs';
 
 const PROJECT_STATUSES = new Set(['active', 'paused', 'review', 'archived']);
 const CHECKPOINT_KINDS = new Set(['progress', 'blocker', 'review', 'capture']);
@@ -2206,6 +2208,32 @@ async function handleLifeOsProjectCompatibility(request, env, url, actor) {
 }
 
 async function handleLifeOsTasks(request, env, url, actor) {
+    if (url.pathname === '/api/personal-workbench/lifeos/tasks/import/preview' && request.method === 'POST') {
+        try {
+            const body = await bodyOf(request);
+            const payload = body && typeof body === 'object' && !Array.isArray(body) && Array.isArray(body.tasks) && typeof body.title === 'string'
+                ? normalizeDotTaskExport(body) : body;
+            return json(await previewLifeOsTaskImport(env.DB, payload));
+        } catch (error) {
+            if (Number.isInteger(error?.status)) return json({ error: error.message }, error.status);
+            throw error;
+        }
+    }
+    if (url.pathname === '/api/personal-workbench/lifeos/tasks/import' && request.method === 'POST') {
+        try {
+            const body = await bodyOf(request);
+            const payload = body && typeof body === 'object' && !Array.isArray(body) && Array.isArray(body.tasks) && typeof body.title === 'string'
+                ? normalizeDotTaskExport(body) : body;
+            const result = await importLifeOsTasks(env.DB, payload, actor);
+            return json(result, result.imported ? 201 : 200);
+        } catch (error) {
+            if (Number.isInteger(error?.status)) return json({ error: error.message }, error.status);
+            if (/UNIQUE constraint failed|PRIMARY KEY constraint failed/i.test(String(error?.message || error))) {
+                return json({ error: 'Import changed while saving. Preview again; no partial batch was committed.' }, 409);
+            }
+            throw error;
+        }
+    }
     if (url.pathname === '/api/personal-workbench/lifeos/recurring-tasks' && request.method === 'GET') {
         const [taskRows, runRows] = await Promise.all([
             env.DB.prepare(`SELECT id,title,status,recurrence,recurrence_config,due_date,updated_at,created_at,archived
