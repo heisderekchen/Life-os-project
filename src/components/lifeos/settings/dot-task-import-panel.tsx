@@ -102,7 +102,6 @@ export function DotTaskImportPanel() {
       <input
         ref={inputRef}
         type="file"
-        accept=".json,application/json"
         className="hidden"
         aria-label={t('settings.chooseDotExport')}
         onChange={(event) => {
