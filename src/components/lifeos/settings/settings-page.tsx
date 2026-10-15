@@ -31,6 +31,7 @@ import { useTranslation, availableLanguages } from '@/lib/i18n'
 import type { LanguageCode } from '@/lib/i18n'
 import { apiPath } from '@/lib/api/client'
 import { ModulePageHeader } from '@/components/lifeos/shared/module-page-header'
+import { DotTaskImportPanel } from './dot-task-import-panel'
 
 type SettingsTab = 'profile' | 'appearance' | 'data' | 'shortcuts' | 'notifications' | 'about'
 
@@ -1055,6 +1056,8 @@ export function SettingsPage() {
                   </Button>
                 </CardContent>
               </Card>
+
+              <DotTaskImportPanel />
 
               {/* Import Data */}
               <Card>
