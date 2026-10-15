@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-const ROOT_KEYS = new Set(['title', 'as_of', 'usage', 'tasks', 'confirm']);
+const ROOT_KEYS = new Set(['title', 'as_of', 'usage', 'tasks', 'confirm', 'reconcile']);
 const TASK_KEYS = new Set(['name', 'description', 'project', 'type', 'status', 'latest_result', 'links', 'updated_at']);
 const TASK_STATUSES = new Set(['todo', 'in-progress', 'done', 'cancelled']);
 const SOURCE_STATUS_MAP = new Map([
@@ -72,6 +72,8 @@ function normalizeRecord(record, index) {
     description: context || null,
     status,
     sourceStatus,
+    sourceProject: record.project?.trim() || null,
+    sourceType: record.type?.trim() || null,
     priority: 'medium',
     sourceUpdatedAt,
     identity: sourceIdFor(record),
@@ -112,5 +114,5 @@ export function normalizeDotTaskExport(input, { sourceKey = 'dot.tasks' } = {}) 
     unique.set(task.identity, task);
   }
   const tasks = [...unique.values()].map(({ identity, comparable, ...task }) => task);
-  return { sourceKey, tasks, confirm: input.confirm === true };
+  return { sourceKey, tasks, confirm: input.confirm === true, reconcile: input.reconcile === true };
 }
