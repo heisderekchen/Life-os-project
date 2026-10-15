@@ -73,6 +73,10 @@ const es: TranslationKeys = {
     loadingWorkspaces: 'Cargando espacios…',
     workspacesUnavailable: 'Espacios no disponibles',
     noOtherWorkspaces: 'No hay otros espacios conectados',
+    directoryWorkspaceDescription: 'Solo se muestran los espacios a los que esta cuenta tiene acceso.',
+    directoryToolsDescription: 'Elige una herramienta según lo que quieras hacer a continuación.',
+    backToCurrentPage: 'Volver a la página actual',
+    searchApps: 'Buscar aplicaciones',
   },
 
   platformAdmin: {

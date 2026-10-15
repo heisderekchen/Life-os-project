@@ -67,7 +67,11 @@ const zh = {
     "otherWorkspaces": "其他工作台",
     "loadingWorkspaces": "正在读取已授权工作台…",
     "workspacesUnavailable": "工作台列表暂不可用",
-    "noOtherWorkspaces": "尚未接入其他工作台"
+    "noOtherWorkspaces": "尚未接入其他工作台",
+    "directoryWorkspaceDescription": "仅显示当前账号已获授权的工作台。",
+    "directoryToolsDescription": "按下一步要做的事选择工具。",
+    "backToCurrentPage": "返回当前页面",
+    "searchApps": "查找应用"
   },
   "platformAdmin": {
     "title": "账号与工作台权限", "description": "创建账号并分配已配置的工作台。",
