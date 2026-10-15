@@ -48,12 +48,14 @@ const tr: TranslationKeys = {
   // Sidebar Navigation
   nav: {
     overview: 'Genel Bakış',
-    productivity: 'Verimlilik',
+    productivity: 'Uygulamalar ve kanallar',
     wellness: 'Sağlık',
     growth: 'Gelişim',
-    dashboard: 'Panel',
+    dashboard: 'Genel Bakış',
+    attention: 'İlgilenmeniz gerekenler',
     reminders: 'Hatırlatıcılar',
     tasks: 'Görevler',
+    dynamicTasks: 'Dinamik görevler',
     myos: 'Alanım',
     projects: 'Projeler',
     notes: 'Notlar',
@@ -68,6 +70,17 @@ const tr: TranslationKeys = {
     accounts: 'Hesaplar ve erişim',
     administration: 'Yönetim',
     focusMode: 'Odak Modu',
+    workbench: 'Çalışma Alanı',
+    appsChannels: 'Uygulamalar ve kanallar',
+    projectList: 'Proje listesi',
+    otherWorkspaces: 'Diğer çalışma alanları',
+    loadingWorkspaces: 'Çalışma alanları yükleniyor…',
+    workspacesUnavailable: 'Çalışma alanları kullanılamıyor',
+    noOtherWorkspaces: 'Bağlı başka çalışma alanı yok',
+    directoryWorkspaceDescription: 'Yalnızca bu hesabın erişim izni olan çalışma alanları gösterilir.',
+    directoryToolsDescription: 'Sıradaki işinize göre bir araç seçin.',
+    backToCurrentPage: 'Geçerli sayfaya dön',
+    searchApps: 'Uygulama ara',
   },
 
   platformAdmin: {
@@ -837,6 +850,7 @@ const tr: TranslationKeys = {
     dotImportFailed: 'Dosya önizlenemedi veya içe aktarılamadı.',
     dotImportInvalidFile: 'Geçerli bir Dot görev dışa aktarım JSON dosyası seçin.',
     dotImportTooLarge: 'Dosya en fazla 900 KB olmalıdır.',
+
     resetAllData: 'Tüm Verileri Sıfırla',
     exportDesc: 'Tüm verilerinizi JSON dosyası olarak indirin',
     importDesc: 'Daha önce dışa aktarılmış bir dosyadan verileri geri yükle',

@@ -44,12 +44,14 @@ const de: TranslationKeys = {
 
   nav: {
     overview: 'Übersicht',
-    productivity: 'Produktivität',
+    productivity: 'Apps & Kanäle',
     wellness: 'Wohlbefinden',
     growth: 'Wachstum',
-    dashboard: 'Dashboard',
+    dashboard: 'Übersicht',
+    attention: 'Zu erledigen',
     reminders: 'Erinnerungen',
     tasks: 'Aufgaben',
+    dynamicTasks: 'Dynamische Aufgaben',
     myos: 'Mein Bereich',
     projects: 'Projekte',
     notes: 'Notizen',
@@ -64,6 +66,17 @@ const de: TranslationKeys = {
     accounts: 'Konten und Zugriffe',
     administration: 'Administration',
     focusMode: 'Fokusmodus',
+    workbench: 'Arbeitsbereich',
+    appsChannels: 'Apps & Kanäle',
+    projectList: 'Projektliste',
+    otherWorkspaces: 'Weitere Arbeitsbereiche',
+    loadingWorkspaces: 'Arbeitsbereiche werden geladen…',
+    workspacesUnavailable: 'Arbeitsbereiche nicht verfügbar',
+    noOtherWorkspaces: 'Keine weiteren Arbeitsbereiche verbunden',
+    directoryWorkspaceDescription: 'Es werden nur Arbeitsbereiche angezeigt, auf die dieses Konto Zugriff hat.',
+    directoryToolsDescription: 'Wähle ein Werkzeug passend zu deinem nächsten Schritt.',
+    backToCurrentPage: 'Zur aktuellen Seite zurück',
+    searchApps: 'Apps suchen',
   },
 
   platformAdmin: {
@@ -811,6 +824,7 @@ const de: TranslationKeys = {
     dotImportFailed: 'Datei konnte nicht geprüft oder importiert werden.',
     dotImportInvalidFile: 'Wähle eine gültige Dot-Aufgabenexport-JSON-Datei.',
     dotImportTooLarge: 'Die Datei darf höchstens 900 KB groß sein.',
+
     resetAllData: 'Alle Daten zurücksetzen',
     exportDesc: 'Laden Sie alle Ihre Daten als JSON-Datei herunter',
     importDesc: 'Daten aus einer zuvor exportierten Datei wiederherstellen',

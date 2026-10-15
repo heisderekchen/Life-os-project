@@ -44,12 +44,14 @@ const es: TranslationKeys = {
 
   nav: {
     overview: 'Resumen',
-    productivity: 'Productividad',
+    productivity: 'Apps y canales',
     wellness: 'Bienestar',
     growth: 'Crecimiento',
-    dashboard: 'Panel',
+    dashboard: 'Resumen',
+    attention: 'Pendiente de atención',
     reminders: 'Recordatorios',
     tasks: 'Tareas',
+    dynamicTasks: 'Tareas dinámicas',
     myos: 'Mi espacio',
     projects: 'Proyectos',
     notes: 'Notas',
@@ -64,6 +66,17 @@ const es: TranslationKeys = {
     accounts: 'Cuentas y acceso',
     administration: 'Administración',
     focusMode: 'Modo enfoque',
+    workbench: 'Espacio de trabajo',
+    appsChannels: 'Apps y canales',
+    projectList: 'Lista de proyectos',
+    otherWorkspaces: 'Otros espacios',
+    loadingWorkspaces: 'Cargando espacios…',
+    workspacesUnavailable: 'Espacios no disponibles',
+    noOtherWorkspaces: 'No hay otros espacios conectados',
+    directoryWorkspaceDescription: 'Solo se muestran los espacios a los que esta cuenta tiene acceso.',
+    directoryToolsDescription: 'Elige una herramienta según lo que quieras hacer a continuación.',
+    backToCurrentPage: 'Volver a la página actual',
+    searchApps: 'Buscar aplicaciones',
   },
 
   platformAdmin: {
@@ -811,6 +824,7 @@ const es: TranslationKeys = {
     dotImportFailed: 'No se pudo previsualizar o importar el archivo.',
     dotImportInvalidFile: 'Elige un archivo JSON válido de exportación de tareas de Dot.',
     dotImportTooLarge: 'El archivo debe tener 900 KB o menos.',
+
     resetAllData: 'Restablecer todos los datos',
     exportDesc: 'Descarga todos tus datos como archivo JSON',
     importDesc: 'Restaura datos desde un archivo exportado anteriormente',

@@ -44,12 +44,14 @@ const fr: TranslationKeys = {
 
   nav: {
     overview: 'Aperçu',
-    productivity: 'Productivité',
+    productivity: 'Apps et canaux',
     wellness: 'Bien-être',
     growth: 'Croissance',
-    dashboard: 'Tableau de bord',
+    dashboard: 'Aperçu',
+    attention: 'À traiter',
     reminders: 'Rappels',
     tasks: 'Tâches',
+    dynamicTasks: 'Tâches dynamiques',
     myos: 'Mon espace',
     projects: 'Projets',
     notes: 'Notes',
@@ -64,6 +66,17 @@ const fr: TranslationKeys = {
     accounts: 'Comptes et accès',
     administration: 'Administration',
     focusMode: 'Mode focus',
+    workbench: 'Espace de travail',
+    appsChannels: 'Apps et canaux',
+    projectList: 'Liste des projets',
+    otherWorkspaces: 'Autres espaces',
+    loadingWorkspaces: 'Chargement des espaces…',
+    workspacesUnavailable: 'Espaces indisponibles',
+    noOtherWorkspaces: 'Aucun autre espace connecté',
+    directoryWorkspaceDescription: 'Seuls les espaces autorisés pour ce compte sont affichés.',
+    directoryToolsDescription: 'Choisissez un outil selon votre prochaine action.',
+    backToCurrentPage: 'Revenir à la page actuelle',
+    searchApps: 'Rechercher des applications',
   },
 
   platformAdmin: {
@@ -811,6 +824,7 @@ const fr: TranslationKeys = {
     dotImportFailed: 'Impossible d’apercevoir ou d’importer ce fichier.',
     dotImportInvalidFile: 'Choisissez un fichier JSON d’export Dot valide.',
     dotImportTooLarge: 'Le fichier ne doit pas dépasser 900 Ko.',
+
     resetAllData: 'Réinitialiser toutes les données',
     exportDesc: 'Téléchargez toutes vos données sous forme de fichier JSON',
     importDesc: 'Restaurez les données depuis un fichier exporté précédemment',
