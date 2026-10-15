@@ -98,15 +98,17 @@ export function planTaskImport({ sourceKey, tasks, sourceLinks, existingTasks })
     const linked = linksById.get(task.sourceId);
     if (linked) return {
       sourceId: task.sourceId,
+      title: task.title,
       sourceStatus: linked.source_status ?? task.sourceStatus,
       action: linked.task_id ? 'already_imported' : 'previously_imported_then_deleted',
       taskId: linked.task_id || null,
     };
     const collisions = tasksByTitle.get(task.normalizedTitle) || [];
-    if (collisions.length) return { sourceId: task.sourceId, sourceStatus: task.sourceStatus, action: 'needs_review', matches: collisions };
+    if (collisions.length) return { sourceId: task.sourceId, title: task.title, sourceStatus: task.sourceStatus, action: 'needs_review', matches: collisions };
     const sameBatch = titleBuckets.get(task.normalizedTitle) || [];
     if (sameBatch.length > 1) return {
       sourceId: task.sourceId,
+      title: task.title,
       sourceStatus: task.sourceStatus,
       action: 'needs_review',
       matches: sameBatch.filter(other => other.sourceId !== task.sourceId).map(other => ({
@@ -115,7 +117,7 @@ export function planTaskImport({ sourceKey, tasks, sourceLinks, existingTasks })
         sourceBatchCollision: true,
       })),
     };
-    return { sourceId: task.sourceId, sourceStatus: task.sourceStatus, action: 'create' };
+    return { sourceId: task.sourceId, title: task.title, sourceStatus: task.sourceStatus, action: 'create' };
   });
   return {
     sourceKey,

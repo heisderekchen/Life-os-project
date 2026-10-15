@@ -39,6 +39,7 @@ let response = await call('/api/personal-workbench/lifeos/tasks/import/preview')
 assert.equal(response.status, 200);
 let body = await response.json();
 assert.deepEqual(body.summary, { total: 2, willCreate: 2, alreadyImported: 0, previouslyDeleted: 0, needsReview: 0 });
+assert.deepEqual(body.items.map(item => item.title), ['Synthetic plan', 'Synthetic follow-up']);
 assert.equal(db.prepare('SELECT COUNT(*) AS n FROM personal_workbench_lifeos_tasks').get().n, 0);
 response = await call('/api/personal-workbench/lifeos/tasks/import');
 assert.equal(response.status, 428);
@@ -76,6 +77,7 @@ response = await call('/api/personal-workbench/lifeos/tasks/import/preview', {
 body = await response.json();
 assert.equal(body.summary.needsReview, 1);
 assert.equal(body.items[0].action, 'needs_review');
+assert.equal(body.items[0].title, 'quarterly   NOTES');
 
 // Deleting an imported task leaves a tombstone so later imports do not recreate it.
 db.prepare('DELETE FROM personal_workbench_lifeos_tasks WHERE id=?').run(original.id);
