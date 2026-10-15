@@ -61,4 +61,12 @@ describe('mobile module directory', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: '返回当前页面' }))
     expect(onClose).toHaveBeenCalledOnce()
   })
+
+  it('localizes directory helper text and search labels', () => {
+    useAppStore.setState({ language: 'en' })
+    render(<MobileModuleDirectory category="apps" onSelect={vi.fn()} onClose={vi.fn()} />)
+    expect(screen.getByText('Choose a tool based on what you want to do next.')).toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: 'Find apps' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Back to current page' })).toBeInTheDocument()
+  })
 })

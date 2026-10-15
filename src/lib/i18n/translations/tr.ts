@@ -77,6 +77,10 @@ const tr: TranslationKeys = {
     loadingWorkspaces: 'Çalışma alanları yükleniyor…',
     workspacesUnavailable: 'Çalışma alanları kullanılamıyor',
     noOtherWorkspaces: 'Bağlı başka çalışma alanı yok',
+    directoryWorkspaceDescription: 'Yalnızca bu hesabın erişim izni olan çalışma alanları gösterilir.',
+    directoryToolsDescription: 'Sıradaki işinize göre bir araç seçin.',
+    backToCurrentPage: 'Geçerli sayfaya dön',
+    searchApps: 'Uygulama ara',
   },
 
   platformAdmin: {

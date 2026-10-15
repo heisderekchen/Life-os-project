@@ -73,6 +73,10 @@ const de: TranslationKeys = {
     loadingWorkspaces: 'Arbeitsbereiche werden geladen…',
     workspacesUnavailable: 'Arbeitsbereiche nicht verfügbar',
     noOtherWorkspaces: 'Keine weiteren Arbeitsbereiche verbunden',
+    directoryWorkspaceDescription: 'Es werden nur Arbeitsbereiche angezeigt, auf die dieses Konto Zugriff hat.',
+    directoryToolsDescription: 'Wähle ein Werkzeug passend zu deinem nächsten Schritt.',
+    backToCurrentPage: 'Zur aktuellen Seite zurück',
+    searchApps: 'Apps suchen',
   },
 
   platformAdmin: {

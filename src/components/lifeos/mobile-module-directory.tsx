@@ -67,11 +67,11 @@ export function MobileModuleDirectory({ onSelect, onClose, category = 'apps' }: 
       <div className="mb-6 border-b border-border/70 pb-5 sm:mb-8">
         <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary">{t('appName')}</p>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{category === 'workspaces' ? t('nav.otherWorkspaces') : selectedGroup?.title}</h1>
-        <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{category === 'workspaces' ? '仅显示当前账号已获授权的工作台。' : '按下一步要做的事选择工具。'}</p>
-        {onClose && <button type="button" onClick={onClose} className="mt-4 min-h-11 rounded-md px-3 text-sm font-medium text-primary hover:bg-accent" aria-label="返回当前页面">返回当前页面</button>}
+        <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{category === 'workspaces' ? t('nav.directoryWorkspaceDescription') : t('nav.directoryToolsDescription')}</p>
+        {onClose && <button type="button" onClick={onClose} className="mt-4 min-h-11 rounded-md px-3 text-sm font-medium text-primary hover:bg-accent" aria-label={t('nav.backToCurrentPage')}>{t('nav.backToCurrentPage')}</button>}
         {category !== 'workspaces' ? <label className="relative mt-5 block">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="查找应用" aria-label="查找应用" className="h-11 pl-9 text-base" />
+          <Input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('nav.searchApps')} aria-label={t('nav.searchApps')} className="h-11 pl-9 text-base" />
         </label> : null}
       </div>
 
