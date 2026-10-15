@@ -15,6 +15,8 @@ vi.mock('@/lib/api/hooks', () => ({
     { id: 'task-ui-1', title: 'Selected task', description: 'Task notes', status: 'todo', priority: 'medium', recurrence: 'weekly', recurrenceConfig: '', startDate: '2026-10-01T15:30:00-07:00', estimatedMinutes: 0, actualMinutes: 0, tags: [{ tag: { name: 'label,with,commas' } }], createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
     { id: 'task-ui-2', title: 'Active task', description: '', status: 'in-progress', priority: 'high', tags: [], createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
     { id: 'task-ui-3', title: 'Done task', description: '', status: 'done', priority: 'low', tags: [], createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+    { id: 'task-ui-4', title: 'Overdue open todo', description: '', status: 'todo', priority: 'urgent', dueDate: '2020-01-01T00:00:00.000Z', tags: [], createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+    { id: 'task-ui-5', title: 'Overdue active', description: '', status: 'in-progress', priority: 'low', dueDate: '2020-01-01T00:00:00.000Z', tags: [], createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
   ], isLoading: false }),
   useRecurringTaskSeries: () => ({ data: { series: [{ id: 'series-ui-1', currentTaskId: 'task-ui-1', title: 'Selected task', status: 'todo', recurrence: 'weekly', dueDate: null, updatedAt: null, archived: false }], activeCount: 1, schedulerEnabled: false }, isLoading: false, isError: false, refetch: vi.fn() }),
   useProjects: () => ({ data: [] }),
@@ -158,7 +160,7 @@ describe.each([
     await waitFor(() => expect(document.activeElement).toHaveAttribute('data-task-id', 'task-ui-1'))
   })
 
-  it('prioritizes work queues while keeping detailed status filters available', async () => {
+  it('keeps overdue open tasks in status filters and applies search as an intersecting condition', async () => {
     useAppStore.setState({ language: 'zh', activeModule: 'tasks' })
     viewport.mobile = mobile
     const user = userEvent.setup()
@@ -166,29 +168,52 @@ describe.each([
     render(<QueryClientProvider client={queryClient}><TasksPage /></QueryClientProvider>)
 
     expect(screen.queryByText('效率评分')).not.toBeInTheDocument()
-    const queue = screen.getByRole('group', { name: '任务队列' })
-    expect(queue.querySelector('.grid-cols-4')).toBeInTheDocument()
-    expect(within(queue).getByRole('button', { name: /进行中[\s\S]*1/ })).toBeInTheDocument()
-    expect(within(queue).getByRole('button', { name: /待处理[\s\S]*0/ })).toBeInTheDocument()
-    expect(within(queue).getByRole('button', { name: /进行中/ })).toBeInTheDocument()
-    expect(within(queue).getByRole('button', { name: /待处理/ })).toBeInTheDocument()
-    expect(within(queue).getByRole('button', { name: /下一步[\s\S]*1/ })).toBeInTheDocument()
-    const scrollContainer = queue.closest<HTMLElement>('.overflow-y-auto')
-    if (scrollContainer) scrollContainer.scrollTop = 180
-    await user.click(within(queue).getByRole('button', { name: /待处理[\s\S]*0/ }))
-    expect(screen.queryByText('Selected task')).not.toBeInTheDocument()
-    await user.click(within(queue).getByRole('button', { name: /下一步[\s\S]*1/ }))
-    expect(within(queue).getByRole('button', { name: /下一步[\s\S]*1/ })).toHaveAttribute('aria-pressed', 'true')
+    const filters = screen.getByRole('group', { name: '任务筛选' })
+    const todoFilter = within(filters).getByRole('button', { name: /待办/ })
+    expect(todoFilter).toHaveTextContent('2')
+    await user.click(todoFilter)
     expect(screen.getByText('Selected task')).toBeInTheDocument()
-    await user.click(screen.getByText('Selected task'))
-    expect(await screen.findByRole('region', { name: '任务详情' })).toBeInTheDocument()
-    await user.click(within(screen.getByRole('region', { name: '任务详情' })).getByRole('button', { name: '返回任务列表' }))
-    expect(screen.getByRole('button', { name: /下一步[\s\S]*1/ })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByText('Selected task')).toBeInTheDocument()
-    if (scrollContainer) expect(scrollContainer.scrollTop).toBe(180)
+    expect(screen.getByText('Overdue open todo')).toBeInTheDocument()
+    expect(screen.queryByText('Overdue active')).not.toBeInTheDocument()
 
-    await user.click(screen.getByText('按状态筛选'))
-    expect(screen.getByRole('button', { name: /^完成/ })).toBeInTheDocument()
+    await user.click(within(filters).getByRole('button', { name: /已逾期/ }))
+    expect(screen.getByText('Overdue open todo')).toBeInTheDocument()
+    expect(screen.getByText('Overdue active')).toBeInTheDocument()
+    expect(screen.queryByText('Done task')).not.toBeInTheDocument()
+
+    await user.type(screen.getByRole('textbox', { name: '搜索任务' }), 'Overdue open todo')
+    expect(screen.getByText('Overdue open todo')).toBeInTheDocument()
+    expect(screen.queryByText('Overdue active')).not.toBeInTheDocument()
+
+    await user.clear(screen.getByRole('textbox', { name: '搜索任务' }))
+    await user.type(screen.getByRole('textbox', { name: '搜索任务' }), 'no matching task')
+    expect(screen.getByText('没有符合条件的任务')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '清空筛选' }))
+    expect(screen.getByText('Selected task')).toBeInTheDocument()
+    expect(within(filters).getByRole('button', { name: /^全部/ })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('toggles completion once by click or keyboard without opening task details', async () => {
+    useAppStore.setState({ language: 'zh', activeModule: 'tasks' })
+    viewport.mobile = mobile
+    updateTask.mockClear()
+    const user = userEvent.setup()
+    render(<QueryClientProvider client={new QueryClient()}><TasksPage /></QueryClientProvider>)
+    const row = screen.getByRole('button', { name: '查看任务详情: Selected task' })
+    const checkbox = within(row).getAllByRole('checkbox')[mobile ? 1 : 0]
+    await user.click(checkbox)
+    expect(updateTask).toHaveBeenCalledTimes(1)
+    expect(updateTask).toHaveBeenLastCalledWith({ id: 'task-ui-1', status: 'done' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    updateTask.mockClear()
+    checkbox.focus()
+    await user.keyboard(' ')
+    expect(updateTask).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    updateTask.mockClear()
+    await user.click(checkbox.parentElement!)
+    expect(updateTask).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('keeps mobile task selection and quick creation usable', async () => {
@@ -225,4 +250,3 @@ describe.each([
     expect(await screen.findByText('Recovered goal')).toBeInTheDocument()
   })
 })
-
