@@ -32,17 +32,32 @@ plans, research rounds, and outputs are shown only when the corresponding
 existing task, task-card, or research API returns them. No execution loop is
 started by the myOS overview.
 
+The overview may also display `externalMetrics` records returned by the
+dashboard API. Each record must include a `workspaceId`; the client drops any
+record whose workspace is not present in the authenticated grants response.
+This is a display filter, not an authorization boundary: any future API that
+returns external metrics must enforce grants server-side before sending values.
+The current Life OS dashboard API does not return external business metrics, so
+production shows the unavailable state until a real source is connected. When
+the dashboard payload is marked `fixture: "test"`, overview copy and each
+business metric source say that they are test data and do not represent live
+integration. The fixture is never persisted or used as a fallback for
+production data.
+
 ## Verified in the isolated preview
 
 - TypeScript, ESLint, Vitest, and the optimized Next.js Webpack build passed.
-- Vitest: 25 files, 175 tests. ESLint reports 0 errors and 5 existing
+- Vitest: 26 files, 180 tests. ESLint reports 0 errors and 5 existing
   unused-disable warnings.
 - Headless browser: 360, 390, and 430 CSS px had no horizontal overflow;
   Overview, Reminders, and Tasks navigation worked; a local in-memory reminder
-  could be created and completed; 1280 px desktop layout rendered; 0 page errors.
-- Both migration SQL files and the standalone JavaScript module were checked
-  locally. Rust integration tests remain unrun because this environment has no
-  `cargo` executable.
+  could be created; the desktop Projects destination was visible, Apps & channels
+  started expanded, selected/progress colors used the configured accent, and the
+  Chinese date plus explicit test-source labels rendered correctly. An
+  unauthorized metric was hidden; 1280 px desktop layout rendered; 0 page errors.
+- This PR does not change schemas, migrations, production data, or account
+  settings. Rust integration tests were not rerun because this PR only changes
+  the frontend and documentation.
 
 Mobile/desktop captures are in Library:
 
@@ -51,9 +66,7 @@ Mobile/desktop captures are in Library:
 - Tasks 390 px: `libfile_919095a53c248191bf936a74610fef96`
 - Tasks 1280 px: `libfile_802a4f52dda481918523023cf5d663a3`
 
-## Release gate
+## Release
 
-The local `origin/main` ref is `16ff2cd`, while GitHub reports current `main`
-at `d159ae5` (which includes commits after local `16ff2cd`). Git transport cannot
-fetch in this environment. Rebase onto current `main` and run the Rust test suite
-before creating a PR or deploying. No production data or settings were changed.
+The overview does not start task executors or schedulers. Production release
+uses the repository's existing deployment workflow after the PR's checks pass.

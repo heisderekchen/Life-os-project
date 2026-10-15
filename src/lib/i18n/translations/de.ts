@@ -44,12 +44,14 @@ const de: TranslationKeys = {
 
   nav: {
     overview: 'Übersicht',
-    productivity: 'Produktivität',
+    productivity: 'Apps & Kanäle',
     wellness: 'Wohlbefinden',
     growth: 'Wachstum',
-    dashboard: 'Dashboard',
+    dashboard: 'Übersicht',
+    attention: 'Zu erledigen',
     reminders: 'Erinnerungen',
     tasks: 'Aufgaben',
+    dynamicTasks: 'Dynamische Aufgaben',
     myos: 'Mein Bereich',
     projects: 'Projekte',
     notes: 'Notizen',
@@ -64,6 +66,13 @@ const de: TranslationKeys = {
     accounts: 'Konten und Zugriffe',
     administration: 'Administration',
     focusMode: 'Fokusmodus',
+    workbench: 'Arbeitsbereich',
+    appsChannels: 'Apps & Kanäle',
+    projectList: 'Projektliste',
+    otherWorkspaces: 'Weitere Arbeitsbereiche',
+    loadingWorkspaces: 'Arbeitsbereiche werden geladen…',
+    workspacesUnavailable: 'Arbeitsbereiche nicht verfügbar',
+    noOtherWorkspaces: 'Keine weiteren Arbeitsbereiche verbunden',
   },
 
   platformAdmin: {

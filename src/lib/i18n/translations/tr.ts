@@ -48,12 +48,14 @@ const tr: TranslationKeys = {
   // Sidebar Navigation
   nav: {
     overview: 'Genel Bakış',
-    productivity: 'Verimlilik',
+    productivity: 'Uygulamalar ve kanallar',
     wellness: 'Sağlık',
     growth: 'Gelişim',
-    dashboard: 'Panel',
+    dashboard: 'Genel Bakış',
+    attention: 'İlgilenmeniz gerekenler',
     reminders: 'Hatırlatıcılar',
     tasks: 'Görevler',
+    dynamicTasks: 'Dinamik görevler',
     myos: 'Alanım',
     projects: 'Projeler',
     notes: 'Notlar',
@@ -68,6 +70,13 @@ const tr: TranslationKeys = {
     accounts: 'Hesaplar ve erişim',
     administration: 'Yönetim',
     focusMode: 'Odak Modu',
+    workbench: 'Çalışma Alanı',
+    appsChannels: 'Uygulamalar ve kanallar',
+    projectList: 'Proje listesi',
+    otherWorkspaces: 'Diğer çalışma alanları',
+    loadingWorkspaces: 'Çalışma alanları yükleniyor…',
+    workspacesUnavailable: 'Çalışma alanları kullanılamıyor',
+    noOtherWorkspaces: 'Bağlı başka çalışma alanı yok',
   },
 
   platformAdmin: {

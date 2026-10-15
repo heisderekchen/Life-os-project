@@ -67,7 +67,7 @@ const moduleComponents: Record<string, React.ComponentType> = {
 export function AppShell() {
   const { activeModule, welcomeSeen, setupComplete, focusMode, mobileSidebarOpen, setMobileSidebarOpen, setActiveModule } = useAppStore()
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false)
-  const [mobileCategory, setMobileCategory] = useState<'overview' | 'productivity' | 'wellness' | 'growth'>('overview')
+  const [mobileCategory] = useState<'overview' | 'apps' | 'workspaces'>('apps')
   const [cloudState, setCloudState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [cloudError, setCloudError] = useState('')
   const [saveError, setSaveError] = useState(false)
@@ -376,9 +376,9 @@ export function MobilePrimaryNav({ activeModule, onNavigate }: {
   return (
     <nav aria-label={uiText('Primary navigation')} className="grid min-h-14 shrink-0 grid-cols-4 gap-1 border-t border-border bg-background/95 px-2 pt-1 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
       {primary.map(({ id, label, icon: Icon }) => (
-        <button key={id} type="button" aria-current={activeModule === id ? 'page' : undefined} aria-pressed={activeModule === id} onClick={() => onNavigate(id)} className={activeModule === id ? 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md bg-accent text-foreground' : 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md text-muted-foreground'}>
-          <Icon className="h-4 w-4" />
-          <span className="text-[11px] font-medium">{label}</span>
+        <button key={id} type="button" aria-current={activeModule === id ? 'page' : undefined} aria-pressed={activeModule === id} onClick={() => onNavigate(id)} className={activeModule === id ? 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md bg-accent text-foreground' : 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md text-muted-foreground'} style={activeModule === id ? { color: 'var(--accent-primary)', backgroundColor: 'color-mix(in srgb, var(--accent-primary) 12%, transparent)' } : undefined}>
+          <Icon className="h-[18px] w-[18px]" />
+          <span className="text-xs font-medium">{label}</span>
         </button>
       ))}
     </nav>
