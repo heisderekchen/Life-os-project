@@ -7,6 +7,7 @@ import { TasksPage } from '@/components/lifeos/tasks/tasks-page'
 
 const viewport = vi.hoisted(() => ({ mobile: false }))
 const updateTask = vi.hoisted(() => vi.fn())
+const createTask = vi.hoisted(() => vi.fn())
 const fetchTaskCard = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/api/hooks', () => ({
@@ -17,7 +18,7 @@ vi.mock('@/lib/api/hooks', () => ({
   ], isLoading: false }),
   useRecurringTaskSeries: () => ({ data: { series: [{ id: 'series-ui-1', currentTaskId: 'task-ui-1', title: 'Selected task', status: 'todo', recurrence: 'weekly', dueDate: null, updatedAt: null, archived: false }], activeCount: 1, schedulerEnabled: false }, isLoading: false, isError: false, refetch: vi.fn() }),
   useProjects: () => ({ data: [] }),
-  useCreateTask: () => ({ mutate: vi.fn(), isPending: false }),
+  useCreateTask: () => ({ mutate: createTask, isPending: false }),
   useUpdateTask: () => ({ mutate: updateTask, isPending: false }),
   useDeleteTask: () => ({ mutate: vi.fn(), isPending: false }),
 }))
@@ -164,8 +165,9 @@ describe.each([
     const queryClient = new QueryClient()
     render(<QueryClientProvider client={queryClient}><TasksPage /></QueryClientProvider>)
 
-    expect(screen.getByText(content => content.replace(/\s+/g, ' ').includes('全部任务: 1 共 3 项任务已完成'))).toBeInTheDocument()
+    expect(screen.queryByText('效率评分')).not.toBeInTheDocument()
     const queue = screen.getByRole('group', { name: '任务队列' })
+    expect(queue.querySelector('.grid-cols-4')).toBeInTheDocument()
     expect(within(queue).getByRole('button', { name: /进行中[\s\S]*1/ })).toBeInTheDocument()
     expect(within(queue).getByRole('button', { name: /待处理[\s\S]*0/ })).toBeInTheDocument()
     expect(within(queue).getByRole('button', { name: /进行中/ })).toBeInTheDocument()
@@ -187,6 +189,28 @@ describe.each([
 
     await user.click(screen.getByText('按状态筛选'))
     expect(screen.getByRole('button', { name: /^完成/ })).toBeInTheDocument()
+  })
+
+  it('keeps mobile task selection and quick creation usable', async () => {
+    useAppStore.setState({ language: 'zh', activeModule: 'tasks' })
+    viewport.mobile = true
+    createTask.mockClear()
+    createTask.mockImplementation((_task, callbacks) => callbacks?.onSuccess?.())
+    const user = userEvent.setup()
+    render(<QueryClientProvider client={new QueryClient()}><TasksPage /></QueryClientProvider>)
+
+    await user.click(screen.getByRole('button', { name: '选择' }))
+    expect(screen.getByText('全选')).toBeInTheDocument()
+    await user.click(screen.getByText('Selected task'))
+    expect(screen.getByText(/1 项已选中/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '取消' }))
+    expect(screen.queryByText('全选')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '添加任务' }))
+    await user.type(screen.getByPlaceholderText('你想完成什么？'), 'Mobile quick task')
+    await user.click(screen.getByRole('button', { name: '创建任务' }))
+    expect(createTask).toHaveBeenCalledWith(expect.objectContaining({ title: 'Mobile quick task', status: 'todo' }), expect.any(Object))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('retries loading the task card after an API error', async () => {
