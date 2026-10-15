@@ -859,7 +859,7 @@ const en = {
     dotImportNeedsReview: 'Needs review',
     dotImportNeedsReviewDescription: 'These title collisions will be skipped and left unchanged:',
     dotImportConfirm: 'Import new tasks',
-    dotImportReconcileExisting: 'Update project links and source type for {count} already imported tasks. This does not replace task edits or create duplicates.',
+    dotImportReconcileExisting: 'Match projects by exact name; create missing projects from source names. Task edits remain unchanged and no duplicate tasks are created.',
     dotImportApplyReconciliation: 'Apply project and type links',
     dotImportReconciled: 'Updated project links and source types for {count} tasks.',
     dotImportSuccess: 'Import complete. Tasks imported: {count}.',

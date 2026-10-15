@@ -799,7 +799,7 @@ const zh = {
     "dotImportNeedsReview": "需要检查",
     "dotImportNeedsReviewDescription": "以下标题与现有任务冲突，将跳过且不作修改：",
     "dotImportConfirm": "导入新任务",
-    "dotImportReconcileExisting": "为已导入的 {count} 项任务补齐项目关联和来源类型；不会覆盖任务编辑内容或创建重复任务。",
+    "dotImportReconcileExisting": "按项目名精确关联；没有同名项目时会按来源名称新建项目。任务编辑内容保留，不会重复建任务。",
     "dotImportApplyReconciliation": "补齐项目和类型关联",
     "dotImportReconciled": "已更新 {count} 项任务的项目关联和来源类型。",
     "dotImportSuccess": "导入完成，任务数：{count}。",

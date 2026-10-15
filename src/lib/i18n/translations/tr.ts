@@ -843,7 +843,7 @@ const tr: TranslationKeys = {
     dotImportNeedsReview: 'İnceleme gerekli',
     dotImportNeedsReviewDescription: 'Bu başlık çakışmaları atlanacak ve değiştirilmeden bırakılacak:',
     dotImportConfirm: 'Yeni görevleri içe aktar',
-    dotImportReconcileExisting: 'İçe aktarılmış {count} görevin proje bağlantısını ve kaynak türünü tamamla. Görev düzenlemeleri korunur, kopya oluşturulmaz.',
+    dotImportReconcileExisting: 'Projeleri tam ada göre eşleştir; eksik projeleri kaynak adlarıyla oluştur. Görev düzenlemeleri korunur, yinelenen görev oluşturulmaz.',
     dotImportApplyReconciliation: 'Bağlantıları tamamla',
     dotImportReconciled: '{count} görevin proje bağlantısı ve kaynak türü güncellendi.',
     dotImportSuccess: 'Aktarım tamamlandı. Aktarılan görev sayısı: {count}.',

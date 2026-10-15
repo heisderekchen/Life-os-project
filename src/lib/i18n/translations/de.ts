@@ -817,7 +817,7 @@ const de: TranslationKeys = {
     dotImportNeedsReview: 'Zu prüfen',
     dotImportNeedsReviewDescription: 'Diese Titelkonflikte werden übersprungen und nicht geändert:',
     dotImportConfirm: 'Neue Aufgaben importieren',
-    dotImportReconcileExisting: 'Projektzuordnung und Quelltyp für {count} bereits importierte Aufgaben ergänzen. Aufgabenänderungen bleiben erhalten; es entstehen keine Duplikate.',
+    dotImportReconcileExisting: 'Projektzuordnung nach exaktem Namen; fehlende Projekte werden angelegt. Aufgabenänderungen bleiben erhalten, Duplikate entstehen nicht.',
     dotImportApplyReconciliation: 'Zuordnungen ergänzen',
     dotImportReconciled: 'Projektzuordnung und Quelltyp für {count} Aufgaben aktualisiert.',
     dotImportSuccess: 'Import abgeschlossen. Importierte Aufgaben: {count}.',

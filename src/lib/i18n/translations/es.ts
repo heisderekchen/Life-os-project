@@ -817,7 +817,7 @@ const es: TranslationKeys = {
     dotImportNeedsReview: 'Requieren revisión',
     dotImportNeedsReviewDescription: 'Estos títulos en conflicto se omitirán y no se modificarán:',
     dotImportConfirm: 'Importar tareas nuevas',
-    dotImportReconcileExisting: 'Completar el proyecto y el tipo de origen de {count} tareas importadas. Se conservan las ediciones y no se crean duplicados.',
+    dotImportReconcileExisting: 'Asociar proyectos por nombre exacto y crear los que falten con el nombre de origen. Se conservan las ediciones y no se duplican tareas.',
     dotImportApplyReconciliation: 'Completar asociaciones',
     dotImportReconciled: 'Se actualizaron el proyecto y el tipo de origen de {count} tareas.',
     dotImportSuccess: 'Importación completa. Tareas importadas: {count}.',

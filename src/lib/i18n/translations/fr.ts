@@ -817,7 +817,7 @@ const fr: TranslationKeys = {
     dotImportNeedsReview: 'À vérifier',
     dotImportNeedsReviewDescription: 'Ces conflits de titre seront ignorés sans modification :',
     dotImportConfirm: 'Importer les nouvelles tâches',
-    dotImportReconcileExisting: 'Compléter le projet et le type source de {count} tâches déjà importées. Les modifications des tâches sont conservées, sans doublons.',
+    dotImportReconcileExisting: 'Associer les projets par nom exact et créer ceux qui manquent avec le nom source. Les modifications sont conservées, sans doublons.',
     dotImportApplyReconciliation: 'Compléter les associations',
     dotImportReconciled: 'Projet et type source mis à jour pour {count} tâches.',
     dotImportSuccess: 'Import terminé. Tâches importées : {count}.',
