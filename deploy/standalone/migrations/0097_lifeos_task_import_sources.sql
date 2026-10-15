@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS lifeos_task_import_sources (
     task_id TEXT REFERENCES personal_workbench_lifeos_tasks(id) ON DELETE SET NULL,
     imported_at TEXT NOT NULL,
     source_updated_at TEXT,
+    source_status TEXT,
     UNIQUE (source_key, source_task_id)
 );
 

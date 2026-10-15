@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 
 const IMPORTABLE_STATUSES = new Set(['todo', 'in-progress', 'done', 'cancelled']);
 const IMPORTABLE_PRIORITIES = new Set(['low', 'medium', 'high', 'urgent']);
-const ITEM_KEYS = new Set(['sourceId', 'title', 'description', 'status', 'priority', 'dueDate', 'startDate', 'estimatedMinutes', 'sourceUpdatedAt']);
+const ITEM_KEYS = new Set(['sourceId', 'title', 'description', 'status', 'sourceStatus', 'priority', 'dueDate', 'startDate', 'estimatedMinutes', 'sourceUpdatedAt']);
 const PAYLOAD_KEYS = new Set(['sourceKey', 'tasks', 'confirm']);
 
 function importError(message) {
@@ -51,6 +51,9 @@ export function normalizeTaskImportPayload(input) {
         ? item.description : (() => { throw importError(`description is invalid for source task ${sourceId}`); })();
     const status = item.status === undefined || item.status === '' ? 'todo' : item.status;
     if (typeof status !== 'string' || !IMPORTABLE_STATUSES.has(status)) throw importError(`status is invalid for source task ${sourceId}`);
+    const sourceStatus = item.sourceStatus === undefined || item.sourceStatus === null
+      ? null : typeof item.sourceStatus === 'string' && item.sourceStatus.length <= 120
+        ? item.sourceStatus : (() => { throw importError(`sourceStatus is invalid for source task ${sourceId}`); })();
     const priority = item.priority === undefined || item.priority === '' ? 'medium' : item.priority;
     if (typeof priority !== 'string' || !IMPORTABLE_PRIORITIES.has(priority)) throw importError(`priority is invalid for source task ${sourceId}`);
     const estimatedMinutes = item.estimatedMinutes === undefined || item.estimatedMinutes === null
@@ -63,6 +66,7 @@ export function normalizeTaskImportPayload(input) {
       normalizedTitle: normalizedTitle(title),
       description,
       status,
+      sourceStatus,
       priority,
       dueDate: isoDate(item.dueDate, 'dueDate', sourceId),
       startDate: isoDate(item.startDate, 'startDate', sourceId),
@@ -94,14 +98,16 @@ export function planTaskImport({ sourceKey, tasks, sourceLinks, existingTasks })
     const linked = linksById.get(task.sourceId);
     if (linked) return {
       sourceId: task.sourceId,
+      sourceStatus: linked.source_status ?? task.sourceStatus,
       action: linked.task_id ? 'already_imported' : 'previously_imported_then_deleted',
       taskId: linked.task_id || null,
     };
     const collisions = tasksByTitle.get(task.normalizedTitle) || [];
-    if (collisions.length) return { sourceId: task.sourceId, action: 'needs_review', matches: collisions };
+    if (collisions.length) return { sourceId: task.sourceId, sourceStatus: task.sourceStatus, action: 'needs_review', matches: collisions };
     const sameBatch = titleBuckets.get(task.normalizedTitle) || [];
     if (sameBatch.length > 1) return {
       sourceId: task.sourceId,
+      sourceStatus: task.sourceStatus,
       action: 'needs_review',
       matches: sameBatch.filter(other => other.sourceId !== task.sourceId).map(other => ({
         sourceId: other.sourceId,
@@ -109,7 +115,7 @@ export function planTaskImport({ sourceKey, tasks, sourceLinks, existingTasks })
         sourceBatchCollision: true,
       })),
     };
-    return { sourceId: task.sourceId, action: 'create' };
+    return { sourceId: task.sourceId, sourceStatus: task.sourceStatus, action: 'create' };
   });
   return {
     sourceKey,
@@ -126,7 +132,7 @@ export function planTaskImport({ sourceKey, tasks, sourceLinks, existingTasks })
 
 async function loadPlan(db, normalized) {
   const [links, existing] = await Promise.all([
-    db.prepare('SELECT source_task_id, task_id FROM lifeos_task_import_sources WHERE source_key=?').bind(normalized.sourceKey).all(),
+    db.prepare('SELECT source_task_id, task_id, source_status FROM lifeos_task_import_sources WHERE source_key=?').bind(normalized.sourceKey).all(),
     db.prepare('SELECT id,title,status,due_date,archived FROM personal_workbench_lifeos_tasks').all(),
   ]);
   return planTaskImport({
@@ -166,8 +172,8 @@ export async function importLifeOsTasks(db, input, actor, { idFactory = randomUU
       null, task.estimatedMinutes, null, timestamp, timestamp,
     ));
     statements.push(db.prepare(`INSERT INTO lifeos_task_import_sources
-      (source_key,source_task_id,task_id,imported_at,source_updated_at) VALUES (?,?,?,?,?)`).bind(
-      normalized.sourceKey, task.sourceId, taskId, timestamp, task.sourceUpdatedAt,
+      (source_key,source_task_id,task_id,imported_at,source_updated_at,source_status) VALUES (?,?,?,?,?,?)`).bind(
+      normalized.sourceKey, task.sourceId, taskId, timestamp, task.sourceUpdatedAt, task.sourceStatus,
     ));
   }
   statements.push(db.prepare(`INSERT INTO personal_workbench_lifeos_audit_log

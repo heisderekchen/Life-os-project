@@ -3,6 +3,13 @@ import { createHash } from 'node:crypto';
 const ROOT_KEYS = new Set(['title', 'as_of', 'usage', 'tasks', 'confirm']);
 const TASK_KEYS = new Set(['name', 'description', 'project', 'type', 'status', 'latest_result', 'links', 'updated_at']);
 const TASK_STATUSES = new Set(['todo', 'in-progress', 'done', 'cancelled']);
+const SOURCE_STATUS_MAP = new Map([
+  ['todo', 'todo'], ['in-progress', 'in-progress'], ['done', 'done'], ['cancelled', 'cancelled'],
+  ['已取消', 'cancelled'], ['已完成', 'done'], ['待核实', 'todo'], ['待确认范围', 'todo'],
+  ['持续进行', 'in-progress'], ['本期已结束', 'done'], ['方案待确认', 'todo'], ['进行中', 'in-progress'],
+  ['受阻', 'in-progress'], ['待接通', 'todo'], ['研究中', 'in-progress'], ['部分完成', 'in-progress'],
+  ['评估中', 'in-progress'], ['实施中', 'in-progress'], ['待批准', 'todo'],
+]);
 
 function fail(message) {
   const error = new Error(message);
@@ -38,13 +45,16 @@ function normalizeRecord(record, index) {
       fail(`${field} must be a string for task ${index + 1}`);
     }
   }
-  const status = record.status?.trim() || 'todo';
-  if (!TASK_STATUSES.has(status)) fail(`Unsupported status "${status}" on task ${record.name}`);
+  const sourceStatus = record.status ?? '';
+  const statusKey = sourceStatus.trim() || 'todo';
+  const status = SOURCE_STATUS_MAP.get(statusKey);
+  if (!status || !TASK_STATUSES.has(status)) fail(`Unsupported status "${statusKey}" on task ${record.name}`);
   const latestResult = canonicalJson(record.latest_result, 'latest_result');
   const links = canonicalJson(record.links, 'links');
   const context = [
     record.project?.trim() ? `Project: ${record.project.trim()}` : '',
     record.type?.trim() ? `Type: ${record.type.trim()}` : '',
+    sourceStatus ? `Source status: ${sourceStatus}` : '',
     record.description?.trim() || '',
     latestResult ? `Latest result: ${latestResult}` : '',
     links ? `Links: ${links}` : '',
@@ -61,6 +71,7 @@ function normalizeRecord(record, index) {
     title: record.name.trim(),
     description: context || null,
     status,
+    sourceStatus,
     priority: 'medium',
     sourceUpdatedAt,
     identity: sourceIdFor(record),
@@ -70,6 +81,7 @@ function normalizeRecord(record, index) {
       project: normalized(record.project),
       type: normalized(record.type),
       status,
+      sourceStatus,
       latestResult,
       links,
     }),
