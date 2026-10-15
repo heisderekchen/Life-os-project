@@ -14,21 +14,22 @@ describe('mobile module directory', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }))
     useAppStore.setState({ language: 'zh', enabledModules: ['dashboard', 'tasks', 'projects', 'notes', 'calendar', 'time', 'habits', 'journal', 'goals', 'learning', 'finance'] })
 
-    render(<MobileModuleDirectory category="productivity" onSelect={onSelect} />)
+    render(<MobileModuleDirectory category="apps" onSelect={onSelect} />)
 
-    expect(screen.getByRole('heading', { level: 1, name: '效率' })).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: '效率' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: '应用与渠道' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '应用与渠道' })).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: '身心健康' })).not.toBeInTheDocument()
     expect(screen.queryByRole('region', { name: '成长' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: '概览' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '总览' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /任务/ }))
     expect(onSelect).toHaveBeenCalledWith('tasks')
 
-    fireEvent.change(screen.getByRole('searchbox', { name: '搜索功能' }), { target: { value: '日志' } })
-    expect(screen.queryByRole('button', { name: /日志/ })).not.toBeInTheDocument()
-    fireEvent.change(screen.getByRole('searchbox', { name: '搜索功能' }), { target: { value: '笔记' } })
+    fireEvent.change(screen.getByRole('searchbox', { name: '查找应用' }), { target: { value: '日志' } })
+    expect(screen.getByRole('button', { name: /日志/ })).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('searchbox', { name: '查找应用' }), { target: { value: '笔记' } })
     expect(screen.getByRole('button', { name: /笔记/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /日志/ })).not.toBeInTheDocument()
   })
 
   it('shows the four myOS destinations and marks the current page', () => {
@@ -37,7 +38,7 @@ describe('mobile module directory', () => {
     const nav = screen.getByRole('navigation', { name: '主导航' })
     const current = within(nav).getAllByRole('button').filter(button => button.getAttribute('aria-current') === 'page')
     expect(current).toHaveLength(1)
-    expect(current[0]).toHaveTextContent('概览')
+    expect(current[0]).toHaveTextContent('总览')
     expect(within(nav).getAllByRole('button').filter(button => button.className.includes('bg-accent'))).toHaveLength(1)
     expect(within(nav).getAllByRole('button')).toHaveLength(4)
     expect(within(nav).getByRole('button', { name: '提醒' })).toBeInTheDocument()
@@ -56,7 +57,7 @@ describe('mobile module directory', () => {
   it('closes the category directory back to the current page', async () => {
     const onClose = vi.fn()
     useAppStore.setState({ language: 'zh' })
-    render(<MobileModuleDirectory category="wellness" onSelect={vi.fn()} onClose={onClose} />)
+    render(<MobileModuleDirectory category="apps" onSelect={vi.fn()} onClose={onClose} />)
     await userEvent.setup().click(screen.getByRole('button', { name: '返回当前页面' }))
     expect(onClose).toHaveBeenCalledOnce()
   })

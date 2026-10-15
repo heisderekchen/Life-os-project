@@ -32,6 +32,14 @@ plans, research rounds, and outputs are shown only when the corresponding
 existing task, task-card, or research API returns them. No execution loop is
 started by the myOS overview.
 
+The overview may also display `externalMetrics` records returned by the
+dashboard API. Each record must include a `workspaceId`; the client drops any
+record whose workspace is not present in the authenticated grants response.
+This is a display contract, not a claim that any business source is currently
+connected. Visual acceptance uses a synthetic dashboard payload marked
+`fixture: "test"`, shown in the UI as “测试数据”; it is never persisted or
+used as a fallback for production data.
+
 ## Verified in the isolated preview
 
 - TypeScript, ESLint, Vitest, and the optimized Next.js Webpack build passed.

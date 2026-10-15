@@ -19,7 +19,7 @@ describe('App Store', () => {
     expect(state.focusMode).toBe(false)
     expect(state.setupComplete).toBe(false)
     expect(state.language).toBe('en')
-    expect(state.theme).toBe('dark')
+    expect(state.theme).toBe('light')
     expect(state.uiDensity).toBe('comfortable')
     expect(state.animationsEnabled).toBe(true)
     expect(state.enabledModules).toContain('projects')

@@ -38,13 +38,15 @@ const zh = {
   "hoursAgo": "{count} 小时前",
   "daysAgo": "{count} 天前",
   "nav": {
-    "overview": "概览",
-    "productivity": "效率",
+    "overview": "总览",
+    "productivity": "应用与渠道",
     "wellness": "身心健康",
     "growth": "成长",
-    "dashboard": "仪表盘",
+    "dashboard": "总览",
+    "attention": "需要我处理",
     "reminders": "提醒",
     "tasks": "任务",
+    "dynamicTasks": "动态任务",
     "myos": "我的",
     "projects": "项目",
     "notes": "笔记",
@@ -58,7 +60,13 @@ const zh = {
     "settings": "设置",
     "accounts": "账号与权限",
     "administration": "管理",
-    "focusMode": "专注模式"
+    "focusMode": "专注模式",
+    "workbench": "工作台",
+    "appsChannels": "应用与渠道",
+    "otherWorkspaces": "其他工作台",
+    "loadingWorkspaces": "正在读取已授权工作台…",
+    "workspacesUnavailable": "工作台列表暂不可用",
+    "noOtherWorkspaces": "尚未接入其他工作台"
   },
   "platformAdmin": {
     "title": "账号与工作台权限", "description": "创建账号并分配已配置的工作台。",

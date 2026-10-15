@@ -63,9 +63,9 @@ export function Header() {
   }, [])
 
   const moduleLabels: Record<ModuleId, string> = {
-    dashboard: t('nav.dashboard'),
-    reminders: t('nav.reminders'),
-    tasks: t('nav.tasks'),
+    dashboard: t('nav.overview'),
+    reminders: t('nav.attention'),
+    tasks: t('nav.dynamicTasks'),
     myos: t('nav.myos'),
     projects: t('nav.projects'),
     notes: t('nav.notes'),
@@ -81,19 +81,19 @@ export function Header() {
   }
 
   const moduleGroups: Record<ModuleId, string> = {
-    dashboard: t('groups.home'),
-    reminders: t('groups.productivity'),
-    tasks: t('groups.productivity'),
-    myos: t('groups.home'),
-    projects: t('groups.productivity'),
-    notes: t('groups.productivity'),
-    habits: t('groups.wellness'),
-    journal: t('groups.wellness'),
-    finance: t('groups.growth'),
-    goals: t('groups.growth'),
-    learning: t('groups.growth'),
-    calendar: t('groups.productivity'),
-    time: t('groups.productivity'),
+    dashboard: t('nav.workbench'),
+    reminders: t('nav.workbench'),
+    tasks: t('nav.workbench'),
+    myos: t('nav.otherWorkspaces'),
+    projects: t('nav.projects'),
+    notes: t('nav.appsChannels'),
+    habits: t('nav.appsChannels'),
+    journal: t('nav.appsChannels'),
+    finance: t('nav.appsChannels'),
+    goals: t('nav.appsChannels'),
+    learning: t('nav.appsChannels'),
+    calendar: t('nav.appsChannels'),
+    time: t('nav.appsChannels'),
     settings: t('groups.settings'),
     accounts: t('groups.settings'),
   }
@@ -165,7 +165,7 @@ export function Header() {
             ) : (
               <BreadcrumbItem>
                 <BreadcrumbPage className="text-sm font-medium">
-                  {t('nav.dashboard')}
+                  {t('nav.overview')}
                 </BreadcrumbPage>
               </BreadcrumbItem>
             )}
