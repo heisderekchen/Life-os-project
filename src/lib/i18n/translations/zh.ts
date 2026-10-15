@@ -801,7 +801,7 @@ const zh = {
     "dotImportConfirm": "导入新任务",
     "dotImportReconcileExisting": "为已导入的 {count} 项任务补齐项目关联和来源类型；不会覆盖任务编辑内容或创建重复任务。",
     "dotImportApplyReconciliation": "补齐项目和类型关联",
-    "dotImportReconciled": "已更新 {count} 项任务的项目关联和来源类型。"
+    "dotImportReconciled": "已更新 {count} 项任务的项目关联和来源类型。",
     "dotImportSuccess": "导入完成，任务数：{count}。",
     "dotImportFailed": "无法预览或导入此文件。",
     "dotImportInvalidFile": "请选择有效的 Dot 任务导出 JSON 文件。",
