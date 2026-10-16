@@ -270,6 +270,7 @@ const zh = {
     "noTasksDesc": "创建第一个任务开始吧",
     "deleteTask": "删除任务",
     "deleteTaskConfirm": "确定删除这个任务吗？",
+    "deleteTasksConfirm": "确定删除这 {count} 个任务吗？",
     "markComplete": "标记完成",
     "markIncomplete": "标记未完成",
     "markAsDone": "标记已完成",

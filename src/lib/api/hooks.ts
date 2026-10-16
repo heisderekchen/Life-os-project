@@ -106,7 +106,20 @@ export function useDeleteTask() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => apiDelete(`/api/tasks/${id}`),
-    onSuccess: () => Promise.all([
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ['tasks'] })
+      const previousTasks = qc.getQueriesData<unknown[]>({ queryKey: ['tasks'] })
+      qc.setQueriesData<unknown[]>({ queryKey: ['tasks'] }, (current) =>
+        current?.filter((task) => (task as { id?: string }).id !== id),
+      )
+      return { previousTasks }
+    },
+    onError: (_error, _id, context) => {
+      context?.previousTasks.forEach(([queryKey, tasks]) => {
+        qc.setQueryData(queryKey, tasks)
+      })
+    },
+    onSettled: () => Promise.all([
       qc.invalidateQueries({ queryKey: ['tasks'] }),
       qc.invalidateQueries({ queryKey: ['recurring-task-series'] }),
     ]),

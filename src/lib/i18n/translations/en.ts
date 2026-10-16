@@ -304,6 +304,7 @@ const en = {
     noTasksDesc: 'Create your first task to get started',
     deleteTask: 'Delete Task',
     deleteTaskConfirm: 'Are you sure you want to delete this task?',
+    deleteTasksConfirm: 'Are you sure you want to delete these {count} tasks?',
     markComplete: 'Mark Complete',
     markIncomplete: 'Mark Incomplete',
     markAsDone: 'Mark as Done',

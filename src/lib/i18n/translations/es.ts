@@ -282,6 +282,7 @@ const es: TranslationKeys = {
     noTasksDesc: 'Crea tu primera tarea para empezar',
     deleteTask: 'Eliminar tarea',
     deleteTaskConfirm: '¿Estás seguro de que deseas eliminar esta tarea?',
+    deleteTasksConfirm: '¿Seguro que quieres eliminar estas {count} tareas?',
     markComplete: 'Marcar como completada',
     markIncomplete: 'Marcar como incompleta',
     markAsDone: 'Marcar como hecho',
