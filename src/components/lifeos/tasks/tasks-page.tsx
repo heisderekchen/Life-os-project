@@ -208,6 +208,8 @@ function mapApiTask(apiTask: Record<string, unknown>): Task {
     estimatedMinutes: (apiTask.estimatedMinutes as number | null | undefined) ?? null,
     actualMinutes: (apiTask.actualMinutes as number | null | undefined) ?? null,
     projectId: (apiTask.projectId as string) || null,
+    sourceProject: (apiTask.sourceProject as string) || null,
+    sourceType: (apiTask.sourceType as string) || null,
     parentTaskId: (apiTask.parentTaskId as string) || null,
     recurrence: (apiTask.recurrence as string || null) as Task['recurrence'],
     recurrenceConfig: (apiTask.recurrenceConfig as string) || null,
@@ -1514,6 +1516,7 @@ function Listview({ tasks, projects, selectedTaskId, onSelectTask, onToggleStatu
                   : <Checkbox className="!min-h-4 !min-w-4" aria-label={`${uiText('Mark task complete')}: ${task.title}`} checked={task.status === 'done'} onCheckedChange={() => onToggleStatus(task.id)} />}
               </div>
               <p className={cn('task-title min-w-0 flex-1 truncate text-sm font-medium leading-5', task.status === 'done' && 'text-muted-foreground line-through')}>{task.title}</p>
+              {task.sourceType && <Badge variant="outline" className="max-w-20 shrink-0 truncate text-[10px] font-normal" title={task.sourceType}>{task.sourceType}</Badge>}
             </div>
             <div className="hidden min-w-0 truncate text-xs text-muted-foreground lg:block" title={project?.name || (task.projectId ? uiText('Project unavailable') : uiText('Unassigned project'))}>
               {project?.name || (task.projectId ? uiText('Project unavailable') : uiText('Unassigned project'))}

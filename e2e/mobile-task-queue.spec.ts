@@ -18,6 +18,7 @@ const fixtureTasks = Array.from({ length: 10 }, (_, index) => ({
   createdAt: '2026-10-14T12:00:00.000Z',
   updatedAt: '2026-10-14T12:00:00.000Z',
   projectId: null,
+  sourceType: index === 0 ? 'Ongoing' : null,
   parentTaskId: null,
   tags: [],
   subtasks: [],
@@ -128,6 +129,7 @@ test('mobile task queue uses the available height and scrolls normally at phone 
     const taskRows = page.locator('article[data-task-id]')
     await expect(allFilter).toHaveAttribute('aria-pressed', 'true')
     await expect(taskRows).toHaveCount(10)
+    await expect(page.locator('[data-task-id="mobile-fixture-01"]').getByText('Ongoing', { exact: true })).toBeVisible()
 
     // Filters may scroll within their own strip at narrow widths, but their
     // labels must stay intact and each control must remain reachable.

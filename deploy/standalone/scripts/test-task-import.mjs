@@ -10,7 +10,9 @@ import { normalizeDotTaskExport } from '../src/dot-task-export.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 const db = new DatabaseSync(':memory:');
 db.exec(readFileSync(resolve(here, '../migrations/0071_lifeos_projects_pilot.sql'), 'utf8'));
+db.exec(readFileSync(resolve(here, '../migrations/0087_lifeos_project_source_ids.sql'), 'utf8'));
 db.exec(readFileSync(resolve(here, '../migrations/0097_lifeos_task_import_sources.sql'), 'utf8'));
+db.exec(readFileSync(resolve(here, '../migrations/0098_lifeos_task_import_metadata.sql'), 'utf8'));
 const DB = createD1Sqlite(db);
 const env = { DB };
 const owner = { role: 'personal-workbench', scope: 'personal-workbench', username: 'synthetic-owner' };
@@ -112,7 +114,7 @@ assert.equal(db.prepare("SELECT COUNT(*) AS n FROM lifeos_task_import_sources WH
 // repeats rather than guessing whether they represent one source task.
 const dotRow = {
   name: 'Synthetic roadmap item', description: 'Fictional description', project: 'Sample project',
-  type: 'task', status: 'todo', latest_result: 'Fictional result', links: ['https://example.test/item'],
+  type: '持续', status: 'todo', latest_result: 'Fictional result', links: ['https://example.test/item'],
   updated_at: '2026-10-15T12:00:00.000Z',
 };
 const dotExport = { title: 'Synthetic export', as_of: '2026-10-15', usage: { fixture: true }, tasks: [dotRow, { ...dotRow, updated_at: '2026-10-16T12:00:00.000Z' }] };
@@ -120,6 +122,8 @@ const normalizedDot = normalizeDotTaskExport(dotExport);
 assert.equal(normalizedDot.tasks.length, 1);
 assert.equal(normalizedDot.tasks[0].sourceUpdatedAt, '2026-10-16T12:00:00.000Z');
 assert.equal(normalizedDot.tasks[0].sourceStatus, 'todo');
+assert.equal(normalizedDot.tasks[0].sourceProject, 'Sample project');
+assert.equal(normalizedDot.tasks[0].sourceType, '持续');
 assert.match(normalizedDot.tasks[0].description, /Sample project/);
 assert.match(normalizedDot.tasks[0].description, /Fictional result/);
 response = await call('/api/personal-workbench/lifeos/tasks/import/preview', { body: dotExport });
@@ -131,6 +135,10 @@ assert.equal(response.status, 201);
 body = await response.json();
 assert.equal(body.imported, 1);
 assert.equal(db.prepare('SELECT source_updated_at FROM lifeos_task_import_sources WHERE source_key=?').get('dot.tasks').source_updated_at, '2026-10-16T12:00:00.000Z');
+const linkedProject = db.prepare(`SELECT p.title FROM personal_workbench_lifeos_tasks t
+  JOIN personal_workbench_lifeos_projects p ON p.id=t.project_id WHERE t.title='Synthetic roadmap item'`).get();
+assert.equal(linkedProject.title, 'Sample project');
+assert.equal(db.prepare("SELECT source_type FROM lifeos_task_import_sources WHERE source_key='dot.tasks'").get().source_type, '持续');
 response = await call('/api/personal-workbench/lifeos/tasks/import/preview', {
   body: { ...dotExport, tasks: [{ ...dotRow, status: '进行中', updated_at: '2026-10-20T12:00:00.000Z', description: 'Fictional source update' }] },
 });
@@ -139,6 +147,14 @@ body = await response.json();
 assert.equal(body.summary.alreadyImported, 1);
 assert.equal(body.summary.willCreate, 0);
 assert.equal(body.items[0].sourceStatus, 'todo', 'first imported source status remains the provenance record');
+response = await call('/api/personal-workbench/lifeos/tasks/import', {
+  body: { ...dotExport, confirm: true, reconcile: true },
+});
+assert.equal(response.status, 200);
+body = await response.json();
+assert.equal(body.imported, 0);
+assert.equal(body.reconciled, 1);
+assert.equal(db.prepare("SELECT COUNT(*) AS n FROM personal_workbench_lifeos_tasks WHERE title='Synthetic roadmap item'").get().n, 1);
 
 // Every current Chinese source status has an explicit local mapping. Keep the
 // original label as provenance; historical date-range text remains literal,

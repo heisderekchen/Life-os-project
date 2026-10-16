@@ -12,7 +12,7 @@ const fetchTaskCard = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/api/hooks', () => ({
   useTasks: () => ({ data: [
-    { id: 'task-ui-1', title: 'Selected task', description: 'Task notes', status: 'todo', priority: 'medium', recurrence: 'weekly', recurrenceConfig: '', startDate: '2026-10-01T15:30:00-07:00', estimatedMinutes: 0, actualMinutes: 0, tags: [{ tag: { name: 'label,with,commas' } }], createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+    { id: 'task-ui-1', title: 'Selected task', description: 'Task notes', sourceType: '持续', status: 'todo', priority: 'medium', recurrence: 'weekly', recurrenceConfig: '', startDate: '2026-10-01T15:30:00-07:00', estimatedMinutes: 0, actualMinutes: 0, tags: [{ tag: { name: 'label,with,commas' } }], createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
     { id: 'task-ui-2', title: 'Active task', description: '', status: 'in-progress', priority: 'high', tags: [], createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
     { id: 'task-ui-3', title: 'Done task', description: '', status: 'done', priority: 'low', tags: [], createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
     { id: 'task-ui-4', title: 'Overdue open todo', description: '', status: 'todo', priority: 'urgent', dueDate: '2020-01-01T00:00:00.000Z', tags: [], createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
@@ -200,6 +200,7 @@ describe.each([
     const user = userEvent.setup()
     render(<QueryClientProvider client={new QueryClient()}><TasksPage /></QueryClientProvider>)
     const row = screen.getByRole('button', { name: '查看任务详情: Selected task' })
+    expect(within(row).getByText('持续')).toBeInTheDocument()
     const checkbox = within(row).getAllByRole('checkbox')[mobile ? 1 : 0]
     await user.click(checkbox)
     expect(updateTask).toHaveBeenCalledTimes(1)
