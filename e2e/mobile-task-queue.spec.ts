@@ -4,9 +4,9 @@ const fixtureTasks = Array.from({ length: 10 }, (_, index) => ({
   id: `mobile-fixture-${String(index + 1).padStart(2, '0')}`,
   title: `Mobile fixture task ${String(index + 1).padStart(2, '0')}`,
   description: `Fixture details ${index + 1}`,
-  status: index === 0 ? 'in-progress' : 'todo',
+  status: index === 0 ? 'in-progress' : index === 9 ? 'done' : 'todo',
   priority: 'medium',
-  dueDate: null,
+  dueDate: index === 1 || index === 9 ? '2020-01-01' : null,
   startDate: null,
   completedAt: null,
   estimatedMinutes: null,
@@ -119,15 +119,45 @@ test('mobile task queue uses the available height and scrolls normally at phone 
     await page.screenshot({ path: `test-results/mobile-task-queue-${width}-diagnostic.png` })
     console.log(`mobile fixture page text: ${(await page.locator('body').innerText()).slice(0, 1800)}`)
     await expect(page.getByText('Mobile fixture task 01', { exact: true })).toBeVisible()
-    await expect(page.getByText('Active', { exact: true })).toBeVisible()
-    const overdueLabel = page.getByText('Overdue', { exact: true }).first()
-    await expect(overdueLabel).toBeVisible()
-    expect(await overdueLabel.evaluate((element) => {
-      const container = element.parentElement
-      if (!container) return false
-      return getComputedStyle(container).textOverflow !== 'ellipsis' && container.scrollWidth <= container.clientWidth + 1
-    }), `no truncated queue label at ${width}px`).toBe(true)
-    await expect(page.getByRole('button', { name: 'In progress: 1' })).toBeVisible()
+    const filters = page.getByRole('group', { name: 'Task filters' })
+    const allFilter = filters.getByRole('button', { name: /^All\s*10$/ })
+    const activeFilter = filters.getByRole('button', { name: /^In progress\s*1$/ })
+    const todoFilter = filters.getByRole('button', { name: /^To do\s*8$/ })
+    const overdueFilter = filters.getByRole('button', { name: /^Overdue\s*1$/ })
+    const completedFilter = filters.getByRole('button', { name: /^Completed\s*1$/ })
+    const taskRows = page.locator('article[data-task-id]')
+    await expect(allFilter).toHaveAttribute('aria-pressed', 'true')
+    await expect(taskRows).toHaveCount(10)
+
+    // Filters may scroll within their own strip at narrow widths, but their
+    // labels must stay intact and each control must remain reachable.
+    for (const filter of [allFilter, activeFilter, todoFilter, overdueFilter, completedFilter]) {
+      await filter.scrollIntoViewIfNeeded()
+      await expect(filter).toBeInViewport()
+      expect(await filter.evaluate(element => element.scrollWidth <= element.clientWidth + 1),
+        `no truncated filter label at ${width}px`).toBe(true)
+    }
+    await activeFilter.click()
+    await expect(activeFilter).toHaveAttribute('aria-pressed', 'true')
+    await expect(taskRows).toHaveCount(1)
+    await expect(taskRows.first()).toHaveAttribute('data-task-id', 'mobile-fixture-01')
+    await todoFilter.click()
+    await expect(taskRows).toHaveCount(8)
+    await expect(page.locator('[data-task-id="mobile-fixture-02"]')).toBeVisible()
+    await overdueFilter.click()
+    await expect(taskRows).toHaveCount(1)
+    await expect(taskRows.first()).toHaveAttribute('data-task-id', 'mobile-fixture-02')
+    await completedFilter.click()
+    await expect(taskRows).toHaveCount(1)
+    await expect(taskRows.first()).toHaveAttribute('data-task-id', 'mobile-fixture-10')
+    await allFilter.click()
+    await expect(taskRows).toHaveCount(10)
+    const search = page.getByRole('textbox', { name: 'Search tasks' })
+    await search.fill('no matching task')
+    await expect(taskRows).toHaveCount(0)
+    await page.getByRole('button', { name: 'Clear filters', exact: true }).click()
+    await expect(taskRows).toHaveCount(10)
+    await expect(allFilter).toHaveAttribute('aria-pressed', 'true')
 
     const list = page.locator('div.overflow-y-auto.overscroll-contain').filter({
       has: page.locator('[data-task-id="mobile-fixture-01"]'),
@@ -142,12 +172,18 @@ test('mobile task queue uses the available height and scrolls normally at phone 
         const rowRect = row.getBoundingClientRect()
         return rowRect.top < rect.bottom && rowRect.bottom > rect.top
       }).length
+      const fullyVisibleRows = rows.filter(row => {
+        const rowRect = row.getBoundingClientRect()
+        return rowRect.top >= rect.top && rowRect.bottom <= rect.bottom
+      }).length
       return {
         height: rect.height,
         scrollHeight: element.scrollHeight,
         clientHeight: element.clientHeight,
         scrollTop: element.scrollTop,
         visibleRows,
+        fullyVisibleRows,
+        rowHeight: rows[0]?.getBoundingClientRect().height ?? 0,
         listBottom: rect.bottom,
         navTop: nav?.top ?? window.innerHeight,
         viewportWidth: window.innerWidth,
@@ -156,7 +192,8 @@ test('mobile task queue uses the available height and scrolls normally at phone 
     })
 
     expect(metrics.height, `list height at ${width}px`).toBeGreaterThan(300)
-    expect(metrics.visibleRows, `visible task rows at ${width}px`).toBeGreaterThanOrEqual(2)
+    expect(metrics.fullyVisibleRows, `complete task rows at ${width}px`).toBeGreaterThanOrEqual(4)
+    expect(metrics.rowHeight, `compact two-line row at ${width}px`).toBeLessThanOrEqual(90)
     expect(metrics.listBottom, `list clears bottom navigation at ${width}px`).toBeLessThanOrEqual(metrics.navTop + 1)
     expect(metrics.documentWidth, `no horizontal overflow at ${width}px`).toBeLessThanOrEqual(metrics.viewportWidth)
     expect(metrics.scrollHeight, `list has content to scroll at ${width}px`).toBeGreaterThan(metrics.clientHeight)
@@ -171,6 +208,8 @@ test('mobile task queue uses the available height and scrolls normally at phone 
 
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto(appPath)
-  await expect(page.getByText('Being worked on', { exact: true })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Task filters' }).getByRole('button', { name: /^In progress\s*1$/ })).toBeVisible()
+  await expect(page.locator('article[data-task-id]')).toHaveCount(10)
+  await expect(page.getByText('Being worked on', { exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /Add Task/i })).toBeVisible()
 })
