@@ -604,10 +604,16 @@ export function TasksPage() {
   }, [tasks, updateTaskMutation])
 
   const deleteTask = useCallback((id: string) => {
-    deleteTaskMutation.mutate(id)
-    if (selectedTaskId === id) setSelectedTaskId(null)
-    showToast.info(uiText("Task deleted"), uiText("Task has been removed"))
-  }, [deleteTaskMutation, selectedTaskId])
+    deleteTaskMutation.mutate(id, {
+      onSuccess: () => {
+        if (selectedTaskId === id) setSelectedTaskId(null)
+        showToast.success(uiText("Task deleted"), uiText("Task has been removed"))
+      },
+      onError: () => {
+        showToast.error(t('toast.deleteFailed'), t('toast.somethingWentWrong'))
+      },
+    })
+  }, [deleteTaskMutation, selectedTaskId, t])
 
   const moveTask = useCallback((id: string, newStatus: Task['status']) => {
     updateTaskMutation.mutate({ id, status: newStatus })
@@ -705,16 +711,26 @@ export function TasksPage() {
     setSelectionMode(false)
   }, [selectedIds, updateTaskMutation])
 
-  const handleBulkDelete = useCallback(() => {
-    if (!confirm(`${selectedIds.size} görevi silmek istediğinizden emin misiniz?`)) return
-    selectedIds.forEach(id => {
-      deleteTaskMutation.mutate(id)
-      if (selectedTaskId === id) setSelectedTaskId(null)
-    })
-    showToast.info(`${selectedIds.size} görev silindi`, '')
-    setSelectedIds(new Set())
-    setSelectionMode(false)
-  }, [selectedIds, deleteTaskMutation, selectedTaskId])
+  const handleBulkDelete = useCallback(async () => {
+    if (!window.confirm(t('tasks.deleteTasksConfirm', { count: selectedIds.size }))) return
+    const taskIds = [...selectedIds]
+    const results = await Promise.allSettled(taskIds.map(id => deleteTaskMutation.mutateAsync(id)))
+    const failedIds = new Set(taskIds.filter((_id, index) => results[index].status === 'rejected'))
+    const deletedCount = taskIds.length - failedIds.size
+
+    if (deletedCount > 0) {
+      if (selectedTaskId && taskIds.some(id => id === selectedTaskId && !failedIds.has(id))) {
+        setSelectedTaskId(null)
+      }
+      showToast.success(t('toast.deleted'))
+    }
+    if (failedIds.size > 0) {
+      showToast.error(t('toast.deleteFailed'), t('toast.somethingWentWrong'))
+    }
+
+    setSelectedIds(failedIds)
+    setSelectionMode(failedIds.size > 0)
+  }, [selectedIds, deleteTaskMutation, selectedTaskId, t])
 
   const toggleSelectId = useCallback((id: string) => {
     setSelectedIds(prev => {

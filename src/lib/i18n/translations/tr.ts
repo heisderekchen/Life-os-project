@@ -292,6 +292,7 @@ const tr: TranslationKeys = {
     noTasksDesc: 'Başlamak için ilk görevini oluştur',
     deleteTask: 'Görevi Sil',
     deleteTaskConfirm: 'Bu görevi silmek istediğinizden emin misiniz?',
+    deleteTasksConfirm: 'Bu {count} görevi silmek istediğinizden emin misiniz?',
     markComplete: 'Tamamlandı Olarak İşaretle',
     markIncomplete: 'Tamamlanmadı Olarak İşaretle',
     markAsDone: 'Tamamlandı Olarak İşaretle',
