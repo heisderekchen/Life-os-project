@@ -31,6 +31,7 @@ import {
   Sparkles,
   Command,
   ChevronDown,
+  MoreHorizontal,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -45,6 +46,16 @@ import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -244,7 +255,6 @@ function SortableTaskCard({
   task,
   projectName,
   selectedTaskId,
-  celebratingTaskId,
   onSelectTask,
   onMoveTask,
   onDeleteTask,
@@ -254,7 +264,6 @@ function SortableTaskCard({
   task: Task
   projectName?: string
   selectedTaskId: string | null
-  celebratingTaskId: string | null
   onSelectTask: (id: string) => void
   onMoveTask: (id: string, status: Task['status']) => void
   onDeleteTask: (id: string) => void
@@ -279,8 +288,6 @@ function SortableTaskCard({
   }
 
   const dueStatus = getDueDateStatus(task.dueDate)
-  const isCelebrating = celebratingTaskId === task.id
-
   const { t } = useTranslation()
 
   return (
@@ -292,7 +299,6 @@ function SortableTaskCard({
           'cursor-pointer transition-all duration-200 border-l-[3px] hover:shadow-md micro-hover shadow-card',
           priorityBorderColors[task.priority],
           selectedTaskId === task.id ? 'ring-2 ring-primary/20 shadow-md' : '',
-          isCelebrating && 'animate-celebrate',
           isDragging && 'shadow-xl ring-2 ring-primary/30 rotate-1'
         )}
         onClick={() => onSelectTask(task.id)}
@@ -419,8 +425,8 @@ const accentHexMap: Record<string, string> = {
 
 export function TasksPage() {
   useInterfaceLanguage()
-  const { taskView, setTaskView, taskFilter, setTaskFilter } = useTaskStore()
-  const [queueFilter, setQueueFilter] = useState<'all' | 'in-progress' | 'attention' | 'todo'>('all')
+  const { taskView, setTaskView } = useTaskStore()
+  const [queueFilter, setQueueFilter] = useState<'all' | 'in-progress' | 'todo' | 'overdue' | 'done'>('all')
   const accentColor = useAppStore((s) => s.accentColor)
   const { t } = useTranslation()
   const statusLabels: Record<string, string> = useMemo(() => ({
@@ -520,29 +526,37 @@ export function TasksPage() {
     return () => window.removeEventListener('lifeos:before-module-change', handleModuleChange)
   }, [taskWorkspaceMode, taskEditHasChanges])
 
+  const matchesQueueFilter = useCallback((task: Task, filter: typeof queueFilter) => {
+    if (filter === 'all') return true
+    if (filter === 'overdue') return isOverdueOpenTask(task)
+    if (filter === 'done') return task.status === 'done'
+    // Overdue is an additional queue, not a reason to hide an open task.
+    return task.status === filter
+  }, [])
+
   const filteredTasks = useMemo(() => {
-    let result = tasks
-    if (queueFilter === 'attention') {
-      result = result.filter(isOverdueOpenTask)
-    } else if (queueFilter !== 'all') {
-      result = result.filter(t => t.status === queueFilter && !isOverdueOpenTask(t))
-    } else if (taskFilter !== 'all') {
-      result = result.filter(t => t.status === taskFilter)
-    }
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase()
-      result = result.filter(t => t.title.toLowerCase().includes(q) || t.description.toLowerCase().includes(q))
-    }
-    return result
-  }, [tasks, taskFilter, queueFilter, searchQuery])
+    const query = searchQuery.trim().toLocaleLowerCase()
+    return tasks.filter(task => {
+      if (!matchesQueueFilter(task, queueFilter)) return false
+      if (!query) return true
+      const projectName = task.projectId ? projectNames.get(task.projectId) || '' : ''
+      return [task.title, task.description, projectName, ...task.tags]
+        .some(value => value.toLocaleLowerCase().includes(query))
+    })
+  }, [tasks, queueFilter, searchQuery, matchesQueueFilter, projectNames])
 
   const todoTasks = filteredTasks.filter(t => t.status === 'todo')
   const inProgressTasks = filteredTasks.filter(t => t.status === 'in-progress')
   const doneTasks = filteredTasks.filter(t => t.status === 'done')
 
-  const overdueTasks = tasks.filter(t => {
-    return isOverdueOpenTask(t)
-  })
+  const queueFilters = [
+    { id: 'all', label: uiText('All') },
+    { id: 'in-progress', label: uiText('In progress') },
+    { id: 'todo', label: uiText('To do') },
+    { id: 'overdue', label: uiText('Overdue') },
+    { id: 'done', label: uiText('Completed') },
+  ] as const
+  const hasActiveFilters = queueFilter !== 'all' || searchQuery.trim().length > 0
 
   const handleAddTask = useCallback(() => {
     if (!newTask.title.trim()) return
@@ -579,17 +593,13 @@ export function TasksPage() {
     })
   }, [createTaskMutation])
 
-  const [celebratingTaskId, setCelebratingTaskId] = useState<string | null>(null)
-
   const toggleTaskStatus = useCallback((id: string) => {
     const task = tasks.find(t => t.id === id)
     if (!task) return
     const newStatus = task.status === 'done' ? 'todo' : 'done'
     updateTaskMutation.mutate({ id, status: newStatus })
     if (newStatus === 'done') {
-      setCelebratingTaskId(id)
-      setTimeout(() => setCelebratingTaskId(null), 500)
-      showToast.success(uiText("Task updated"), uiText("Task marked as done 🎉"))
+      showToast.success(uiText("Task updated"), uiText("Task marked as done"))
     }
   }, [tasks, updateTaskMutation])
 
@@ -888,51 +898,25 @@ export function TasksPage() {
       {/* Main Content */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
 
-        <div role="group" aria-label={uiText('Task queue')} className="shrink-0 px-2 pt-2 sm:px-4 sm:pt-4">
-          <div className="mb-1.5 flex items-baseline justify-between sm:mb-2">
-            <h2 className="text-sm font-semibold">{uiText('Your work')}</h2>
-            <span className="text-xs text-muted-foreground">{tasks.length} {uiText('tasks in view')}</span>
-          </div>
-          <div className="grid grid-cols-4 divide-x divide-border/70 overflow-hidden border-y border-border/70">
-            {([
-              { id: 'in-progress', label: uiText('In progress'), mobileLabel: uiText('Active'), count: tasks.filter(task => task.status === 'in-progress' && !isOverdueOpenTask(task)).length, note: uiText('Being worked on') },
-              { id: 'attention', label: uiText('Needs attention'), mobileLabel: uiText('Overdue'), count: overdueTasks.length, note: uiText('Overdue') },
-              { id: 'all', label: uiText('All tasks'), mobileLabel: uiText('All'), count: tasks.length, note: uiText('Every status') },
-              { id: 'todo', label: uiText('Next up'), mobileLabel: uiText('Next'), count: tasks.filter(task => task.status === 'todo' && !isOverdueOpenTask(task)).length, note: uiText('Ready to start') },
-            ] as const).map((queue) => {
-              const selected = queueFilter === queue.id && taskFilter === 'all'
-              return (
-                <button key={queue.id} type="button" aria-label={`${queue.label}: ${queue.count}`} aria-pressed={selected} onClick={() => { setQueueFilter(queue.id); setTaskFilter('all') }} className={cn('flex min-h-11 flex-col justify-center gap-0.5 px-1.5 py-1 text-center transition-colors hover:bg-accent/40 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:min-h-[76px] sm:items-stretch sm:gap-0 sm:px-4 sm:py-3 sm:text-left', selected && 'bg-accent/45')}>
-                  <span className="flex min-w-0 flex-col items-center justify-center gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-2">
-                    <span className="text-xs font-semibold leading-tight sm:truncate sm:text-sm"><span className="sm:hidden">{queue.mobileLabel}</span><span className="hidden sm:inline">{queue.label}</span></span>
-                    <span className="text-xs font-semibold tabular-nums sm:text-lg">{queue.count}</span>
-                  </span>
-                  <span className="hidden truncate text-[11px] text-muted-foreground sm:mt-1 sm:block">{queue.note}</span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
         <div className="shrink-0 border-b border-border/50 px-2 pt-1.5 sm:px-4 sm:pt-3">
           <Tabs value={taskSection} onValueChange={(value) => setTaskSection(value as 'mine' | 'recurring')}>
-            <TabsList className="h-10 w-full justify-start rounded-none bg-transparent p-0 sm:h-11">
-              <TabsTrigger value="mine" className="h-10 rounded-none border-b-2 border-transparent px-3 text-xs data-[state=active]:border-primary sm:h-11 sm:px-4 sm:text-sm">{uiText('My tasks')}</TabsTrigger>
-              <TabsTrigger value="recurring" className="h-10 rounded-none border-b-2 border-transparent px-3 text-xs data-[state=active]:border-primary sm:h-11 sm:px-4 sm:text-sm"><Repeat className="mr-1.5 h-4 w-4 sm:mr-2" />{uiText('Recurring tasks')} <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[11px] tabular-nums sm:ml-2 sm:px-2 sm:text-xs">{recurringTasksQuery.data?.activeCount ?? '—'}</span></TabsTrigger>
+            <TabsList className="h-10 w-auto justify-start rounded-none bg-transparent p-0 sm:h-11">
+              <TabsTrigger value="mine" className="h-10 flex-none rounded-none border-x-0 border-t-0 border-b-2 border-transparent bg-transparent px-3 text-xs shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none sm:h-11 sm:px-4 sm:text-sm">{uiText('My tasks')}</TabsTrigger>
+              <TabsTrigger value="recurring" className="h-10 flex-none rounded-none border-x-0 border-t-0 border-b-2 border-transparent bg-transparent px-3 text-xs shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none sm:h-11 sm:px-4 sm:text-sm"><Repeat className="mr-1.5 h-4 w-4 sm:mr-2" />{uiText('Recurring tasks')} <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[11px] tabular-nums sm:ml-2 sm:px-2 sm:text-xs">{recurringTasksQuery.data?.activeCount ?? '—'}</span></TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
 
         {/* Toolbar */}
-        {taskSection === 'mine' && <div className="shrink-0 space-y-2 border-b border-border/50 p-2 sm:space-y-3 sm:p-4">
-          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        {taskSection === 'mine' && <div className="shrink-0 border-b border-border/50 p-2 sm:p-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2">
               <Tabs value={taskView} onValueChange={(v) => setTaskView(v as 'list' | 'board')}>
                 <TabsList className="h-11">
-                  <TabsTrigger value="list" className="min-h-11 px-2.5 text-xs sm:px-3">
+                  <TabsTrigger value="list" className="min-h-11 px-2.5 text-xs data-[state=active]:shadow-none sm:px-3">
                     <List className="h-3.5 w-3.5 mr-1" />{t('tasks.list')}
                   </TabsTrigger>
-                  <TabsTrigger value="board" className="min-h-11 px-2.5 text-xs sm:px-3">
+                  <TabsTrigger value="board" className="min-h-11 px-2.5 text-xs data-[state=active]:shadow-none sm:px-3">
                     <LayoutGrid className="h-3.5 w-3.5 mr-1" />{t('tasks.board')}
                   </TabsTrigger>
                 </TabsList>
@@ -953,25 +937,8 @@ export function TasksPage() {
                   <span className="sr-only sm:hidden">{selectionMode ? t('cancel') : t('tasks.selection.select')}</span>
                 </Button>
               )}
-              <details className="group/status relative">
-                <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-md border px-2.5 text-xs font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground [&::-webkit-details-marker]:hidden sm:px-3">
-                  <span className="hidden sm:inline">{uiText('Status filters')}</span><span className="sm:hidden">{uiText('Filter')}</span><ChevronDown className="ml-1.5 h-3.5 w-3.5 transition-transform group-open/status:rotate-180 sm:ml-2" />
-                </summary>
-                <div className="absolute left-0 top-full z-20 mt-1 flex min-w-44 flex-col rounded-lg border bg-popover p-1 shadow-lg">
-                  {(['all', 'todo', 'in-progress', 'done'] as const).map((filter) => {
-                    const count = filter === 'all' ? tasks.length : tasks.filter(t => t.status === filter).length
-                    const isActive = taskFilter === filter && queueFilter === 'all'
-                    return (
-                      <button key={filter} type="button" className={cn('flex min-h-11 items-center justify-between gap-4 rounded-md px-3 text-left text-sm hover:bg-accent', isActive && 'bg-accent font-medium')} onClick={() => { setQueueFilter('all'); setTaskFilter(filter) }}>
-                        <span>{filter === 'all' ? t('tasks.all') : filter === 'in-progress' ? t('tasks.inProgress') : filter === 'todo' ? t('tasks.todo') : t('tasks.done')}</span>
-                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs tabular-nums">{count}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-              </details>
             </div>
-            <div className="flex items-center gap-1.5 self-start sm:self-auto sm:gap-2">
+            <div className="flex items-center gap-1.5 sm:ml-auto sm:gap-2">
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm" aria-label={t('tasks.templates')} className="h-11 w-11 gap-1.5 px-0 sm:h-9 sm:w-auto sm:px-3">
@@ -1321,18 +1288,31 @@ export function TasksPage() {
                   </div>
                 </DialogFooter>
               </DialogContent>
-            </Dialog>
+              </Dialog>
 
             </div>
+            <div className="relative order-last w-full min-w-0 sm:order-none sm:min-w-[220px] sm:max-w-md sm:flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                aria-label={uiText('Search tasks')}
+                placeholder={`${t('search')}...`}
+                className="h-11 pl-9 sm:h-9"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
           </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder={`${t('search')}...`}
-              className="h-11 pl-9 sm:h-9"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+          <div role="group" aria-label={uiText('Task filters')} className="mt-2 flex min-w-0 flex-col gap-0.5 border-t border-border/50 pt-1.5">
+            <div className="flex min-h-9 min-w-0 flex-nowrap items-center gap-0.5 overflow-x-auto overscroll-x-contain whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {queueFilters.map((filter) => {
+                const count = tasks.filter(task => matchesQueueFilter(task, filter.id)).length
+                const selected = queueFilter === filter.id
+                return <button key={filter.id} type="button" aria-pressed={selected} onClick={() => setQueueFilter(filter.id)} className={cn('min-h-8 shrink-0 rounded-md border-b-2 border-transparent px-1.5 text-[11px] font-medium text-muted-foreground transition-colors duration-150 hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-2.5 sm:text-xs', selected && 'border-primary bg-accent/70 text-foreground')}>
+                  {filter.label}<span className="ml-1 tabular-nums text-muted-foreground">{count}</span>
+                </button>
+              })}
+            </div>
+            <span className="self-end px-1 text-[10px] tabular-nums text-muted-foreground" aria-live="polite">{uiText('Showing')} {filteredTasks.length} / {uiText('Of')} {tasks.length}</span>
           </div>
         </div>}
 
@@ -1348,12 +1328,16 @@ export function TasksPage() {
                 </div>
               ))}
             </div>
+          ) : hasActiveFilters && filteredTasks.length === 0 ? (
+            <div className="flex min-h-56 flex-col items-center justify-center gap-3 px-4 text-center">
+              <p className="text-sm font-medium text-foreground">{uiText('No tasks match these filters')}</p>
+              <Button variant="outline" size="sm" className="min-h-11" onClick={() => { setQueueFilter('all'); setSearchQuery('') }}>{uiText('Clear filters')}</Button>
+            </div>
           ) : taskView === 'list' ? (
             <Listview
               tasks={filteredTasks}
               projects={projects}
               selectedTaskId={selectedTaskId}
-              celebratingTaskId={celebratingTaskId}
               onSelectTask={openTaskWorkspace}
               onToggleStatus={toggleTaskStatus}
               onDeleteTask={deleteTask}
@@ -1364,6 +1348,8 @@ export function TasksPage() {
               selectedIds={selectedIds}
               onToggleSelect={toggleSelectId}
               onAdd={() => setCreateDialogOpen(true)}
+              hasActiveFilters={hasActiveFilters}
+              onClearFilters={() => { setQueueFilter('all'); setSearchQuery('') }}
             />
           ) : (
             <Boardview
@@ -1372,7 +1358,6 @@ export function TasksPage() {
               doneTasks={doneTasks}
               projects={projects}
               selectedTaskId={selectedTaskId}
-              celebratingTaskId={celebratingTaskId}
               onSelectTask={openTaskWorkspace}
               onMoveTask={moveTask}
               onDeleteTask={deleteTask}
@@ -1437,11 +1422,10 @@ export function TasksPage() {
   )
 }
 
-function Listview({ tasks, projects, selectedTaskId, celebratingTaskId, onSelectTask, onToggleStatus, onDeleteTask, onEditTask, onMoveTask, accentHex = '#10b981', selectionMode = false, selectedIds = new Set<string>(), onToggleSelect, onAdd }: {
+function Listview({ tasks, projects, selectedTaskId, onSelectTask, onToggleStatus, onDeleteTask, onEditTask, onMoveTask, accentHex = '#10b981', selectionMode = false, selectedIds = new Set<string>(), onToggleSelect, onAdd, hasActiveFilters = false, onClearFilters }: {
   tasks: Task[]
   projects: Project[]
   selectedTaskId: string | null
-  celebratingTaskId: string | null
   onSelectTask: (id: string) => void
   onToggleStatus: (id: string) => void
   onDeleteTask: (id: string) => void
@@ -1452,29 +1436,30 @@ function Listview({ tasks, projects, selectedTaskId, celebratingTaskId, onSelect
   selectedIds?: Set<string>
   onToggleSelect?: (id: string) => void
   onAdd?: () => void
+  hasActiveFilters?: boolean
+  onClearFilters?: () => void
 }) {
   useInterfaceLanguage()
   const { t } = useTranslation()
-  const allSelected = tasks.length > 0 && tasks.every(t => selectedIds.has(t.id))
+  const allSelected = tasks.length > 0 && tasks.every(task => selectedIds.has(task.id))
 
   if (tasks.length === 0) {
+    if (hasActiveFilters) {
+      return <div className="flex min-h-56 flex-col items-center justify-center gap-3 px-4 text-center">
+        <p className="text-sm font-medium text-foreground">{uiText('No tasks match these filters')}</p>
+        <Button variant="outline" size="sm" className="min-h-11" onClick={onClearFilters}>{uiText('Clear filters')}</Button>
+      </div>
+    }
     return (
-      <div className="flex items-center justify-center h-80 text-muted-foreground">
-        <div className="text-center animate-bounce-in">
-          <div className="w-20 h-20 mx-auto mb-5 rounded-full bg-gradient-to-br from-orange-100 to-amber-100 dark:from-orange-950/40 dark:to-amber-950/40 flex items-center justify-center shadow-sm">
-            <CheckSquare className="h-10 w-10 text-orange-500" />
+      <div className="flex min-h-80 items-center justify-center text-muted-foreground">
+        <div className="text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted text-muted-foreground">
+            <CheckSquare className="h-7 w-7" />
           </div>
           <p className="text-base font-semibold text-foreground">{t('tasks.noTasks')}</p>
-          <p className="text-sm mt-1.5 text-muted-foreground/70 max-w-[240px] mx-auto">{t('tasks.noTasksDesc')}</p>
-          <button
-            type="button"
-            onClick={onAdd}
-            disabled={!onAdd}
-            className="mt-4 inline-flex items-center justify-center gap-1.5 text-xs font-medium px-3.5 py-1.5 rounded-full transition-all hover:scale-[1.03] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
-            style={{ color: accentHex, backgroundColor: `${accentHex}18`, boxShadow: `0 6px 18px -10px ${accentHex}` }}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>{t('tasks.addTask')}</span>
+          <p className="mx-auto mt-1.5 max-w-[240px] text-sm text-muted-foreground">{t('tasks.noTasksDesc')}</p>
+          <button type="button" onClick={onAdd} disabled={!onAdd} className="mt-4 inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md px-3.5 text-sm font-medium transition-colors duration-150 hover:bg-accent disabled:opacity-60" style={{ color: accentHex }}>
+            <Plus className="h-3.5 w-3.5" /><span>{t('tasks.addTask')}</span>
           </button>
         </div>
       </div>
@@ -1482,180 +1467,114 @@ function Listview({ tasks, projects, selectedTaskId, celebratingTaskId, onSelect
   }
 
   return (
-    <div className="space-y-1.5 p-2 sm:space-y-2 sm:p-4">
+    <div className="min-w-0 px-2 sm:px-4">
       {selectionMode && (
-        <div className="flex min-h-11 items-center gap-3 px-2 py-1.5 bg-muted/30 border-b border-border/50 sm:px-4">
-          <Checkbox
-            checked={allSelected}
-            onCheckedChange={() => {
-              if (allSelected) {
-                tasks.forEach(t => { if (selectedIds.has(t.id)) onToggleSelect?.(t.id) })
-              } else {
-                tasks.forEach(t => { if (!selectedIds.has(t.id)) onToggleSelect?.(t.id) })
-              }
-            }}
-          />
+        <div className="flex min-h-11 items-center gap-3 border-b border-border/50 px-1">
+          <Checkbox aria-label={allSelected ? uiText('Deselect all tasks') : uiText('Select all tasks')} checked={allSelected} onCheckedChange={() => {
+            if (allSelected) tasks.forEach(task => { if (selectedIds.has(task.id)) onToggleSelect?.(task.id) })
+            else tasks.forEach(task => { if (!selectedIds.has(task.id)) onToggleSelect?.(task.id) })
+          }} />
           <span className="text-xs text-muted-foreground">{allSelected ? t('tasks.selection.deselectAll') : t('tasks.selection.selectAll')}</span>
         </div>
       )}
       {tasks.map((task) => {
-        const dueStatus = getDueDateStatus(task.dueDate)
-        const isCelebrating = celebratingTaskId === task.id
-        const isSelected = selectedIds.has(task.id)
-        const rowContent = (
-          <motion.article
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+        const overdue = isOverdueOpenTask(task)
+        const project = projects.find(item => item.id === task.projectId)
+        const selected = selectedIds.has(task.id)
+        const statusLabel = task.status === 'in-progress' ? t('tasks.inProgress') : task.status === 'todo' ? t('tasks.todo') : task.status === 'cancelled' ? uiText('Cancelled') : t('tasks.done')
+        const rowSelected = selectedTaskId === task.id && !selectionMode
+        return (
+          <article
+            key={task.id}
             data-task-id={task.id}
             tabIndex={0}
+            role="button"
             aria-label={`${uiText('Open task details')}: ${task.title}`}
-            aria-expanded={selectedTaskId === task.id}
-            className={cn(
-              'task-summary-card group grid min-w-0 cursor-pointer gap-2 border-l-[3px] px-2.5 py-2 transition-colors duration-200 hover:bg-accent/20 sm:gap-3 sm:rounded-xl sm:border sm:border-border/60 sm:px-4 sm:py-4',
-              priorityBorderColors[task.priority],
-              task.status === 'done' && '[&_.task-title]:text-muted-foreground [&_.task-title]:line-through',
-              isCelebrating && 'animate-celebrate',
-              isSelected && 'bg-accent/50'
-            )}
-            style={selectedTaskId === task.id && !selectionMode ? { borderLeftColor: accentHex, backgroundColor: 'var(--accent)' } : undefined}
+            aria-expanded={rowSelected}
             onClick={() => selectionMode ? onToggleSelect?.(task.id) : onSelectTask(task.id)}
             onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
+              if ((event.key === 'Enter' || event.key === ' ') && event.target === event.currentTarget) {
                 event.preventDefault()
                 if (selectionMode) onToggleSelect?.(task.id)
                 else onSelectTask(task.id)
               }
             }}
-            onDoubleClick={(e) => { if (selectionMode) return; e.stopPropagation(); onEditTask?.(task) }}
+            onDoubleClick={(event) => { if (!selectionMode) { event.stopPropagation(); onEditTask?.(task) } }}
+            className={cn(
+              'group grid min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_44px] items-center gap-x-2 gap-y-0 border-b border-border/60 px-1 py-1 transition-colors duration-150 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring lg:min-h-[52px] lg:grid-cols-[44px_minmax(160px,1fr)_minmax(100px,0.8fr)_100px_74px_112px_44px] lg:gap-2 lg:px-2 lg:py-0',
+              rowSelected && 'bg-accent/50', selected && 'bg-primary/5'
+            )}
+            style={rowSelected ? { boxShadow: `inset 2px 0 0 ${accentHex}`, backgroundColor: 'var(--accent)' } : undefined}
           >
-            <div className="flex min-w-0 items-start gap-2 sm:gap-3">
-              {selectionMode ? (
-                <Checkbox checked={isSelected} onCheckedChange={() => onToggleSelect?.(task.id)} onClick={(e) => e.stopPropagation()} className="mt-1" />
-              ) : (
-                <Checkbox checked={task.status === 'done'} onCheckedChange={() => onToggleStatus(task.id)} onClick={(e) => e.stopPropagation()} className={cn('mt-1 transition-all duration-200', task.status === 'done' && 'animate-check-pop')} />
-              )}
-              <div className="min-w-0 flex-1 space-y-1.5 sm:space-y-2.5">
-                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                  <Badge className={cn(`${priorityColors[task.priority]} rounded-full border-0 px-2 py-0.5 text-[10px] font-semibold`, task.priority === 'urgent' && 'animate-pulse-urgent')}>{t(`tasks.${task.priority}`)}</Badge>
-                  <Badge variant="outline" className="rounded-full text-[10px]">{task.status === 'in-progress' ? t('tasks.inProgress') : task.status === 'todo' ? t('tasks.todo') : t('tasks.done')}</Badge>
-                  {task.projectId && <Badge variant="secondary" className="max-w-full truncate rounded-full text-[10px]">{projects.find(project => project.id === task.projectId)?.name || uiText('Project unavailable')}</Badge>}
-                  {task.sourceType && <Badge variant="outline" className="rounded-full text-[10px]">{task.sourceType}</Badge>}
-                  {task.dueDate && <Badge variant="outline" className={cn('rounded-full text-[10px]', dueStatus.className)}><Clock className="mr-1 h-2.5 w-2.5" />{uiText(dueStatus.label) || task.dueDate}</Badge>}
-                  {task.recurrence && task.recurrence !== 'none' && <Badge variant="outline" className="rounded-full text-[10px] capitalize"><RefreshCw className="mr-1 h-2.5 w-2.5" />{task.recurrence}</Badge>}
-                </div>
-                <div className="min-w-0">
-                  <p className={cn('task-title break-words text-[15px] font-semibold leading-snug', task.status === 'done' && 'line-through-animate text-muted-foreground')}>{task.title}</p>
-                </div>
-                {(splitTaskDescription(task.description).handoff || splitTaskDescription(task.description).body) && <div className="rounded-md bg-muted/30 px-2 py-1 sm:px-3 sm:py-2"><p className="hidden text-[10px] font-medium text-muted-foreground sm:block">{splitTaskDescription(task.description).handoff ? uiText('Latest progress') : uiText('Task materials')}</p><p className="line-clamp-1 break-words text-[11px] leading-snug text-foreground/75 sm:mt-1 sm:line-clamp-2 sm:text-xs sm:leading-relaxed">{splitTaskDescription(task.description).handoff || splitTaskDescription(task.description).body}</p></div>}
-                {task.tags.length > 0 && <div className="flex flex-nowrap gap-1 overflow-hidden sm:flex-wrap">{task.tags.slice(0, 5).map(tag => <Badge key={tag} variant="outline" className="max-w-[40vw] shrink-0 truncate px-1.5 py-0 text-[10px]">#{tag}</Badge>)}{task.tags.length > 5 && <span className="shrink-0 text-[10px] text-muted-foreground">+{task.tags.length - 5}</span>}</div>}
-                {!selectionMode && <div className="flex flex-wrap items-center justify-between gap-1.5 border-t border-border/50 pt-1.5 sm:gap-2 sm:pt-2">
-                  <span className="hidden text-[11px] text-muted-foreground sm:inline">{uiText('Open task details')}</span>
-                  <div className="flex flex-wrap items-center gap-1">
-                    {onMoveTask && task.status !== 'done' && <Button variant="outline" size="sm" className="h-11" onClick={(e) => { e.stopPropagation(); onMoveTask(task.id, task.status === 'todo' ? 'in-progress' : 'done') }}>{task.status === 'todo' ? uiText('Start') : t('tasks.markComplete')}</Button>}
-                    <Button variant="ghost" size="icon" className="h-11 w-11" onClick={(e) => { e.stopPropagation(); onEditTask?.(task) }} title={t('edit')} aria-label={`${t('edit')}: ${task.title}`}><Edit3 className="h-3.5 w-3.5" /></Button>
-                    <Button variant="ghost" size="icon" className="h-11 w-11 text-muted-foreground hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDeleteTask(task.id) }} title={t('delete')} aria-label={`${t('delete')}: ${task.title}`}><Trash2 className="h-3.5 w-3.5" /></Button>
-                  </div>
-                </div>}
-              </div>
+            <div className="hidden h-11 w-11 items-center justify-center lg:flex" onClick={event => { event.stopPropagation(); if (event.target === event.currentTarget) { if (selectionMode) onToggleSelect?.(task.id); else onToggleStatus(task.id) } }} onDoubleClick={event => event.stopPropagation()}>
+              {selectionMode ? <Checkbox className="!min-h-4 !min-w-4" aria-label={`${t('tasks.selection.select')}: ${task.title}`} checked={selected} onCheckedChange={() => onToggleSelect?.(task.id)} />
+                : <Checkbox className="!min-h-4 !min-w-4" aria-label={`${uiText('Mark task complete')}: ${task.title}`} checked={task.status === 'done'} onCheckedChange={() => onToggleStatus(task.id)} />}
             </div>
-          </motion.article>
-        )
-
-        // Always wrap in context menu for consistency
-        return (
-          <ContextMenu key={task.id}>
-            <ContextMenuTrigger asChild>{rowContent}</ContextMenuTrigger>
-            <ContextMenuContent className="w-48">
-              {selectionMode ? (
-                <>
-                  <ContextMenuItem onClick={() => onToggleSelect?.(task.id)}>
-                    <Check className="h-3.5 w-3.5 mr-2" />
-                    {isSelected ? t('tasks.selection.deselect') : t('tasks.selection.select')}
-                  </ContextMenuItem>
-                  <ContextMenuSeparator />
-                  <ContextMenuItem 
-                    disabled={selectedIds.size === 0}
-                    onClick={() => {
-                      // Trigger bulk complete for all selected
-                      selectedIds.forEach(id => onToggleStatus(id))
-                    }}
-                  >
-                    <Check className="h-3.5 w-3.5 mr-2" />
-                    {uiText("Seçilileri tamamla")}
-                  </ContextMenuItem>
-                  <ContextMenuItem 
-                    disabled={selectedIds.size === 0}
-                    onClick={() => {
-                      // Trigger bulk delete for all selected
-                      selectedIds.forEach(id => onDeleteTask(id))
-                    }}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <Trash2 className="h-3.5 w-3.5 mr-2" />
-                    {uiText("Seçilileri sil")}
-                  </ContextMenuItem>
-                </>
-              ) : (
-                <>
-                  <ContextMenuItem onClick={() => onEditTask?.(task)}>
-                    <Edit3 className="h-3.5 w-3.5 mr-2" />
-                    {t('edit')}
-                  </ContextMenuItem>
-                  <ContextMenuItem onClick={() => onToggleStatus(task.id)}>
-                    <Check className="h-3.5 w-3.5 mr-2" />
-                    {task.status === 'done' ? t('tasks.markAsTodo') : t('tasks.markAsDone')}
-                  </ContextMenuItem>
-                  <ContextMenuSub>
-                    <ContextMenuSubTrigger>
-                      <ChevronRight className="h-3.5 w-3.5 mr-2" />
-                      {t('tasks.moveTo')}
-                    </ContextMenuSubTrigger>
-                    <ContextMenuSubContent className="w-36">
-                      <ContextMenuItem
-                        disabled={task.status === 'todo'}
-                        onClick={() => onMoveTask?.(task.id, 'todo')}
-                      >
-                        {t('tasks.todo')}
-                      </ContextMenuItem>
-                      <ContextMenuItem
-                        disabled={task.status === 'in-progress'}
-                        onClick={() => onMoveTask?.(task.id, 'in-progress')}
-                      >
-                        {t('tasks.inProgress')}
-                      </ContextMenuItem>
-                      <ContextMenuItem
-                        disabled={task.status === 'done'}
-                        onClick={() => onMoveTask?.(task.id, 'done')}
-                      >
-                        {t('tasks.done')}
-                      </ContextMenuItem>
-                    </ContextMenuSubContent>
-                  </ContextMenuSub>
-                  <ContextMenuSeparator />
-                  <ContextMenuItem
-                    onClick={() => onDeleteTask(task.id)}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <Trash2 className="h-3.5 w-3.5 mr-2" />
-                    {t('delete')}
-                  </ContextMenuItem>
-                </>
-              )}
-            </ContextMenuContent>
-          </ContextMenu>
+            <div className="flex min-h-11 min-w-0 items-center gap-2 lg:min-h-0">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center lg:hidden" onClick={event => { event.stopPropagation(); if (event.target === event.currentTarget) { if (selectionMode) onToggleSelect?.(task.id); else onToggleStatus(task.id) } }} onDoubleClick={event => event.stopPropagation()}>
+                {selectionMode ? <Checkbox className="!min-h-4 !min-w-4" aria-label={`${t('tasks.selection.select')}: ${task.title}`} checked={selected} onCheckedChange={() => onToggleSelect?.(task.id)} />
+                  : <Checkbox className="!min-h-4 !min-w-4" aria-label={`${uiText('Mark task complete')}: ${task.title}`} checked={task.status === 'done'} onCheckedChange={() => onToggleStatus(task.id)} />}
+              </div>
+              <p className={cn('task-title min-w-0 flex-1 truncate text-sm font-medium leading-5', task.status === 'done' && 'text-muted-foreground line-through')}>{task.title}</p>
+              {task.sourceType && <Badge variant="outline" className="max-w-20 shrink-0 truncate text-[10px] font-normal" title={task.sourceType}>{task.sourceType}</Badge>}
+            </div>
+            <div className="hidden min-w-0 truncate text-xs text-muted-foreground lg:block" title={project?.name || (task.projectId ? uiText('Project unavailable') : uiText('Unassigned project'))}>
+              {project?.name || (task.projectId ? uiText('Project unavailable') : uiText('Unassigned project'))}
+            </div>
+            <div className="hidden lg:block"><Badge variant="outline" className="max-w-full truncate text-[11px] font-normal">{statusLabel}</Badge></div>
+            <div className="hidden lg:block"><Badge className={cn('max-w-full truncate border-0 px-2 py-0.5 text-[10px] font-medium', priorityColors[task.priority].replace(/priority-glow-[\w-]+/g, ''))}>{t(`tasks.${task.priority}`)}</Badge></div>
+            <div className="hidden truncate text-xs lg:block" title={task.dueDate || uiText('No due date')}>
+              {task.dueDate ? <span className={cn('inline-flex items-center gap-1 truncate', overdue ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground')}>
+                {overdue && <Clock className="h-3 w-3 shrink-0" />}{overdue ? uiText('Overdue') : task.dueDate}
+              </span> : <span className="text-muted-foreground">—</span>}
+            </div>
+            <div className="row-span-1 flex items-center justify-end lg:row-span-1">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0 lg:h-9 lg:w-9" aria-label={`${uiText('More task actions')}: ${task.title}`} onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48" onClick={event => event.stopPropagation()}>
+                  {selectionMode ? <DropdownMenuItem onSelect={() => onToggleSelect?.(task.id)}>{selected ? t('tasks.selection.deselect') : t('tasks.selection.select')}</DropdownMenuItem> : <>
+                    <DropdownMenuItem onSelect={() => onToggleStatus(task.id)}><Check className="mr-2 h-4 w-4" />{task.status === 'done' ? t('tasks.markAsTodo') : t('tasks.markAsDone')}</DropdownMenuItem>
+                    {onMoveTask && <DropdownMenuSub>
+                      <DropdownMenuSubTrigger><ChevronRight className="mr-2 h-4 w-4" />{t('tasks.moveTo')}</DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        <DropdownMenuItem disabled={task.status === 'todo'} onSelect={() => onMoveTask(task.id, 'todo')}>{t('tasks.todo')}</DropdownMenuItem>
+                        <DropdownMenuItem disabled={task.status === 'in-progress'} onSelect={() => onMoveTask(task.id, 'in-progress')}>{t('tasks.inProgress')}</DropdownMenuItem>
+                        <DropdownMenuItem disabled={task.status === 'done'} onSelect={() => onMoveTask(task.id, 'done')}>{t('tasks.done')}</DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>}
+                    <DropdownMenuItem onSelect={() => onEditTask?.(task)}><Edit3 className="mr-2 h-4 w-4" />{t('edit')}</DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => {
+                      if (window.confirm(uiText('Are you sure you want to delete this task?'))) onDeleteTask(task.id)
+                    }}><Trash2 className="mr-2 h-4 w-4" />{t('delete')}</DropdownMenuItem>
+                  </>}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <div className="col-span-2 flex min-h-8 min-w-0 items-center gap-1.5 overflow-hidden pl-8 lg:hidden">
+              <span className="max-w-[42%] truncate text-[11px] text-muted-foreground">{project?.name || (task.projectId ? uiText('Project unavailable') : uiText('Unassigned project'))}</span>
+              <span className="shrink-0 text-border">·</span>
+              <Badge variant="outline" className="h-5 shrink-0 px-1.5 text-[10px] font-normal">{statusLabel}</Badge>
+              <Badge className={cn('h-5 shrink-0 border-0 px-1.5 text-[10px] font-normal', priorityColors[task.priority].replace(/priority-glow-[\w-]+/g, ''))}>{t(`tasks.${task.priority}`)}</Badge>
+              {task.dueDate ? <span title={task.dueDate} className={cn('min-w-0 truncate text-[10px]', overdue ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground')}>{overdue ? uiText('Overdue') : task.dueDate}</span> : null}
+            </div>
+          </article>
         )
       })}
     </div>
   )
 }
 
-function Boardview({ todoTasks, inProgressTasks, doneTasks, projects, selectedTaskId, celebratingTaskId, onSelectTask, onMoveTask, onDeleteTask, onEditTask }: {
+function Boardview({ todoTasks, inProgressTasks, doneTasks, projects, selectedTaskId, onSelectTask, onMoveTask, onDeleteTask, onEditTask }: {
   todoTasks: Task[]
   inProgressTasks: Task[]
   doneTasks: Task[]
   projects: Project[]
   selectedTaskId: string | null
-  celebratingTaskId: string | null
   onSelectTask: (id: string) => void
   onMoveTask: (id: string, status: Task['status']) => void
   onDeleteTask: (id: string) => void
@@ -1818,7 +1737,6 @@ function Boardview({ todoTasks, inProgressTasks, doneTasks, projects, selectedTa
                           task={task}
                           projectName={projects.find(project => project.id === task.projectId)?.name}
                           selectedTaskId={selectedTaskId}
-                          celebratingTaskId={celebratingTaskId}
                           onSelectTask={onSelectTask}
                           onMoveTask={onMoveTask}
                           onDeleteTask={onDeleteTask}
