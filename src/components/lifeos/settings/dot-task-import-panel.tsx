@@ -45,6 +45,7 @@ export function DotTaskImportPanel() {
   const [isWorking, setIsWorking] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [targetConfirmed, setTargetConfirmed] = useState(false)
+  const [reconcileExisting, setReconcileExisting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -54,6 +55,7 @@ export function DotTaskImportPanel() {
     setSourceFile(null)
     setPreview(null)
     setTargetConfirmed(false)
+    setReconcileExisting(false)
     setIsWorking(true)
     try {
       if (file.size > 900 * 1024) throw new Error(t('settings.dotImportTooLarge'))
@@ -78,9 +80,9 @@ export function DotTaskImportPanel() {
     setError('')
     setIsWorking(true)
     try {
-      const result = await postTaskImport('/api/tasks/import', { ...sourceFile.data, confirm: true }) as { imported: number }
+      const result = await postTaskImport('/api/tasks/import', { ...sourceFile.data, confirm: true, reconcile: reconcileExisting }) as { imported: number; reconciled?: number }
       await queryClient.invalidateQueries({ queryKey: ['tasks'] })
-      setSuccess(t('settings.dotImportSuccess', { count: result.imported }))
+      setSuccess(result.reconciled ? t('settings.dotImportReconciled', { count: result.reconciled }) : t('settings.dotImportSuccess', { count: result.imported }))
       setDialogOpen(false)
       setSourceFile(null)
       setPreview(null)
@@ -142,6 +144,10 @@ export function DotTaskImportPanel() {
               <dd className="mt-1 text-lg font-semibold tabular-nums">{preview.summary[key]}</dd>
             </div>)}
           </dl>
+          {preview.summary.alreadyImported > 0 && <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md border p-3 text-sm">
+            <Checkbox checked={reconcileExisting} onCheckedChange={(checked) => setReconcileExisting(checked === true)} disabled={isWorking} />
+            <span>{t('settings.dotImportReconcileExisting', { count: preview.summary.alreadyImported })}</span>
+          </label>}
           {preview.summary.needsReview > 0 && <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
             <p className="flex items-center gap-2 text-sm font-medium"><AlertTriangle className="h-4 w-4 text-amber-600" />{t('settings.dotImportNeedsReviewDescription')}</p>
             <ul className="mt-2 max-h-36 list-disc space-y-1 overflow-y-auto pl-5 text-sm">
@@ -151,8 +157,8 @@ export function DotTaskImportPanel() {
         </div>}
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} disabled={isWorking}>{t('cancel')}</Button>
-          <Button type="button" onClick={() => void confirmImport()} disabled={isWorking || !targetConfirmed || !preview?.summary.willCreate}>
-            {isWorking ? t('loading') : t('settings.dotImportConfirm')}
+          <Button type="button" onClick={() => void confirmImport()} disabled={isWorking || !targetConfirmed || (!preview?.summary.willCreate && !reconcileExisting)}>
+            {isWorking ? t('loading') : reconcileExisting ? t('settings.dotImportApplyReconciliation') : t('settings.dotImportConfirm')}
           </Button>
         </DialogFooter>
       </DialogContent>

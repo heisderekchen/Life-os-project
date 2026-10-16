@@ -197,6 +197,8 @@ function mapApiTask(apiTask: Record<string, unknown>): Task {
     estimatedMinutes: (apiTask.estimatedMinutes as number | null | undefined) ?? null,
     actualMinutes: (apiTask.actualMinutes as number | null | undefined) ?? null,
     projectId: (apiTask.projectId as string) || null,
+    sourceProject: (apiTask.sourceProject as string) || null,
+    sourceType: (apiTask.sourceType as string) || null,
     parentTaskId: (apiTask.parentTaskId as string) || null,
     recurrence: (apiTask.recurrence as string || null) as Task['recurrence'],
     recurrenceConfig: (apiTask.recurrenceConfig as string) || null,
@@ -1537,6 +1539,7 @@ function Listview({ tasks, projects, selectedTaskId, celebratingTaskId, onSelect
                   <Badge className={cn(`${priorityColors[task.priority]} rounded-full border-0 px-2 py-0.5 text-[10px] font-semibold`, task.priority === 'urgent' && 'animate-pulse-urgent')}>{t(`tasks.${task.priority}`)}</Badge>
                   <Badge variant="outline" className="rounded-full text-[10px]">{task.status === 'in-progress' ? t('tasks.inProgress') : task.status === 'todo' ? t('tasks.todo') : t('tasks.done')}</Badge>
                   {task.projectId && <Badge variant="secondary" className="max-w-full truncate rounded-full text-[10px]">{projects.find(project => project.id === task.projectId)?.name || uiText('Project unavailable')}</Badge>}
+                  {task.sourceType && <Badge variant="outline" className="rounded-full text-[10px]">{task.sourceType}</Badge>}
                   {task.dueDate && <Badge variant="outline" className={cn('rounded-full text-[10px]', dueStatus.className)}><Clock className="mr-1 h-2.5 w-2.5" />{uiText(dueStatus.label) || task.dueDate}</Badge>}
                   {task.recurrence && task.recurrence !== 'none' && <Badge variant="outline" className="rounded-full text-[10px] capitalize"><RefreshCw className="mr-1 h-2.5 w-2.5" />{task.recurrence}</Badge>}
                 </div>

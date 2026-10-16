@@ -950,7 +950,7 @@ async function setLifeOsTaskTags(env, taskId, value, timestamp = nowIso()) {
 }
 
 async function lifeOsTaskWithTags(env, row) {
-    const [links, subtasks, project, count] = await Promise.all([
+    const [links, subtasks, project, count, source] = await Promise.all([
         env.DB.prepare(`SELECT tt.id,tt.task_id,tt.tag_id,t.name,t.color,t.created_at,t.updated_at
             FROM lifeos_task_tags tt JOIN lifeos_tags t ON t.id=tt.tag_id WHERE tt.task_id=? ORDER BY t.name`)
             .bind(row.id).all(),
@@ -959,11 +959,14 @@ async function lifeOsTaskWithTags(env, row) {
         row.project_id == null ? null : env.DB.prepare('SELECT id,source_id,title,color FROM personal_workbench_lifeos_projects WHERE id=?')
             .bind(row.project_id).first(),
         env.DB.prepare('SELECT COUNT(*) AS count FROM personal_workbench_lifeos_tasks WHERE parent_task_id=?')
-            .bind(row.id).first()
+            .bind(row.id).first(),
+        env.DB.prepare('SELECT source_project,source_type FROM lifeos_task_import_sources WHERE task_id=?').bind(row.id).first()
     ]);
     return {
         ...lifeOsTask(row, project?.source_id || null),
         project: project ? { id: project.source_id || String(project.id), name: project.title, color: project.color } : null,
+        sourceProject: source?.source_project || null,
+        sourceType: source?.source_type || null,
         tags: (links.results || []).map(tag => ({
             id: tag.id, taskId: tag.task_id, tagId: tag.tag_id,
             tag: { id: tag.tag_id, name: tag.name, color: tag.color,

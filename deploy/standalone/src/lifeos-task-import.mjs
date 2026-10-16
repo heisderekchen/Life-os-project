@@ -2,8 +2,8 @@ import { createHash, randomUUID } from 'node:crypto';
 
 const IMPORTABLE_STATUSES = new Set(['todo', 'in-progress', 'done', 'cancelled']);
 const IMPORTABLE_PRIORITIES = new Set(['low', 'medium', 'high', 'urgent']);
-const ITEM_KEYS = new Set(['sourceId', 'title', 'description', 'status', 'sourceStatus', 'priority', 'dueDate', 'startDate', 'estimatedMinutes', 'sourceUpdatedAt']);
-const PAYLOAD_KEYS = new Set(['sourceKey', 'tasks', 'confirm']);
+const ITEM_KEYS = new Set(['sourceId', 'title', 'description', 'status', 'sourceStatus', 'sourceProject', 'sourceType', 'priority', 'dueDate', 'startDate', 'estimatedMinutes', 'sourceUpdatedAt']);
+const PAYLOAD_KEYS = new Set(['sourceKey', 'tasks', 'confirm', 'reconcile']);
 
 function importError(message) {
   const error = new Error(message);
@@ -54,6 +54,12 @@ export function normalizeTaskImportPayload(input) {
     const sourceStatus = item.sourceStatus === undefined || item.sourceStatus === null
       ? null : typeof item.sourceStatus === 'string' && item.sourceStatus.length <= 120
         ? item.sourceStatus : (() => { throw importError(`sourceStatus is invalid for source task ${sourceId}`); })();
+    const sourceProject = item.sourceProject === undefined || item.sourceProject === null || item.sourceProject === ''
+      ? null : typeof item.sourceProject === 'string' && item.sourceProject.trim().length <= 180
+        ? item.sourceProject.trim() : (() => { throw importError(`sourceProject is invalid for source task ${sourceId}`); })();
+    const sourceType = item.sourceType === undefined || item.sourceType === null || item.sourceType === ''
+      ? null : typeof item.sourceType === 'string' && item.sourceType.trim().length <= 60
+        ? item.sourceType.trim() : (() => { throw importError(`sourceType is invalid for source task ${sourceId}`); })();
     const priority = item.priority === undefined || item.priority === '' ? 'medium' : item.priority;
     if (typeof priority !== 'string' || !IMPORTABLE_PRIORITIES.has(priority)) throw importError(`priority is invalid for source task ${sourceId}`);
     const estimatedMinutes = item.estimatedMinutes === undefined || item.estimatedMinutes === null
@@ -67,6 +73,8 @@ export function normalizeTaskImportPayload(input) {
       description,
       status,
       sourceStatus,
+      sourceProject,
+      sourceType,
       priority,
       dueDate: isoDate(item.dueDate, 'dueDate', sourceId),
       startDate: isoDate(item.startDate, 'startDate', sourceId),
@@ -74,7 +82,7 @@ export function normalizeTaskImportPayload(input) {
       sourceUpdatedAt: isoDate(item.sourceUpdatedAt, 'sourceUpdatedAt', sourceId),
     };
   });
-  return { sourceKey, tasks, confirmed: input.confirm === true };
+  return { sourceKey, tasks, confirmed: input.confirm === true, reconcile: input.reconcile === true };
 }
 
 export function planTaskImport({ sourceKey, tasks, sourceLinks, existingTasks }) {
@@ -134,7 +142,7 @@ export function planTaskImport({ sourceKey, tasks, sourceLinks, existingTasks })
 
 async function loadPlan(db, normalized) {
   const [links, existing] = await Promise.all([
-    db.prepare('SELECT source_task_id, task_id, source_status FROM lifeos_task_import_sources WHERE source_key=?').bind(normalized.sourceKey).all(),
+    db.prepare('SELECT source_task_id, task_id, source_status, source_project, source_type FROM lifeos_task_import_sources WHERE source_key=?').bind(normalized.sourceKey).all(),
     db.prepare('SELECT id,title,status,due_date,archived FROM personal_workbench_lifeos_tasks').all(),
   ]);
   return planTaskImport({
@@ -159,23 +167,51 @@ export async function importLifeOsTasks(db, input, actor, { idFactory = randomUU
   }
   const plan = await loadPlan(db, normalized);
   const createIds = new Map(plan.items.filter(item => item.action === 'create').map(item => [item.sourceId, idFactory()]));
-  if (!createIds.size) return { ...plan, imported: 0 };
+  const linkedIds = new Map(normalized.reconcile ? plan.items.filter(item => item.action === 'already_imported').map(item => [item.sourceId, item.taskId]) : []);
+  if (!createIds.size && !linkedIds.size) return { ...plan, imported: 0, reconciled: 0 };
 
   const timestamp = now();
   const statements = [];
+  const projectNames = [...new Set(normalized.tasks.filter(task => createIds.has(task.sourceId) || linkedIds.has(task.sourceId)).map(task => task.sourceProject).filter(Boolean))];
+  const projectIds = new Map();
+  for (const name of projectNames) {
+    const existing = await db.prepare(`SELECT id,source_id FROM personal_workbench_lifeos_projects
+      WHERE lower(trim(title))=lower(trim(?)) AND archived=0 ORDER BY id LIMIT 1`).bind(name).first();
+    if (existing) projectIds.set(name, Number(existing.id));
+    else {
+      const sourceId = `dot-import:${createHash('sha256').update(name.normalize('NFKC').trim().toLocaleLowerCase('en')).digest('hex').slice(0, 48)}`;
+      statements.push(db.prepare(`INSERT OR IGNORE INTO personal_workbench_lifeos_projects
+        (source_id,title,description,color,status,priority,next_action,resume_context,blocker,archived,created_at,updated_at)
+        VALUES (?,?,NULL,'#6b7280','active',0,'','','',0,?,?)`).bind(sourceId, name, timestamp, timestamp));
+      projectIds.set(name, sourceId);
+    }
+  }
   for (const task of normalized.tasks) {
     const taskId = createIds.get(task.sourceId);
+    const projectRef = task.sourceProject ? projectIds.get(task.sourceProject) ?? null : null;
+    const linkedId = linkedIds.get(task.sourceId);
+    if (!taskId && linkedId) {
+      const projectExpression = typeof projectRef === 'string'
+        ? '(SELECT id FROM personal_workbench_lifeos_projects WHERE source_id=?)' : '?';
+      statements.push(db.prepare(`UPDATE personal_workbench_lifeos_tasks SET project_id=${projectExpression},updated_at=? WHERE id=?`)
+        .bind(projectRef, timestamp, linkedId));
+      statements.push(db.prepare(`UPDATE lifeos_task_import_sources SET source_updated_at=?,source_status=?,source_project=?,source_type=?
+        WHERE source_key=? AND source_task_id=?`).bind(task.sourceUpdatedAt, task.sourceStatus, task.sourceProject, task.sourceType, normalized.sourceKey, task.sourceId));
+      continue;
+    }
     if (!taskId) continue;
+    const projectExpression = typeof projectRef === 'string'
+      ? '(SELECT id FROM personal_workbench_lifeos_projects WHERE source_id=?)' : '?';
     statements.push(db.prepare(`INSERT INTO personal_workbench_lifeos_tasks
       (id,title,description,status,priority,due_date,start_date,completed_at,estimated_minutes,actual_minutes,
        recurrence,recurrence_config,position,archived,project_id,parent_task_id,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,NULL,NULL,0,0,NULL,NULL,?,?)`).bind(
+      VALUES (?,?,?,?,?,?,?,?,?,?,NULL,NULL,0,0,${projectExpression},NULL,?,?)`).bind(
       taskId, task.title, task.description, task.status, task.priority, task.dueDate, task.startDate,
-      null, task.estimatedMinutes, null, timestamp, timestamp,
+      null, task.estimatedMinutes, null, projectRef, timestamp, timestamp,
     ));
     statements.push(db.prepare(`INSERT INTO lifeos_task_import_sources
-      (source_key,source_task_id,task_id,imported_at,source_updated_at,source_status) VALUES (?,?,?,?,?,?)`).bind(
-      normalized.sourceKey, task.sourceId, taskId, timestamp, task.sourceUpdatedAt, task.sourceStatus,
+      (source_key,source_task_id,task_id,imported_at,source_updated_at,source_status,source_project,source_type) VALUES (?,?,?,?,?,?,?,?)`).bind(
+      normalized.sourceKey, task.sourceId, taskId, timestamp, task.sourceUpdatedAt, task.sourceStatus, task.sourceProject, task.sourceType,
     ));
   }
   statements.push(db.prepare(`INSERT INTO personal_workbench_lifeos_audit_log
@@ -190,5 +226,5 @@ export async function importLifeOsTasks(db, input, actor, { idFactory = randomUU
   // batches transactionally. A unique-key race therefore rolls back every
   // task and source link in this import instead of leaving a partial batch.
   await db.batch(statements);
-  return { ...plan, imported: createIds.size };
+  return { ...plan, imported: createIds.size, reconciled: linkedIds.size };
 }
