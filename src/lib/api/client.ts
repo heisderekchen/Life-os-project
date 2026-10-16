@@ -55,6 +55,11 @@ export async function apiPut<T>(path: string, body: unknown): Promise<T> {
 }
 
 export async function apiDelete(path: string): Promise<void> {
-  const res = await fetch(apiPath(path), { method: 'DELETE' })
+  // The private workbench gateway requires JSON content type on mutations,
+  // including bodyless DELETE requests.
+  const res = await fetch(apiPath(path), {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+  })
   if (!res.ok) throw await buildError(res)
 }
