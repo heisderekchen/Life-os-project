@@ -28,6 +28,8 @@ export function sourceSearchPlan(input, sources) {
   const plans = [];
 
   if (input.sourceScope === 2) {
+    const selectedSourceIds = new Set(input.sources || []);
+    const allSourceClassesSelected = ['official', 'media', 'retail'].every(id => selectedSourceIds.has(id));
     const selectedGroups = new Set();
     for (const id of input.sources || []) {
       for (const g of scopeGroups[id] || []) selectedGroups.add(g);
@@ -38,10 +40,34 @@ export function sourceSearchPlan(input, sources) {
     }));
     pool.sort((a, b) => b.score - a.score || a.source.domain.localeCompare(b.source.domain));
     const domainsList = pool.map(p => p.source.domain);
+    if (catalogueOf(domainsList) === 'nike') {
+      plans.push({
+        label: 'Nike官方鞋履目录',
+        domains: ['nike.com'],
+        catalogue: 'nike',
+        catalogURL: 'https://www.nike.com/w/shoes-y7ok',
+        catalogPages: 30,
+        catalogProductLimit: 600,
+        catalogImageLimit: 2,
+        catalogResultLimit: 1200,
+        timeoutMs: 720000,
+        readerVersion: 3,
+      });
+    }
+    if (allSourceClassesSelected) {
+      plans.push({
+        label: '公开网页结构化发现',
+        domains: [],
+        openDiscovery: true,
+        readerVersion: 2,
+        timeoutMs: 120000,
+      });
+    }
     for (let i = 0; i < domainsList.length; i += 5) {
       const domains = domainsList.slice(i, i + 5);
       if (!domains.length) continue;
-      plans.push({ label: '来源检索', domains, catalogue: catalogueOf(domains),
+      const catalogue = catalogueOf(domains);
+      plans.push({ label: '来源检索', domains, catalogue, readerVersion: 2,
         sources: pool.slice(i, i + 5).map(p => ({domain:p.source.domain,url:p.source.url,feedUrls:p.source.feedUrls || []})) });
     }
   } else {
@@ -51,7 +77,7 @@ export function sourceSearchPlan(input, sources) {
       const chosen = [...pool].sort((a, b) => rank(b) - rank(a) || a.domain.localeCompare(b.domain)).slice(0, take);
       for (let i = 0; i < chosen.length; i += 3) {
         const domains = chosen.slice(i, i + 3).map(s => s.domain);
-        plans.push({ label: { official: '品牌官方', media: '专业媒体', retail: '零售平台' }[id], domains, catalogue: catalogueOf(domains),
+        plans.push({ label: { official: '品牌官方', media: '专业媒体', retail: '零售平台' }[id], domains, catalogue: catalogueOf(domains), readerVersion: 2,
           sources: chosen.slice(i, i + 3).map(s => ({domain:s.domain,url:s.url,feedUrls:s.feedUrls || []})) });
       }
     }
@@ -62,7 +88,7 @@ export function sourceSearchPlan(input, sources) {
     if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(lower) || plans.some(p => p.domains.includes(lower))) continue;
     const excluded = sources.some(s => s.review === 'exclude' && String(s.domain).toLowerCase().replace(/^www\./, '') === lower);
     if (excluded) continue;
-    plans.push({ label: '补充来源', domains: [lower], catalogue: catalogueOf([lower]), sources:[{domain:lower,url:'https://'+lower+'/',feedUrls:[]}] });
+    plans.push({ label: '补充来源', domains: [lower], catalogue: catalogueOf([lower]), readerVersion: 2, sources:[{domain:lower,url:'https://'+lower+'/',feedUrls:[]}] });
   }
 
   const excludedDomains = sources

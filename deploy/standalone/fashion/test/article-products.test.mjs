@@ -1,0 +1,10 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {articleProductPhotos as f} from '../article-products.mjs';
+const rel=s=>/loafer|shoe/i.test(s);
+const D='https://ex.test/a';
+const card=(n,img,alt)=>`<div class="product-block-row"><div class="featured_product_block"><a data-model-name="${n}"><img src="${img}" alt="${alt}"></a></div></div>`;
+test('shoe only',()=>{const h='<article>'+card('sam edelman Lana Tassel Loafer','https://cdn.ex.test/s.jpg','sam edelman, Lana Tassel Loafer')+card('bag x','https://cdn.ex.test/b.jpg','nice bag')+'</article>';const r=f(h,D,rel);assert.equal(r.length,1);assert.equal(r[0].image,'https://cdn.ex.test/s.jpg')});
+test('title no shoe body yes',()=>{const h='<article><h1>Spring style</h1>'+card('sam edelman Lana Tassel Loafer','https://cdn.ex.test/s.jpg','sam edelman, Lana Tassel Loafer')+'</article>';assert.equal(f(h,D,rel).length,1)});
+test('loafers hero only',()=>{const h='<article>loafers<img src="https://cdn.ex.test/hero.jpg" alt="loafers"></article>';assert.deepEqual(f(h,D,rel),[])});
+test('bad img no cross',()=>{const h='<article>'+card('Loafer a','data:image/png;base64,xx','Loafer a')+card('Loafer b','https://cdn.ex.test/x.jpg','handbag')+card('Loafer c','https://cdn.ex.test/y.jpg','Loafer c')+'</article>';const r=f(h,D,rel);assert.equal(r.length,1);assert.equal(r[0].image,'https://cdn.ex.test/y.jpg')});
+test('relative img',()=>{const h='<article>'+card('Loafer r','/i/r.jpg','Loafer r')+'</article>';assert.equal(f(h,D,rel)[0].image,'https://ex.test/i/r.jpg')});
+test('sidebar outside article',()=>{const h='<article>'+card('Loafer in','https://cdn.ex.test/in.jpg','Loafer in')+'</article>'+card('Loafer out','https://cdn.ex.test/out.jpg','Loafer out');const r=f(h,D,rel);assert.equal(r.length,1);assert.equal(r[0].image,'https://cdn.ex.test/in.jpg')});

@@ -1,8 +1,8 @@
 import { createServer } from "node:http";
 import { abortable } from "./async-control.mjs";
-import { runSourceQueue } from './source-queue.mjs';
+import { runSourceQueue, SOURCE_QUEUE_READER_VERSION } from './source-queue.mjs';
 import { sourceCatalog } from "./public/source-catalog.js";
-import { searchPhotos, imageDeclared, matchesIntent, exportHTML } from "./photo-search.mjs";
+import { searchPhotos, imageDeclared, matchesIntent, exportHTML, countResultSources } from "./photo-search.mjs";
 import { readFile, writeFile, mkdir, rename, unlink } from "node:fs/promises";
 import { resolve, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -390,7 +390,7 @@ export function createApp({
     return '未找到符合当前条件的结果。' + (notes.length ? notes.join('；') + '。' : '') +
       (task.input.days ? '可调整时间范围后重试；本次未放宽日期要求。' : '可调整关键词或来源范围后重试。');
   }
-  async function start(account, task) {
+  async function start(account, task, { fresh = false } = {}) {
     const key = account + task.id;
     if (jobs.has(key)) throw Error("任务正在检索，请稍候。");
     const controller = new AbortController();
@@ -418,6 +418,24 @@ export function createApp({
       });
       task.items = list;
     };
+    let progressSaveTimer = null, progressSaveError = null;
+    const scheduleProgressSave = () => {
+      if (!progressSaveTimer) {
+        progressSaveTimer = setTimeout(() => {
+          progressSaveTimer = null;
+          void save(account).catch(error => { progressSaveError = error; });
+        }, 50);
+      }
+      return Promise.resolve();
+    };
+    const flushProgress = async () => {
+      if (progressSaveTimer) {
+        clearTimeout(progressSaveTimer);
+        progressSaveTimer = null;
+      }
+      if (progressSaveError) throw progressSaveError;
+      await save(account);
+    };
     let active = true;
     const job = (async () => {
       try {
@@ -427,16 +445,17 @@ export function createApp({
           task.channels = channels;
           if (items.length) mergeItems(retainReview(items));
           task.updatedAt = new Date().toISOString();
-          await save(account);
+          await scheduleProgressSave();
         };
         const plans = await abortable(async () => await planSources(task.input) || searchPlan(task.input), controller.signal);
         const broadScope = photoSearch && task.input.sourceScope === 2 && Array.isArray(plans) && plans.some(p => p.domains.length);
         if (broadScope) {
           clearMainTimer();
           const excludedDomains = plans.excludedDomains || [];
-          const priorRecords = (task.sourceQueue?.readerVersion === 2 && Array.isArray(task.sourceQueue.records)) ? task.sourceQueue.records : [];
-          if (!priorRecords.length) task.items = [];
-          const resumeRecords = priorRecords.map(r => ({ ...r }));
+          const hadSourceQueue = Boolean(task.sourceQueue);
+          const priorRecords = Array.isArray(task.sourceQueue?.records) ? task.sourceQueue.records : [];
+          if (!hadSourceQueue) task.items = [];
+          const resumeRecords = fresh ? [] : priorRecords.map(r => ({ ...r }));
           const entries = plans;
           const queueSignal = AbortSignal.any([controller.signal]);
           const result = await runSourceQueue({
@@ -446,7 +465,8 @@ export function createApp({
             concurrency: 3,
             entryTimeoutMs: 30000,
             retryFailed: true,
-            runEntry: async (entry, { signal: entrySignal, onPartial }) => {
+            previousReaderVersion: Number(task.sourceQueue?.readerVersion) || 1,
+            runEntry: async (entry, { signal: entrySignal, onPartial, checkpoint }) => {
               const comboSignal = AbortSignal.any([entrySignal, controller.signal]);
               const entryFetcher = (url, options = {}) => abortable(() => fetcher(url, { ...options,
                 signal: options.signal ? AbortSignal.any([comboSignal, options.signal]) : comboSignal }), comboSignal);
@@ -461,6 +481,8 @@ export function createApp({
                 readImage: getImage,
                 saveAsset,
                 signal: comboSignal,
+                resultLimit: entry.catalogResultLimit,
+                checkpoint,
                 onProgress: async (p) => { if (typeof onPartial === 'function') await onPartial(p); },
               });
               return value;
@@ -472,7 +494,7 @@ export function createApp({
                 const storeChannel = { provider: '公开来源索引', query: '分批来源查询', count: task.items.length };
                 task.channels = [storeChannel];
                 task.updatedAt = new Date().toISOString();
-                await save(account);
+                await scheduleProgressSave();
               }
             },
             onResult: async ({ entry, value }) => {
@@ -483,17 +505,18 @@ export function createApp({
               const storeChannel = { provider: '公开来源索引', query: '分批来源查询', count: task.items.length };
               task.channels = [storeChannel];
               task.updatedAt = new Date().toISOString();
-              await save(account);
+              await scheduleProgressSave();
             },
             onUpdate: async (snapshot) => {
               if (!active || controller.signal.aborted) return;
               const records = Array.isArray(snapshot.records) ? snapshot.records : [];
               task.sourceQueue = {
-                readerVersion: 2,
+                readerVersion: SOURCE_QUEUE_READER_VERSION,
                 records: records.map(r => ({ ...r })),
                 plannedSources: snapshot.plannedSources || 0,
                 queriedSources: snapshot.queriedSources || 0,
                 matchedSources: snapshot.matchedSources || 0,
+                directoryMatchedSources: snapshot.matchedSources || 0,
                 failedSources: snapshot.failedSources || 0,
                 pendingSources: snapshot.pendingSources || 0,
                 updatedAt: new Date().toISOString(),
@@ -504,7 +527,8 @@ export function createApp({
                 deadlineAt: null,
                 plannedSources: snapshot.plannedSources || 0,
                 queriedSources: snapshot.queriedSources || 0,
-                matchedSources: snapshot.matchedSources || 0,
+                matchedSources: countResultSources(task.items),
+                directoryMatchedSources: snapshot.matchedSources || 0,
                 failedSources: snapshot.failedSources || 0,
                 pendingSources: snapshot.pendingSources || 0,
                 accepted: task.items.length,
@@ -512,7 +536,7 @@ export function createApp({
               const storeChannel = { provider: '公开来源索引', query: '分批来源查询', count: task.items.length };
               task.channels = [storeChannel];
               task.updatedAt = new Date().toISOString();
-              await save(account);
+              await scheduleProgressSave();
             },
           });
           const q = task.sourceQueue || {};
@@ -554,7 +578,7 @@ export function createApp({
         clearMainTimer();
         task.progress = { ...task.progress, stage: task.status === 'error' ? 'error' : 'done', finishedAt: new Date().toISOString() };
         task.updatedAt = new Date().toISOString();
-        try { await save(account); }
+        try { await flushProgress(); }
         catch { task.status = 'error'; task.message = '任务结果保存失败，请稍后重试。'; }
         jobs.delete(key);
       }
@@ -615,7 +639,7 @@ export function createApp({
           sourceCatalog,
         });
       }
-      if (u.pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "1.0.5", storage: "persistent-files" });
+      if (u.pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "1.0.6", storage: "persistent-files" });
       if (u.pathname === "/api/login" && req.method === "POST") {
         if (guestPreview)
           return json(res, 405, { error: "此预览直接进入，无需登录。" });
@@ -684,7 +708,7 @@ export function createApp({
           db.tasks.unshift(task);
           await save(account);
           json(res, 201, { task });
-          void start(account, task);
+          void start(account, task, { fresh: false });
           return;
         }
         if (!guestPreview && u.pathname === "/api/sample" && req.method === "POST") {
@@ -754,11 +778,11 @@ export function createApp({
         if (m[2] === "retry") {
           if (task.delivery)
             return json(res, 409, { error: "请先重新打开交付。" });
-          if (task.sourceQueue && task.sourceQueue.pendingSources === 0 && task.sourceQueue.failedSources === 0) delete task.sourceQueue;
+          const fresh = task.status === "review";
           prepareSearch(task);
           await save(account);
           json(res, 200, { task });
-          void start(account, task);
+          void start(account, task, { fresh });
           return;
         }
         if (m[2] === "review") {

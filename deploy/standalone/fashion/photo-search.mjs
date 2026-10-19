@@ -2,7 +2,10 @@ import { bingImages, commonsPhotoCandidates } from './legacy-search.mjs';
 import { createHash, randomBytes } from 'node:crypto';
 import { abortable } from './async-control.mjs';
 import { readSourcePhotos } from './source-reader.mjs';
-import { nikeCatalogPhotos } from './source-adapters.mjs';
+import { isTargetPage } from './target-page.mjs';
+import { articleProductPhotos } from './article-products.mjs';
+import { nikeCatalogNext, nikeCatalogPhotos, nikeProductPhotos } from './source-adapters.mjs';
+import { recentSitemapCandidates } from './sitemap-discovery.mjs';
 
 const translations = [
   ['耐克', 'Nike'], ['阿迪达斯', 'Adidas'], ['新百伦', 'New Balance'], ['彪马', 'Puma'],
@@ -32,9 +35,37 @@ export function matchesIntent(subject, value) {
     return hay.includes(stem);
   }) && (knownNikeModel || /\b(?:loafer|ballet|flat|sandal|boot|shoe|heel|mule|sneaker|pump|slipper)s?\b|\bmary.jane\b|鞋|靴/i.test(value));
 }
+export function discoveryIntent(subject, title) {
+  return matchesIntent(subject,title) || /\b(?:shoe|footwear|flat|loafer|sneaker|boot)s?\b|鞋|靴/i.test(title);
+}
 const blocked = /(?:pinterest|etsy|ebay|1stdibs|ufonomore|therealreal|vestiairecollective|grailed|carousell|amazon|walmart|poshmark|depop|mercari|aliexpress|temu|storage\.googleapis|lyst\.|gihut\.com|dashangu\.com|wenmiyuan\.com)/i;
 const decode = s => s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&ndash;/g, '–').replace(/&mdash;/g, '—').replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&#x([a-f\d]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));
 const plain = s => decode(s.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
+export const PAGE_CACHE_LIMIT = 48;
+export function createPageLRU(limit = PAGE_CACHE_LIMIT) {
+  const entries = new Map();
+  const max = Math.max(1, Number(limit) || PAGE_CACHE_LIMIT);
+  const touch = (key, value) => {
+    entries.delete(key);
+    entries.set(key, value);
+    while (entries.size > max) entries.delete(entries.keys().next().value);
+  };
+  return {
+    get(key) {
+      if (!entries.has(key)) return undefined;
+      const value = entries.get(key);
+      touch(key, value);
+      return value;
+    },
+    set(key, value) { touch(key, value); },
+    delete(key) { entries.delete(key); },
+    clear() { entries.clear(); },
+    get size() { return entries.size; },
+  };
+}
+export function countResultSources(items) {
+  return new Set((items || []).map(item => item?.source).filter(Boolean)).size;
+}
 function keyURL(value) {
   const u = new URL(value);
   if (u.hostname === 'static.nike.com' && u.pathname.startsWith('/a/images/')) {
@@ -57,8 +88,16 @@ export function declaredImageURL(html, image) {
   const normalized = decode(html).replace(/\\\//g, '/').replace(/\\u0026/g, '&');
   const urls = [...normalized.matchAll(/https:\/\/static\.nike\.com\/a\/images\/[^\s"'<>\\]+/g)].map(m => m[0]);
   const size = url => Number(url.match(/t_(?:web_pdp|PDP)_(\d+)/)?.[1] || 320);
-  return urls.filter(url => { try { return keyURL(url) === keyURL(image); } catch { return false; } })
-    .sort((a, b) => size(b) - size(a))[0] || image;
+  const declared = urls.filter(url => { try { return keyURL(url) === keyURL(image); } catch { return false; } })
+    .sort((a, b) => size(b) - size(a))[0];
+  if (declared && !declared.includes('/t_default/')) return declared;
+  if (/\/a\/images\/t_(?:web_pdp|PDP)_\d+/i.test(new URL(image).pathname)) return image;
+  if (image.includes('/a/images/t_default/')) {
+    // PDP JSON declares the asset under t_default; the same asset id can be
+    // rendered at a qualifying size by the public image CDN.
+    return image.replace('/a/images/t_default/', '/a/images/t_web_pdp_936_v2/f_auto,');
+  }
+  return declared || image;
 }
 async function duckDiscover(query, fetcher) {
   const headers = { accept: 'text/html', 'user-agent': 'Mozilla/5.0' };
@@ -87,10 +126,10 @@ export function photoQueries(subject, scope) {
 function eligible(candidate, subject, domains) {
   try {
     const u = new URL(candidate.url), image = new URL(candidate.image);
-    return /^https?:$/.test(u.protocol) && /^https?:$/.test(image.protocol) && !blocked.test(u.hostname) && u.pathname !== '/' &&
+    return /^https?:$/.test(u.protocol) && /^https?:$/.test(image.protocol) && !blocked.test(u.hostname) && isTargetPage(u.href) &&
       !/\/(search|collections|category|categories)(\/|$)|[?&]q=/i.test(u.pathname + u.search) &&
       (!domains.length || domains.some(d => u.hostname === d || u.hostname.endsWith('.' + d))) &&
-      !/(?:演示数据|示例商品|demo product|sample product|placeholder)/i.test(candidate.title || '') && matchesIntent(subject, candidate.title || '') && (candidate.width === undefined || Number(candidate.width) >= 350) &&
+      !/(?:演示数据|示例商品|demo product|sample product|placeholder)/i.test(candidate.title || '') && discoveryIntent(subject, candidate.title || '') && (candidate.width === undefined || Number(candidate.width) >= 350) &&
       (candidate.height === undefined || Number(candidate.height) >= 250);
   } catch { return false; }
 }
@@ -111,35 +150,115 @@ async function discover(entry, fetcher, subject, signal) {
   return attempts;
 }
 
-export async function searchPhotos(input, { fetcher, plans, readPage, readDocument = readPage, readImage, saveAsset, signal, onProgress = async () => {} }) {
+function discoveryMonth(now = new Date()) {
+  return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(now);
+}
+
+export function openDiscoveryQueries(subject, now = new Date()) {
+  const base = photoQuery(subject);
+  return [...new Set([base, `${base} fashion`, `new shoe trends ${discoveryMonth(now)}`, `fashion shoes ${discoveryMonth(now)}`])];
+}
+
+export function sourcePublishedAt(html, candidate, now = Date.now()) {
+  const dateValue = html.match(/"datePublished"\s*:\s*"([^"]+)"/)?.[1] ||
+    html.match(/property=["']article:published_time["'][^>]*content=["']([^"']+)/i)?.[1];
+  const timestamp = Date.parse(dateValue || candidate?.publishedAt);
+  return Number.isFinite(timestamp) && timestamp <= now ? new Date(timestamp).toISOString() : null;
+}
+
+async function discoverOpenSources(entry, fetcher, readDocument, input, signal, excluded) {
+  const attempts = [];
+  const domains = new Map();
+  for (const query of openDiscoveryQueries(input.subject)) {
+    const found = await discover({ ...entry, query, domains: [] }, fetcher, input.subject, signal);
+    attempts.push(...found.map(attempt => ({ ...attempt, query })));
+    for (const candidate of found.flatMap(attempt => attempt.results || [])) {
+      let host;
+      try { host = new URL(candidate.url).hostname.toLowerCase().replace(/^www\./, ''); } catch { continue; }
+      if (!host || blocked.test(host) || excluded(host)) continue;
+      domains.set(host, (domains.get(host) || 0) + 1);
+    }
+  }
+  for (const [domain] of [...domains.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)) {
+    try {
+      const results = await abortable(() => recentSitemapCandidates({
+        domain,
+        readDocument: url => readDocument(url, fetcher),
+        isRelevant: title => discoveryIntent(input.subject, title),
+        days: input.days,
+        signal,
+      }), signal);
+      if (results.length) attempts.push({ provider: '结构化站点索引', query: entry.query, results });
+    } catch (error) {
+      signal?.throwIfAborted();
+      attempts.push({ provider: '结构化站点索引', query: entry.query, results: [], error: `${domain}: ${error.message}` });
+    }
+  }
+  return attempts;
+}
+
+export async function searchPhotos(input, { fetcher, plans, readPage, readDocument = readPage, readImage, saveAsset, signal, onProgress = async () => {}, resultLimit, checkpoint = null, pageCacheLimit = PAGE_CACHE_LIMIT } = {}) {
   const channels = [], buckets = [], images = new Set(), hashes = new Set();
   const limits = photoLimits(input);
+  const maxResults = Number.isFinite(resultLimit) && resultLimit > 0 ? resultLimit : limits.results;
   const sourceChecks = [];
-  const pageCache = new Map();
+  const pageCache = createPageLRU(pageCacheLimit);
   const readCached = (url, f = fetcher) => {
-    if (!pageCache.has(url)) pageCache.set(url, abortable(() => readPage(url, f), signal).then(value => {pageCache.set(value.url, Promise.resolve(value)); return value;}));
+    if (pageCache.get(url) === undefined) {
+      const pending = abortable(() => readPage(url, f), signal).then(value => {
+        pageCache.set(value.url, Promise.resolve(value));
+        if (value.url !== url) pageCache.delete(url);
+        return value;
+      }).catch(error => {
+        pageCache.delete(url);
+        throw error;
+      });
+      pageCache.set(url, pending);
+    }
     return pageCache.get(url);
+  };
+  const readCachedWithRetry = async (url, attempts = 3) => {
+    let last;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      try { return await readCached(url); }
+      catch (error) {
+        last = error;
+        signal?.throwIfAborted();
+        if (attempt + 1 < attempts) await abortable(() => new Promise(resolve => setTimeout(resolve, 250 * 2 ** attempt)), signal);
+      }
+    }
+    throw last;
   };
   const excluded = host => (plans.excludedDomains || []).some(d => host === d || host.endsWith('.' + d));
   const variants = photoQueries(input.subject, input.sourceScope);
   const base = variants[0];
-  const entries = plans.filter(x => x.domains.length).map(x => ({ ...x, query: `${base} (${x.domains.map(d => `site:${d}`).join(' OR ')})` }));
+  const entries = plans.filter(x => x.domains.length && !x.catalogURL && !x.sources?.length)
+    .map(x => ({ ...x, query: `${base} (${x.domains.map(d => `site:${d}`).join(' OR ')})` }));
   if (input.sourceScope !== 0 && (input.sourceScope !== undefined || !input.domains.length)) {
     entries.unshift(...variants.map(query => ({ query, domains: [], label: '公开图片' })));
     if (input.sourceScope === 2) entries.push({ query: base, domains: [], label: '公开图片 · 后续页', offset: 60 });
   }
   if (!entries.length && !plans.length) entries.push({ query: base, domains: input.domains, label: '公开图片' });
-  if (plans.some(p => p.catalogue === 'nike')) entries.unshift(...[
-    'https://www.nike.com/w/shoes-y7ok', 'https://www.nike.com/w/womens-shoes-5e1x6zy7ok',
-  ].map(catalogURL => ({ query: base, domains: ['nike.com'], label: '品牌官方', catalogURL })));
-  entries.unshift(...plans.filter(p => p.sources?.length).map(p => ({...p,sourceReader:true,query:base,label:'来源自身读取'})));
+  entries.unshift(...plans.filter(p => p.sources?.length).map(p => ({
+    ...p, catalogURL: undefined, catalogue: undefined, sourceReader: true, query: base, label: '来源自身读取',
+  })));
+  entries.unshift(...plans.filter(p => p.catalogURL).map(p => ({
+    ...p, sources: undefined, sourceReader: false, query: base, label: '品牌官网目录',
+  })));
+  entries.unshift(...plans.filter(p => p.openDiscovery).map(p => ({
+    ...p, sources: undefined, catalogURL: undefined, catalogue: undefined, sourceReader: false, openDiscovery: true, query: base,
+  })));
   let checked = 0, completed = 0;
   const items = [];
+  let catalogCheckpoint = null;
+  let catalogDiscoveryError = null;
+  let catalogCompleted = new Set();
   const report = async (stage, totalCandidates = buckets.reduce((n, b) => n + b.length, 0)) => {
     signal?.throwIfAborted();
     await onProgress(structuredClone({ stage, channelsDone: completed, totalChannels: entries.length,
-      candidates: totalCandidates, checked, resultLimit: limits.results, accepted: Math.min(items.length, limits.results),
-      items: items.slice(0, limits.results), channels, sourceChecks }));
+      candidates: totalCandidates, checked, resultLimit: maxResults, accepted: Math.min(items.length, maxResults),
+      matchedSources: countResultSources(items), items: items.slice(0, maxResults), channels, sourceChecks,
+      ...(catalogCheckpoint ? { checkpoint: catalogCheckpoint } : {}) }));
   };
   await report('discover');
   let nextEntry = 0;
@@ -148,14 +267,85 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
       const entry = entries[nextEntry++];
       try {
         let attempts;
-        if (entry.sourceReader) {
+        if (entry.openDiscovery) {
+          attempts = await discoverOpenSources(entry, fetcher, readDocument, input, signal, excluded);
+        } else if (entry.sourceReader) {
           const read = await readSourcePhotos({sources:entry.sources, readDocument:url=>abortable(()=>readDocument(url,fetcher),signal),
-            readPage:url=>readCached(url), isRelevant:title=>matchesIntent(input.subject,title), signal});
+            readPage:url=>readCached(url), isRelevant:title=>matchesIntent(input.subject,title), isDiscoveryRelevant:title=>discoveryIntent(input.subject,title), signal});
           sourceChecks.push(...read.checks);
           attempts = [{provider:'来源自身页面',results:read.results,...(read.checks.every(c=>c.status==='error')?{error:'来源文档均不可读取'}:{})}];
         } else if (entry.catalogURL) {
-          const { html, url } = await abortable(() => readPage(entry.catalogURL, fetcher), signal);
-          attempts = [{ provider: '品牌官网目录', results: nikeCatalogPhotos(html, url) }];
+          const resume = checkpoint?.readerVersion === 3 && checkpoint?.catalogURL === entry.catalogURL
+            ? structuredClone(checkpoint)
+            : null;
+          const found = Array.isArray(resume?.products) ? resume.products : [];
+          let next = typeof resume?.next === 'string' ? resume.next : '';
+          const pageLimit = Math.max(1, Number(entry.catalogPages) || 1);
+          const productLimit = Math.max(1, Number(entry.catalogProductLimit) || found.length);
+          catalogCompleted = new Set(Array.isArray(resume?.completedImageKeys) ? resume.completedImageKeys : []);
+          if (!resume) {
+            const { html, url } = await abortable(() => readPage(entry.catalogURL, fetcher), signal);
+            found.push(...nikeCatalogPhotos(html, url));
+            next = nikeCatalogNext(html);
+          }
+          catalogCheckpoint = {
+            readerVersion: 3,
+            catalogURL: entry.catalogURL,
+            products: found.slice(0, productLimit),
+            next,
+            completedImageKeys: [...catalogCompleted],
+            complete: false,
+            updatedAt: new Date().toISOString(),
+          };
+          await report('catalog-discover', found.length);
+          let pagesThisRun = 0;
+          while (pagesThisRun < pageLimit && next && found.length < productLimit) {
+            pagesThisRun++;
+            const pageURL = next;
+            try {
+              const response = await abortable(() => fetcher(pageURL, {
+                redirect: 'manual',
+                headers: {
+                  accept: 'application/json',
+                  referer: entry.catalogURL,
+                  'nike-api-caller-id': 'com.nike.commerce.nikedotcom.web',
+                  'user-agent': 'Mozilla/5.0',
+                },
+                signal,
+              }), signal);
+              const responseURL = response.url ? new URL(response.url) : null;
+              if (!response.ok || response.status >= 300 || (responseURL && responseURL.hostname !== 'api.nike.com'))
+                throw Error(`Nike 官方目录分页暂不可用（${response.status}）`);
+              const data = await abortable(() => response.json(), signal);
+              const safeNext = nikeCatalogNext(data);
+              found.push(...nikeCatalogPhotos(data, entry.catalogURL));
+              next = safeNext;
+            } catch (error) {
+              catalogDiscoveryError = error;
+              next = pageURL;
+              break;
+            }
+            catalogCheckpoint = {
+              ...catalogCheckpoint,
+              products: found.slice(0, productLimit),
+              next,
+              completedImageKeys: [...catalogCompleted],
+              updatedAt: new Date().toISOString(),
+            };
+            await report('catalog-discover', found.length);
+          }
+          if (!catalogDiscoveryError && found.length < productLimit && next && pagesThisRun >= pageLimit)
+            catalogDiscoveryError = Error('Nike 官方目录分页达到本轮有界预算，可续跑');
+          catalogCheckpoint = {
+            ...catalogCheckpoint,
+            products: found.slice(0, productLimit),
+            next,
+            completedImageKeys: [...catalogCompleted],
+            complete: !catalogDiscoveryError && (!next || found.length >= productLimit),
+            updatedAt: new Date().toISOString(),
+          };
+          attempts = [{ provider: '品牌官网目录', results: found.slice(0, productLimit),
+            ...(catalogDiscoveryError ? { error: catalogDiscoveryError.message } : {}) }];
         } else attempts = await discover(entry, fetcher, input.subject, signal);
         signal?.throwIfAborted();
         for (const { results: found, provider, error } of attempts) {
@@ -165,7 +355,10 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
           const channel = { provider, query: entry.query, label: entry.label, status: channelError ? 'error' : matches.length ? 'ready' : 'empty',
             count: 0, discovered: found.length, intentMatched: matches.length, rejected: {}, ...(channelError ? { error:channelError } : {}) };
           channels.push(channel);
-          buckets.push(matches.map(candidate => ({ ...candidate, channel, domains: entry.domains })));
+          buckets.push(matches.map(candidate => ({
+            ...candidate, channel, domains: entry.domains,
+            catalogImageLimit: entry.catalogImageLimit,
+          })));
         }
       } catch (error) {
         signal?.throwIfAborted();
@@ -182,32 +375,78 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
   for (let row = 0; buckets.some(bucket => row < bucket.length); row++)
     for (const bucket of buckets) if (bucket[row]) candidates.push(bucket[row]);
   const unique = candidates.filter(candidate => {
+    if (candidate.catalogURL && catalogCompleted.has(candidate.url + '|' + keyURL(candidate.image))) return false;
     const key = keyURL(candidate.image);
     if (images.has(key)) return false;
     images.add(key); return true;
-  }).slice(0, limits.candidates);
+  }).slice(0, Math.max(limits.candidates, candidates.filter(candidate => candidate.catalogURL).length));
   await report('verify', unique.length);
-  for (let index = 0; index < unique.length && items.length < limits.results; index += 8) {
-    await Promise.all(unique.slice(index, index + 8).map(async candidate => {
+  const verifyBatch = unique.some(candidate => candidate.catalogURL) ? 3 : 8;
+  for (let index = 0; index < unique.length && items.length < maxResults; index += verifyBatch) {
+    await Promise.all(unique.slice(index, index + verifyBatch).map(async candidate => {
       let reason = 'sourceUnavailable';
       try {
-        const { html, url } = await readCached(candidate.url);
+        const { html, url } = await readCachedWithRetry(candidate.url, candidate.catalogURL ? 3 : 1);
         const source = new URL(url);
-        if (blocked.test(source.hostname) || excluded(source.hostname) || source.pathname === '/' || (candidate.domains.length && !candidate.domains.some(d => source.hostname === d || source.hostname.endsWith('.' + d)))) throw Error();
-        const title = plain(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '');
+        if (blocked.test(source.hostname) || excluded(source.hostname) || !isTargetPage(url) || (candidate.domains.length && !candidate.domains.some(d => source.hostname === d || source.hostname.endsWith('.' + d)))) throw Error();
+        const pageTitle = plain(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '');
+        const nikeProducts = source.hostname === 'www.nike.com'
+          ? nikeProductPhotos(html, url, title => discoveryIntent(input.subject, title))
+          : [];
+        if (nikeProducts.length) {
+          const selected = nikeProducts.slice(0, Math.max(1, Number(candidate.catalogImageLimit) || 2));
+          const accepted = [];
+          for (const product of selected) {
+            try {
+              const image = declaredImageURL(html, product.image);
+              if (!imageDeclared(html, image)) continue;
+              const asset = await abortable(() => readImage(image, fetcher), signal);
+              const sha256 = createHash('sha256').update(asset.bytes).digest('hex');
+              if (hashes.has(sha256)) continue;
+              hashes.add(sha256);
+              await abortable(() => saveAsset(sha256, asset), signal);
+              accepted.push({
+                id: randomBytes(8).toString('hex'), title: product.title, url,
+                canonicalURL: product.canonicalURL || url,
+                productCode: product.productCode || candidate.productCode || '',
+                clueKey: `nike:${product.productCode || candidate.productCode || new URL(url).pathname}`,
+                source: source.hostname.replace(/^www\./, ''), image, imageKind: 'source-matched',
+                imageSha256: sha256, imageMime: asset.mime,
+                sourceCheckedAt: new Date().toISOString(), sourceImageMatched: true,
+                publishedAt: null, collectedAt: new Date().toISOString(),
+                review: 'pending', selected: false, note: '', summary: '',
+              });
+            } catch {
+              signal?.throwIfAborted();
+            }
+          }
+          if (!accepted.length) throw Error();
+          candidate.channel.count += accepted.length;
+          for (const check of sourceChecks) if (source.hostname === check.domain || source.hostname.endsWith('.' + check.domain)) {
+            check.status = 'queried'; delete check.error;
+          }
+          return accepted;
+        }
+        const products = articleProductPhotos(html,url,t=>matchesIntent(input.subject,t));
+        const product = products.find(p=>keyURL(p.image)===keyURL(candidate.image)) || (!matchesIntent(input.subject,pageTitle) ? products[0] : null);
+        const title = product?.title || pageTitle;
+        const candidateImage = product?.image || candidate.image;
         reason = 'sourceIntentMismatch';
         if (!matchesIntent(input.subject, title)) throw Error();
         reason = 'imageSourceMismatch';
-        if (!imageDeclared(html, candidate.image)) throw Error();
-        const dateValue = html.match(/"datePublished"\s*:\s*"([^"]+)"/)?.[1] || html.match(/property=["']article:published_time["'][^>]*content=["']([^"']+)/i)?.[1];
-        const timestamp = Date.parse(dateValue || candidate.publishedAt);
-        const publishedAt = Number.isFinite(timestamp) && timestamp <= Date.now() ? new Date(timestamp).toISOString() : null;
+        if (!imageDeclared(html, candidateImage)) throw Error();
+        const timestamp = Date.parse(
+          html.match(/"datePublished"\s*:\s*"([^"]+)"/)?.[1] ||
+          html.match(/property=["']article:published_time["'][^>]*content=["']([^"']+)/i)?.[1] ||
+          candidate.publishedAt,
+        );
+        const publishedAt = sourcePublishedAt(html, candidate);
         reason = 'dateUnconfirmed';
         if (input.days && !publishedAt) throw Error();
         reason = 'outsideDateRange';
         if (input.days && timestamp < Date.now() - input.days * 86400000) throw Error();
         reason = 'imageUnavailable';
-        const image = declaredImageURL(html, candidate.image);
+        const image = declaredImageURL(html, candidateImage);
         const asset = await abortable(() => readImage(image, fetcher), signal);
         const sha256 = createHash('sha256').update(asset.bytes).digest('hex');
         if (hashes.has(sha256)) return null;
@@ -218,6 +457,8 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
         candidate.channel.count++;
         for(const check of sourceChecks)if(source.hostname===check.domain||source.hostname.endsWith('.'+check.domain)){check.status='queried';delete check.error;}
         return { id: randomBytes(8).toString('hex'), title, url, source: source.hostname.replace(/^www\./, ''),
+          canonicalURL: candidate.canonicalURL || url, productCode: candidate.productCode || '',
+          clueKey: candidate.productCode ? `nike:${candidate.productCode}` : `page:${source.hostname.toLowerCase()}${source.pathname}`,
           image, imageKind: 'source-matched', imageSha256: sha256, imageMime: asset.mime,
           sourceCheckedAt: new Date().toISOString(), sourceImageMatched: true,
           publishedAt, collectedAt: new Date().toISOString(), review: 'pending', selected: false, note: '', summary: '' };
@@ -226,15 +467,34 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
         const rejects = candidate.channel.rejected;
         rejects[reason] = (rejects[reason] || 0) + 1;
         return null;
+      } finally {
+        pageCache.delete(candidate.url);
       }
     }).map(work => work.then(async item => {
-      if (item) items.push(item);
+      if (Array.isArray(item)) {
+        for (const value of item) {
+          if (value) catalogCompleted.add(value.url + '|' + keyURL(value.image));
+        }
+        for (const value of item) if (value && items.length < maxResults) items.push(value);
+      } else if (item) items.push(item);
+      if (catalogCheckpoint) {
+        catalogCheckpoint = {
+          ...catalogCheckpoint,
+          completedImageKeys: [...catalogCompleted],
+          updatedAt: new Date().toISOString(),
+        };
+      }
       checked++;
       await report('verify', unique.length);
     })));
   }
   channels.forEach(c => { if (c.status !== 'error') c.status = c.count ? 'ready' : 'empty'; });
-  return { items: items.slice(0, limits.results).sort((a, b) => (Date.parse(b.publishedAt) || 0) - (Date.parse(a.publishedAt) || 0)), channels, sourceChecks };
+  if (catalogDiscoveryError) throw catalogDiscoveryError;
+  if (catalogCheckpoint) {
+    catalogCheckpoint = { ...catalogCheckpoint, complete: true, updatedAt: new Date().toISOString() };
+  }
+  return { items: items.slice(0, maxResults).sort((a, b) => (Date.parse(b.publishedAt) || 0) - (Date.parse(a.publishedAt) || 0)),
+    channels, sourceChecks, ...(catalogCheckpoint ? { checkpoint: catalogCheckpoint } : {}) };
 }
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);

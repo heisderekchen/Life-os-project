@@ -1,4 +1,5 @@
-export async function readSourcePhotos({sources,readDocument,readPage,isRelevant,signal}) {
+import { articleProductPhotos } from './article-products.mjs';
+export async function readSourcePhotos({sources,readDocument,readPage,isRelevant,isDiscoveryRelevant=isRelevant,signal}) {
   const results = [];
   const checks = [];
   if (signal && signal.aborted) throw signal.reason;
@@ -60,7 +61,7 @@ export async function readSourcePhotos({sources,readDocument,readPage,isRelevant
     for (const {body, type} of blocks) {
       const tMatch = body.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i);
       const title = tMatch ? stripTags(tMatch[1]) : '';
-      if (!title || !isRelevant(title)) continue;
+      if (!title || !isDiscoveryRelevant(title)) continue;
       let link = '';
       if (type === 'rss') {
         const lMatch = body.match(/<link\b[^>]*>([\s\S]*?)<\/link>/i);
@@ -101,7 +102,7 @@ export async function readSourcePhotos({sources,readDocument,readPage,isRelevant
         const u = new URL(url);
         if (u.pathname === '/' || u.pathname === '') return;
       } catch { return; }
-      if (!isRelevant(title)) return;
+      if (!isDiscoveryRelevant(title)) return;
       const key = url;
       if (seen.has(key)) return;
       seen.add(key);
@@ -287,10 +288,11 @@ export async function readSourcePhotos({sources,readDocument,readPage,isRelevant
       if (!html) return null;
       if (!sameDomain(finalURL, s.domain)) return null;
       const {actualTitle, image} = extractPage(html, finalURL);
-      if (!actualTitle || !image || !isRelevant(actualTitle)) return null;
-      const item = {title: actualTitle, url: finalURL, image, sourceDocument: srcResult.documentURL || c.sourceDocument};
+      const product = articleProductPhotos(html,finalURL,isRelevant)[0];
+      if (!product && (!actualTitle || !image || !isRelevant(actualTitle))) return null;
+      const item = {title: product?.title || actualTitle, url: finalURL, image:product?.image || image, sourceDocument: srcResult.documentURL || c.sourceDocument};
       if (c.publishedAt) item.publishedAt = c.publishedAt;
-      if (!image) delete item.image;
+      if (!item.image) delete item.image;
       return item;
     });
     for (const r of perCand) if (r) results.push(r);
