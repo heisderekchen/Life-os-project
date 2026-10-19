@@ -8,7 +8,7 @@ from pathlib import Path
 TABLES = {
     "profile":"lifeos_user_profile", "settings":"lifeos_settings", "workspace":"lifeos_workspaces",
     "widgets":"lifeos_dashboard_widgets", "dashboardLayout":"lifeos_widgets", "tags":"lifeos_tags",
-    "projects":"personal_workbench_lifeos_projects", "tasks":"personal_workbench_lifeos_tasks",
+    "projects":"personal_workbench_lifeos_projects", "topics":"lifeos_project_topics", "tasks":"personal_workbench_lifeos_tasks",
     "taskTags":"lifeos_task_tags", "taskDependencies":"lifeos_task_dependencies",
     "noteFolders":"lifeos_note_folders", "notes":"lifeos_notes", "noteTags":"lifeos_note_tags",
     "noteLinks":"lifeos_note_links", "bookmarks":"lifeos_bookmarks", "bookmarkTags":"lifeos_bookmark_tags",
@@ -38,6 +38,7 @@ def main():
     if not isinstance(payload, dict) or payload.get("version") != "1.1.0" or not isinstance(payload.get("data"), dict):
         raise ValueError("Expected authenticated current Life OS export version 1.1.0")
     data = payload["data"]
+    data.setdefault("topics", [])  # Backward compatible with pre-topic backups.
     if set(data) != set(TABLES):
         raise ValueError(f"Export contract mismatch; missing={sorted(set(TABLES)-set(data))}, extra={sorted(set(data)-set(TABLES))}")
     for key, rows in data.items():
@@ -93,7 +94,7 @@ def main():
                     row["sourceId"] = source_id
                     row["id"] = project_map[source_id]
                     row["title"] = row.pop("name", row.get("title"))
-                if key == "tasks" and row.get("projectId") is not None:
+                if key in ("tasks", "topics") and row.get("projectId") is not None:
                     source_id = str(row["projectId"])
                     if source_id not in project_map:
                         raise ValueError(f"Task refers to absent source project {source_id}")

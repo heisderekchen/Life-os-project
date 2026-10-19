@@ -342,7 +342,7 @@ try {
   const exported = await jsonOf(await workbench('/api/personal-workbench/lifeos/data/export'))
   assert.equal(exported.version, '1.1.0')
   const exportKeys = Object.keys(exported.data)
-  assert.equal(exportKeys.length, 40)
+  assert.equal(exportKeys.length, 41)
   assert.deepEqual(exportKeys.filter(key => /card|routing|worker/i.test(key)), [])
   assert.equal(exported.data.tasks.length, 3)
   const unknownImport = await workbench('/api/personal-workbench/lifeos/data/import', 'POST', { version: '1.1.0', data: { taskCards: [] } })

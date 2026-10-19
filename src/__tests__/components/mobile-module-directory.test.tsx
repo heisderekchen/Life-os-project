@@ -23,7 +23,7 @@ describe('mobile module directory', () => {
     expect(screen.queryByRole('region', { name: '总览' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /任务/ }))
-    expect(onSelect).toHaveBeenCalledWith('tasks')
+    expect(onSelect).toHaveBeenCalledWith('projects')
 
     fireEvent.change(screen.getByRole('searchbox', { name: '查找应用' }), { target: { value: '日志' } })
     expect(screen.getByRole('button', { name: /日志/ })).toBeInTheDocument()

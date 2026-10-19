@@ -15,6 +15,9 @@ export interface Task {
   actualMinutes: number | null
   projectId: string | null
   sourceProject?: string | null
+  topicId?: string | null
+  taskType?: string | null
+  archived?: boolean
   sourceType?: string | null
   parentTaskId: string | null
   recurrence: 'none' | 'daily' | 'weekly' | 'monthly' | null

@@ -1,0 +1,215 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-19T03:22:51.759607+00:00",
+  "title": "Design System: myOS project workspace",
+  "extensions": {
+    "colorMeta": {
+      "workspace-primary": {
+        "role": "primary",
+        "displayName": "Deep teal",
+        "tonalRamp": [
+          "oklch(15% 0.11 180)",
+          "oklch(26% 0.11 180)",
+          "oklch(38% 0.11 180)",
+          "oklch(49% 0.11 180)",
+          "oklch(61% 0.11 180)",
+          "oklch(72% 0.11 180)",
+          "oklch(84% 0.11 180)",
+          "oklch(95% 0.11 180)"
+        ]
+      },
+      "workspace-primary-foreground": {
+        "role": "neutral",
+        "displayName": "Light accent foreground",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(26% 0 0)",
+          "oklch(38% 0 0)",
+          "oklch(49% 0 0)",
+          "oklch(61% 0 0)",
+          "oklch(72% 0 0)",
+          "oklch(84% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "workspace-primary-dark": {
+        "role": "primary",
+        "displayName": "Mint teal",
+        "tonalRamp": [
+          "oklch(15% 0.11 180)",
+          "oklch(26% 0.11 180)",
+          "oklch(38% 0.11 180)",
+          "oklch(49% 0.11 180)",
+          "oklch(61% 0.11 180)",
+          "oklch(72% 0.11 180)",
+          "oklch(84% 0.11 180)",
+          "oklch(95% 0.11 180)"
+        ]
+      },
+      "workspace-primary-dark-foreground": {
+        "role": "neutral",
+        "displayName": "Deep teal foreground",
+        "tonalRamp": [
+          "oklch(15% 0.03 180)",
+          "oklch(26% 0.03 180)",
+          "oklch(38% 0.03 180)",
+          "oklch(49% 0.03 180)",
+          "oklch(61% 0.03 180)",
+          "oklch(72% 0.03 180)",
+          "oklch(84% 0.03 180)",
+          "oklch(95% 0.03 180)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "title": {
+        "displayName": "Workspace title",
+        "purpose": "Page identity inside the existing app shell."
+      },
+      "pane-title": {
+        "displayName": "Pane title",
+        "purpose": "Graph and list headings."
+      },
+      "body": {
+        "displayName": "Operational body",
+        "purpose": "Dense task rows and controls."
+      },
+      "label": {
+        "displayName": "Supporting label",
+        "purpose": "Ownership paths, counts, captions, and dates."
+      },
+      "status": {
+        "displayName": "Status label",
+        "purpose": "Compact text-readable status chips."
+      }
+    },
+    "shadows": [
+      {
+        "name": "node-rest",
+        "value": "0 2px 5px rgb(0 0 0 / .025)",
+        "purpose": "Subtle graph-node separation."
+      },
+      {
+        "name": "node-selected",
+        "value": "0 2px 5px rgb(0 0 0 / .04)",
+        "purpose": "Selected node."
+      },
+      {
+        "name": "graph-controls",
+        "value": "0 2px 6px rgb(0 0 0 / .07)",
+        "purpose": "Graph viewport controls."
+      },
+      {
+        "name": "more-menu",
+        "value": "0 6px 18px rgb(0 0 0 / .12)",
+        "purpose": "Native mobile More disclosure overlay."
+      }
+    ],
+    "motion": [
+      {
+        "name": "graph-viewport",
+        "value": "180ms",
+        "purpose": "Optional graph fit-to-selection motion; semantic state changes immediately and newer selection supersedes pending positioning."
+      },
+      {
+        "name": "graph-viewport-reduced",
+        "value": "0ms",
+        "purpose": "Immediate positioning when reduced motion is requested."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "linked-table-compact",
+        "value": "1500px"
+      },
+      {
+        "name": "linked-stack",
+        "value": "1000px"
+      },
+      {
+        "name": "first-use-list-below",
+        "value": "900px"
+      },
+      {
+        "name": "phone",
+        "value": "600px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Active workspace view",
+      "kind": "nav",
+      "refersTo": "view-active",
+      "description": "Pressed choice inside the three-way workspace view switch.",
+      "html": "<div class=\"ds-views\" role=\"group\" aria-label=\"视图\"><button class=\"ds-view ds-view-active\" aria-pressed=\"true\">联动</button><button class=\"ds-view\" aria-pressed=\"false\">列表</button><button class=\"ds-view\" aria-pressed=\"false\">关系图</button></div>",
+      "css": ".ds-views{font-family:var(--font-sans,system-ui,sans-serif);color:var(--foreground,#262626);display:inline-flex;padding:3px;border:1px solid var(--border,#ddd);border-radius:7px;background:var(--muted,#f5f5f5)}.ds-view{font:inherit;font-size:13px;border:0;border-radius:4px;padding:7px 12px;min-height:34px;background:transparent;color:var(--muted-foreground,#737373);cursor:pointer}.ds-view-active{background:#0f766e;color:#fff}.ds-view:hover{filter:brightness(.95)}.ds-view:focus-visible{outline:2px solid var(--ring,#999);outline-offset:2px;}"
+    },
+    {
+      "name": "Primary action",
+      "kind": "button",
+      "description": "Existing primary button in the light workspace accent context.",
+      "html": "<button class=\"ds-primary\">新建</button>",
+      "css": ".ds-primary{font-family:var(--font-sans,system-ui,sans-serif);color:var(--foreground,#262626);background:#0f766e;color:#fff;border:0;border-radius:8px;padding:8px 16px;min-height:40px;font-size:14px;font-weight:500;cursor:pointer}.ds-primary:hover{background:color-mix(in oklab,#0f766e 90%,transparent)}.ds-primary:active{filter:brightness(.95)}.ds-primary:focus-visible{outline:2px solid var(--ring,#999);outline-offset:2px;}.ds-primary:disabled{opacity:.5;pointer-events:none}"
+    },
+    {
+      "name": "Outline detail action",
+      "kind": "button",
+      "description": "Open the incumbent full task detail workspace.",
+      "html": "<button class=\"ds-outline\">打开完整详情</button>",
+      "css": ".ds-outline{font-family:var(--font-sans,system-ui,sans-serif);color:var(--foreground,#262626);background:var(--background,#fff);border:1px solid var(--border,#ddd);border-radius:8px;padding:8px 12px;min-height:40px;font-size:14px;font-weight:500;cursor:pointer}.ds-outline:hover{background:var(--accent,#f5f5f5)}.ds-outline:focus-visible{outline:2px solid var(--ring,#999);outline-offset:2px;}"
+    },
+    {
+      "name": "Workspace search",
+      "kind": "input",
+      "refersTo": "search",
+      "description": "Shared search across projects, topics, and tasks.",
+      "html": "<label class=\"ds-search\"><svg width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg><input aria-label=\"搜索项目、主题或任务\" placeholder=\"搜索项目、主题或任务\"/></label>",
+      "css": ".ds-search{font-family:var(--font-sans,system-ui,sans-serif);color:var(--foreground,#262626);display:flex;align-items:center;gap:8px;padding-left:12px;border:1px solid var(--border,#ddd);border-radius:6px;color:var(--muted-foreground,#737373);background:var(--background,#fff)}.ds-search input{width:100%;min-width:0;height:39px;border:0;background:transparent;color:var(--foreground,#262626);font:inherit;font-size:13px;caret-color:#0f766e}.ds-search:focus-within{outline:2px solid var(--ring,#999);outline-offset:2px;}.ds-search input:focus{outline:0}.ds-search:hover{border-color:var(--ring,#999)}"
+    },
+    {
+      "name": "In-progress status",
+      "kind": "chip",
+      "refersTo": "status-chip",
+      "description": "Text-readable progress state in a compact table cell.",
+      "html": "<span class=\"ds-status\">进行中</span>",
+      "css": ".ds-status{font-family:var(--font-sans,system-ui,sans-serif);color:var(--foreground,#262626);display:inline-block;border-radius:4px;padding:3px 6px;font-size:11px;white-space:nowrap;background:color-mix(in oklab,#0f766e 13%,var(--background,#fff));color:#0f766e}"
+    },
+    {
+      "name": "Selected graph node",
+      "kind": "card",
+      "refersTo": "graph-node",
+      "description": "Task node with ownership represented by graph edges.",
+      "html": "<button class=\"ds-node\" aria-pressed=\"true\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"/><path d=\"M14 2v6h6M8 13h8M8 17h6\"/></svg><span class=\"ds-node-text\"><span class=\"ds-node-title\">梳理项目需求</span><span class=\"ds-node-caption\">进行中</span></span></button>",
+      "css": ".ds-node{font-family:var(--font-sans,system-ui,sans-serif);color:var(--foreground,#262626);width:190px;min-height:68px;display:flex;align-items:center;gap:10px;padding:12px 11px;border:1px solid #0f766e;border-radius:6px;background:color-mix(in oklab,#0f766e 9%,var(--card,#fff));box-shadow:0 2px 5px rgb(0 0 0 / .04);text-align:left;font-size:15px;cursor:pointer}.ds-node>svg{flex:none;color:#0f766e}.ds-node-text{min-width:0}.ds-node-title{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}.ds-node-caption{display:block;margin-top:4px;font-size:12px;color:var(--muted-foreground,#737373)}.ds-node:hover{border-color:var(--foreground,#262626)}.ds-node:focus-visible{outline:2px solid var(--ring,#999);outline-offset:2px;}"
+    }
+  ],
+  "narrative": {
+    "northStar": "From structure to action",
+    "overview": "This is an Operate-mode extension of the existing myOS interface. Preserve its sidebar, app header, typography, theme preferences, dialogs, and execution controls. The workspace adds a restrained teal selection language to neutral surfaces, thin dividers, and compact operational rows.\n\nThis document describes the project workspace only. Its split composition and graph geometry do not replace layout rules for other app modules. The approved direction is recorded in `.impeccable/surfaces/project-workspace.md`.",
+    "keyCharacteristics": [
+      "One filtered dataset and one selection across graph, table, and inspector.",
+      "Dense rows with recognizable folder, topic, and document symbols.",
+      "Existing theme and system font behavior, with a local workspace accent."
+    ],
+    "rules": [
+      {
+        "name": "The Local Accent Rule",
+        "body": "Workspace selection tokens must stay scoped to this surface; neutral and shell tokens remain app-owned.",
+        "section": "colors"
+      }
+    ],
+    "dos": [
+      "Do preserve one dataset, one selection, and the project → topic → task relationship.",
+      "Do inherit the existing app shell, typography, neutral tokens, and full-detail controls.",
+      "Do keep explicit Inbox and Unclassified states and persist ownership on the server.",
+      "Do retain horizontal table scrolling, visible keyboard focus, and the phone touch-target floor."
+    ],
+    "donts": [
+      "Don't infer ownership for existing unclassified records.",
+      "Don't add decorative card grids, entrance animation, or new font assets to this workspace.",
+      "Don't treat fixture screenshots as evidence of real-account acceptance or deployment.",
+      "Don't apply this workspace composition or local accent globally."
+    ]
+  }
+}

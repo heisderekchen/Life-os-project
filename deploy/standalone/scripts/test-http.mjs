@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { Script } from 'node:vm'
 import { createServer } from 'node:net'
 import { spawn } from 'node:child_process'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
@@ -69,6 +70,7 @@ try {
   const login = await fetch(`${base}/`)
   assert.equal(login.status, 200)
   const loginHtml = await login.text()
+  for (const [, script] of loginHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)) assert.doesNotThrow(() => new Script(script), 'login scripts must parse as shipped')
   assert.match(loginHtml, /<title>myOS · 统一登录<\/title>/)
   assert.match(loginHtml, /HappySpa 工作台 · myOS/)
   assert.doesNotMatch(loginHtml, /私人 Life OS/)

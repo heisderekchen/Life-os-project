@@ -5,7 +5,6 @@ import {
   ArrowRight,
   BookOpen,
   CalendarDays,
-  CheckSquare,
   FolderKanban,
   GraduationCap,
   LayoutDashboard,
@@ -28,13 +27,12 @@ type DirectoryGroup = { title: string; items: DirectoryModule[] }
 
 export function MobileModuleDirectory({ onSelect, onClose, category = 'apps' }: { onSelect: (module: ModuleId) => void; onClose?: () => void; category?: 'overview' | 'apps' | 'workspaces' }) {
   useInterfaceLanguage()
-  const { t } = useTranslation()
+  const { t, language } = useTranslation()
   const enabledModules = useAppStore((state) => state.enabledModules)
   const [query, setQuery] = useState('')
   const groups = useMemo<DirectoryGroup[]>(() => {
     const dashboard: DirectoryModule = { id: 'dashboard', label: t('nav.dashboard'), icon: LayoutDashboard }
-    const tasks: DirectoryModule = { id: 'tasks', label: t('nav.tasks'), icon: CheckSquare }
-    const projects: DirectoryModule = { id: 'projects', label: t('nav.projects'), icon: FolderKanban }
+    const projects: DirectoryModule = { id: 'projects', label: language === 'zh' ? '项目与任务' : 'Projects & tasks', icon: FolderKanban }
     const notes: DirectoryModule = { id: 'notes', label: t('nav.notes'), icon: StickyNote }
     const calendar: DirectoryModule = { id: 'calendar', label: t('nav.calendar'), icon: CalendarDays }
     const time: DirectoryModule = { id: 'time', label: t('nav.timeTracker'), icon: Timer }
@@ -45,13 +43,13 @@ export function MobileModuleDirectory({ onSelect, onClose, category = 'apps' }: 
     const finance: DirectoryModule = { id: 'finance', label: t('nav.finance'), icon: Wallet }
     const groups: DirectoryGroup[] = [
       { title: t('nav.overview'), items: [dashboard] },
-      { title: t('nav.appsChannels'), items: [projects, tasks, notes, calendar, time, habits, journal, goals, learning, finance] },
+      { title: t('nav.appsChannels'), items: [projects, notes, calendar, time, habits, journal, goals, learning, finance] },
     ]
     return groups.map((group) => ({
       ...group,
       items: group.items.filter((item) => item.id === 'dashboard' || item.id === 'projects' || enabledModules.includes(item.id)),
     })).filter((group) => group.items.length > 0)
-  }, [enabledModules, t])
+  }, [enabledModules, t, language])
 
   const selectedGroup = groups.find(group => group.title === (category === 'overview' ? t('nav.overview') : t('nav.appsChannels')))
   const categoryGroups = selectedGroup ? [selectedGroup] : []
