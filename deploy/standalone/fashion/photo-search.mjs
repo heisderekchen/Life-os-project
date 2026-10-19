@@ -15,7 +15,7 @@ export function photoQuery(subject) {
   for (const [cn, en] of translations) value = value.replaceAll(cn, ` ${en} `);
   return value.replace(/[,，。；;]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
-const stop = new Set(['women', 'womens', 'woman', 'ladies', 'female', 'for', 'and', 'the', 'with', 'of', 'in', 'a', 's']);
+const stop = new Set(['women', 'womens', 'woman', 'ladies', 'female', 'shoe', 'shoes', 'footwear', 'for', 'and', 'the', 'with', 'of', 'in', 'a', 's']);
 export function matchesIntent(subject, value) {
   const terms = photoQuery(subject).toLowerCase().replace(/['’]/g, '').match(/[\p{L}\p{N}]+/gu) || [];
   const hay = photoQuery(value).toLowerCase().replace(/['’]/g, '');
@@ -56,10 +56,10 @@ async function duckDiscover(query, fetcher) {
   return data.results;
 }
 
-async function discover(query,fetcher) {
+async function discover(query,fetcher,subject) {
  let empty=null;
  for(const [provider,load] of [['DuckDuckGo Images',()=>duckDiscover(query,fetcher)],['Bing Images',()=>bingImages(query,fetcher)],['Wikimedia Commons',()=>commonsPhotoCandidates(query,fetcher)]]) {
-  try {const results=await load();if(results.length)return {results,provider};empty={results,provider};}catch{}
+  try {const results=await load();if(results.some(item=>matchesIntent(subject,item.title||'')))return {results,provider};empty={results:[],provider};}catch{}
  }
  if(empty)return empty;
  throw Error('公开图片来源暂时均不可用，请稍后重试。');
@@ -75,7 +75,7 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readImage,
   if (!entries.length) entries.push({ query: base, domains: input.domains, label: '公开图片' });
   for (let index = 0; index < entries.length; index += 2) await Promise.all(entries.slice(index, index + 2).map(async entry => {
     try {
-      const {results:found,provider} = await discover(entry.query, fetcher);
+      const {results:found,provider} = await discover(entry.query, fetcher,input.subject);
       const matches = found.filter(x => {
         try {
           const u = new URL(x.url);

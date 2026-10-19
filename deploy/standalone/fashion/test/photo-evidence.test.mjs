@@ -19,7 +19,7 @@ test('图片与原页面必须对应；失效、改款和重复图片均不混�
   assert.equal(saved.length, 1);
   assert.deepEqual(result.channels[0].rejected, { imageSourceMismatch: 1, imageUnavailable: 1, sourceIntentMismatch: 1 });
   assert(!imageDeclared('<img src="https://other.example.com/good.jpg">', good.image));
-  assert(matchesIntent('women suede loafers','女士绒面乐福鞋'));
+  assert(matchesIntent('women suede loafers','女士绒面乐福鞋'));assert(matchesIntent('Nike shoes','NIKE 女款运动鞋'));assert(!matchesIntent('Nike shoes','Nike clothing')); 
   assert(!matchesIntent('black patent mary jane', 'Brown leather mary jane'));
   assert(!matchesIntent('leather mary jane', 'Faux Leather Mary Jane Shoes')); 
 });
