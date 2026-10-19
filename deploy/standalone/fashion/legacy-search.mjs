@@ -160,7 +160,7 @@ async function bingImages(query, fetcher) {
     for (const [, , value] of html.matchAll(/<a\b[^>]*\bm=(['"])(.*?)\1/gi)) {
         try {
             const item = JSON.parse(htmlEntities(value));
-            if (item.murl && item.purl && item.t) results.push({ title: item.t, url: item.purl, image: item.murl });
+            if (item.murl && item.purl && item.t) results.push({ title: item.t, url: item.purl, image: item.murl, ...(item.ow ? {width:Number(item.ow)} : {}), ...(item.oh ? {height:Number(item.oh)} : {}) });
         } catch { /* Skip malformed cards without discarding other images. */ }
     }
     // A challenge or changed HTML is a source failure, not an empty search.
@@ -226,4 +226,13 @@ export function createFashionIntelligenceSearch({ fetcher = fetch } = {}) {
             return response(400, { error: error instanceof Error ? error.message : '搜索失败。' });
         }
     };
+}
+
+export { bingImages };
+export async function commonsPhotoCandidates(query, fetcher) {
+ const endpoint=new URL('https://commons.wikimedia.org/w/api.php');
+ for(const [key,value] of Object.entries({action:'query',generator:'search',gsrsearch:query,gsrnamespace:'6',gsrlimit:'30',prop:'imageinfo',iiprop:'url|size|extmetadata',iiurlwidth:'1000',format:'json'}))endpoint.searchParams.set(key,value);
+ const payload=await imageSource(fetcher,endpoint,'json');
+ if(payload?.error||(!payload?.query&&!Object.hasOwn(payload||{},'batchcomplete')))throw Error('备用图库返回异常。');
+ return Object.values(payload?.query?.pages||{}).flatMap(page=>{const image=page.imageinfo?.[0];if(!image?.url||!image.descriptionurl)return [];return [{title:htmlEntities((page.title||'').replace(/^File:/,'')+' '+String(image.extmetadata?.ImageDescription?.value||'').replace(/<[^>]*>/g,' ')),url:image.descriptionurl,image:image.url,width:image.width,height:image.height}];});
 }

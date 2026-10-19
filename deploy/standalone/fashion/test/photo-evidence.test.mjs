@@ -19,6 +19,7 @@ test('图片与原页面必须对应；失效、改款和重复图片均不混�
   assert.equal(saved.length, 1);
   assert.deepEqual(result.channels[0].rejected, { imageSourceMismatch: 1, imageUnavailable: 1, sourceIntentMismatch: 1 });
   assert(!imageDeclared('<img src="https://other.example.com/good.jpg">', good.image));
+  assert(matchesIntent('women suede loafers','女士绒面乐福鞋'));assert(matchesIntent('Nike shoes','NIKE 女款运动鞋'));assert(!matchesIntent('Nike shoes','Nike clothing')); 
   assert(!matchesIntent('black patent mary jane', 'Brown leather mary jane'));
   assert(!matchesIntent('leather mary jane', 'Faux Leather Mary Jane Shoes')); 
 });
@@ -46,4 +47,10 @@ test('离线图片包逐张绑定原图、来源、核查依据和完整性摘�
   assert(html.includes('https://example.com/products/loafer?a=1&amp;b=2'));
   assert(html.includes(item.image)); assert(html.includes(item.note)); assert(html.includes(item.imageSha256));
   assert(html.includes('不代表获得商用授权'));
+});
+
+test('主图片渠道失败后用 Bing 发现候选，仍核查来源而不填充假结果',async()=>{
+ const candidate={t:'Women suede loafers',purl:'https://example.com/products/loafer',murl:'https://cdn.example.com/loafer.jpg'};
+ const result=await searchPhotos({subject:'women suede loafers',days:0,domains:[],sourceScope:2},{plans:[],fetcher:async url=>{if(String(url).includes('bing.com/images'))return new Response(`<a m='${JSON.stringify(candidate)}'>shoe</a>`);throw Error('primary unavailable');},readPage:async url=>({url,html:`<title>Women suede loafers</title><img src="${candidate.murl}">`}),readImage:async()=>({bytes:Buffer.from('test-image'),mime:'image/jpeg'}),saveAsset:async()=>{}});
+ assert.equal(result.items.length,1);assert.equal(result.channels[0].provider,'Bing Images');assert.equal(result.items[0].publishedAt,null);assert.equal(result.items[0].sourceImageMatched,true);
 });
