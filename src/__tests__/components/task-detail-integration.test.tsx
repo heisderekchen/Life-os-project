@@ -50,6 +50,8 @@ describe.each([
     await user.click(screen.getByText('Selected task'))
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(within(screen.getByRole('dialog')).queryByRole('button', { name: '关闭' })).not.toBeInTheDocument()
+    expect(within(screen.getByRole('dialog')).getAllByRole('button', { name: '返回任务列表' })).toHaveLength(1)
     expect(await screen.findByText('Task card task-ui-1')).toBeInTheDocument()
     expect(screen.getByText('Research task-ui-1')).toBeInTheDocument()
     expect(screen.getByRole('region')).toHaveAttribute('aria-label', '任务详情')
@@ -69,6 +71,8 @@ describe.each([
     expect(screen.getByRole('dialog')).toBeInTheDocument()
 
     await user.click(within(screen.getByRole('region')).getByRole('button', { name: '编辑' }))
+    expect(within(screen.getByRole('dialog')).getAllByRole('button', { name: '关闭' })).toHaveLength(1)
+    expect(within(screen.getByRole('dialog')).queryByRole('button', { name: '返回任务列表' })).not.toBeInTheDocument()
     expect(screen.getByText('任务标题')).toBeInTheDocument()
     expect(screen.queryByTestId('task-detail-extensions')).not.toBeInTheDocument()
     await user.clear(screen.getByDisplayValue('Selected task'))

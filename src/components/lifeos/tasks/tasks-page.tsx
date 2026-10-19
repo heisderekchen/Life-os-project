@@ -772,8 +772,8 @@ export function TasksPage() {
       <div className="flex flex-col gap-5 border-b border-border/60 pb-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0"><p className="mb-2 break-all text-xs font-medium tracking-wide text-muted-foreground">任务编号 · {selectedTask.id}</p><h3 className="max-w-4xl break-words text-2xl font-semibold tracking-tight text-pretty sm:text-3xl">{selectedTask.title}</h3></div>
         <div className="flex shrink-0 items-center gap-1">
-          <Button variant="outline" size="sm" onClick={() => openEditDialog(selectedTask)}><Edit3 className="mr-2 h-3.5 w-3.5" />{t('edit')}</Button>
-          <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-7 sm:w-7 shrink-0" aria-label="返回任务列表" onClick={closeTaskWorkspace}>
+          <Button variant="outline" size="sm" className="h-11" onClick={() => openEditDialog(selectedTask)}><Edit3 className="mr-2 h-3.5 w-3.5" />{t('edit')}</Button>
+          <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0" aria-label="返回任务列表" onClick={closeTaskWorkspace}>
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -1401,7 +1401,7 @@ export function TasksPage() {
       </div>
 
       <Dialog open={!!selectedTask} onOpenChange={handleTaskWorkspaceOpenChange}>
-        {selectedTask && <DialogContent className="flex h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-[min(92dvh,900px)] sm:w-[calc(100vw-2rem)] sm:max-w-5xl sm:rounded-xl sm:border" aria-describedby="task-workspace-description">
+        {selectedTask && <DialogContent showCloseButton={taskWorkspaceMode === 'edit'} className="flex h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-[min(92dvh,900px)] sm:w-[calc(100vw-2rem)] sm:max-w-5xl sm:rounded-xl sm:border" aria-describedby="task-workspace-description">
           <DialogHeader className="sr-only"><DialogTitle>{taskWorkspaceMode === 'edit' ? t('tasks.editTask') : selectedTask.title}</DialogTitle><DialogDescription id="task-workspace-description">{t('tasks.taskDetails')}</DialogDescription></DialogHeader>
           <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background" aria-label={t('tasks.taskDetails')}>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
