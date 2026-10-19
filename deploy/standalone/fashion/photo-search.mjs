@@ -1,5 +1,6 @@
 import { bingImages, commonsPhotoCandidates } from './legacy-search.mjs';
 import { createHash, randomBytes } from 'node:crypto';
+import { abortable } from './async-control.mjs';
 
 const translations = [
   ['玛丽珍鞋', 'mary jane shoes'], ['玛丽珍', 'mary jane'], ['芭蕾平底鞋', 'ballet flats'],
@@ -65,7 +66,7 @@ async function discover(query,fetcher,subject) {
  throw Error('公开图片来源暂时均不可用，请稍后重试。');
 }
 
-export async function searchPhotos(input, { fetcher, plans, readPage, readImage, saveAsset }) {
+export async function searchPhotos(input, { fetcher, plans, readPage, readImage, saveAsset, signal, onProgress = async () => {} }) {
   const channels = [], candidates = [], pages = new Set(), images = new Set(), hashes = new Set();
   const base = photoQuery(input.subject);
   // Focused mode retains its domain boundary. Other modes also discover public
@@ -73,9 +74,18 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readImage,
   const entries = plans.filter(x => x.domains.length).map(x => ({ ...x, query: `${base} (${x.domains.map(d => `site:${d}`).join(' OR ')})` }));
   if (input.sourceScope !== 0 && (input.sourceScope !== undefined || !input.domains.length)) entries.unshift({ query: base, domains: [], label: '公开图片' });
   if (!entries.length) entries.push({ query: base, domains: input.domains, label: '公开图片' });
+  let checked = 0;
+  const items = [];
+  const report = async (stage, totalCandidates = candidates.length) => {
+    signal?.throwIfAborted();
+    await onProgress(structuredClone({ stage, channelsDone: channels.length, totalChannels: entries.length,
+      candidates: totalCandidates, checked, accepted: Math.min(items.length, 8), items: items.slice(0, 8), channels }));
+  };
+  await report('discover');
   for (let index = 0; index < entries.length; index += 2) await Promise.all(entries.slice(index, index + 2).map(async entry => {
     try {
-      const {results:found,provider} = await discover(entry.query, fetcher,input.subject);
+      const {results:found,provider} = await abortable(() => discover(entry.query, fetcher,input.subject), signal);
+      signal?.throwIfAborted();
       const matches = found.filter(x => {
         try {
           const u = new URL(x.url);
@@ -88,7 +98,8 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readImage,
       channels.push({ provider, query: entry.query, label: entry.label, status: matches.length ? 'ready' : 'empty', count: 0, discovered: found.length, intentMatched: matches.length, rejected: {} });
       const channel = channels.at(-1);
       candidates.push(...matches.map(x => ({ ...x, channel, domains: entry.domains })));
-    } catch (e) { channels.push({ provider: '公开图片检索', query: entry.query, label: entry.label, status: 'error', count: 0, error: e.message }); }
+    } catch (e) { signal?.throwIfAborted(); channels.push({ provider: '公开图片检索', query: entry.query, label: entry.label, status: 'error', count: 0, error: e.message }); }
+    await report('discover');
   }));
   if (channels.every(c => c.status === 'error')) throw Error('公开图片检索暂不可用，任务已保留，请稍后重试。');
   const unique = candidates.filter(x => {
@@ -97,12 +108,12 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readImage,
     if (pages.has(key) || images.has(keyURL(x.image))) return false;
     pages.add(key); images.add(keyURL(x.image)); return true;
   }).slice(0, input.sourceScope === 2 ? 32 : 16);
-  const items = [];
+  await report('verify', unique.length);
   for (let index = 0; index < unique.length && items.length < 8; index += 4) {
-    const batch = await Promise.all(unique.slice(index, index + 4).map(async candidate => {
+    await Promise.all(unique.slice(index, index + 4).map(async candidate => {
       let reason = 'sourceUnavailable';
       try {
-        const { html, url } = await readPage(candidate.url, fetcher);
+        const { html, url } = await abortable(() => readPage(candidate.url, fetcher), signal);
         const source = new URL(url);
         if (blocked.test(source.hostname) || source.pathname === '/' || (candidate.domains.length && !candidate.domains.some(d => source.hostname === d || source.hostname.endsWith('.' + d)))) throw Error();
         const title = plain(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '');
@@ -113,29 +124,37 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readImage,
         const dateValue = html.match(/"datePublished"\s*:\s*"([^"]+)"/)?.[1] || html.match(/property=["']article:published_time["'][^>]*content=["']([^"']+)/i)?.[1];
         const timestamp = Date.parse(dateValue);
         const publishedAt = Number.isFinite(timestamp) && timestamp <= Date.now() ? new Date(timestamp).toISOString() : null;
-        reason = 'dateUnconfirmedOrOutsideRange';
-        if (input.days && (!publishedAt || timestamp < Date.now() - input.days * 86400000)) throw Error();
+        reason = 'dateUnconfirmed';
+        if (input.days && !publishedAt) throw Error();
+        reason = 'outsideDateRange';
+        if (input.days && timestamp < Date.now() - input.days * 86400000) throw Error();
         reason = 'imageUnavailable';
-        const asset = await readImage(candidate.image, fetcher);
+        const asset = await abortable(() => readImage(candidate.image, fetcher), signal);
         const sha256 = createHash('sha256').update(asset.bytes).digest('hex');
         if (hashes.has(sha256)) return null;
         hashes.add(sha256);
-        await saveAsset(sha256, asset);
+        signal?.throwIfAborted();
+        await abortable(() => saveAsset(sha256, asset), signal);
+        signal?.throwIfAborted();
         candidate.channel.count++;
         return { id: randomBytes(8).toString('hex'), title, url, source: source.hostname.replace(/^www\./, ''),
           image: candidate.image, imageKind: 'source-matched', imageSha256: sha256, imageMime: asset.mime,
           sourceCheckedAt: new Date().toISOString(), sourceImageMatched: true,
           publishedAt, collectedAt: new Date().toISOString(), review: 'pending', selected: false, note: '', summary: '' };
       } catch {
+        signal?.throwIfAborted();
         const rejects = candidate.channel.rejected;
         rejects[reason] = (rejects[reason] || 0) + 1;
         return null;
       }
-    }));
-    items.push(...batch.filter(Boolean));
+    }).map(work => work.then(async item => {
+      if (item) items.push(item);
+      checked++;
+      await report('verify', unique.length);
+    })));
   }
   channels.forEach(c => { if (c.status !== 'error') c.status = c.count ? 'ready' : 'empty'; });
-  return { items: items.slice(0, 8), channels };
+  return { items: items.slice(0, 8).sort((a, b) => (Date.parse(b.publishedAt) || 0) - (Date.parse(a.publishedAt) || 0)), channels };
 }
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);

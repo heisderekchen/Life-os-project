@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { abortable } from "./async-control.mjs";
 import { sourceCatalog } from "./public/source-catalog.js";
 import { searchPhotos, imageDeclared, matchesIntent, exportHTML } from "./photo-search.mjs";
 import { readFile, writeFile, mkdir, rename, unlink } from "node:fs/promises";
@@ -293,6 +294,7 @@ export function createApp({
   cookiePath = "/",
   secureCookie = false,
   persistentSessions = false,
+  searchTimeoutMs = 90_000,
 } = {}) {
   const sessions = new Map();
   const stores = new Map();
@@ -352,33 +354,73 @@ export function createApp({
     queues.set(account, next);
     await next;
   }
+  function prepareSearch(task) {
+    const now = new Date().toISOString();
+    task.status = 'running';
+    task.message = '';
+    task.channels = [];
+    task.updatedAt = now;
+    task.progress = { stage: 'discover', startedAt: now, deadlineAt: new Date(Date.now() + searchTimeoutMs).toISOString(),
+      channelsDone: 0, totalChannels: 0, candidates: 0, checked: 0, accepted: 0 };
+  }
+  function noResultsMessage(task) {
+    const rejected = task.channels.reduce((all, channel) => {
+      for (const [reason, count] of Object.entries(channel.rejected || {})) all[reason] = (all[reason] || 0) + count;
+      return all;
+    }, {});
+    const notes = [];
+    if (rejected.dateUnconfirmed) notes.push(`${rejected.dateUnconfirmed} 条未能确认发布日期`);
+    if (rejected.outsideDateRange) notes.push(`${rejected.outsideDateRange} 条超出近 ${task.input.days} 天`);
+    if (rejected.sourceUnavailable) notes.push(`${rejected.sourceUnavailable} 条原页面暂时无法读取`);
+    if (rejected.imageSourceMismatch || rejected.imageUnavailable) notes.push(`${(rejected.imageSourceMismatch || 0) + (rejected.imageUnavailable || 0)} 条图片未通过核对`);
+    return '未找到符合当前条件的结果。' + (notes.length ? notes.join('；') + '。' : '') +
+      (task.input.days ? '可调整时间范围后重试；本次未放宽日期要求。' : '可调整关键词或来源范围后重试。');
+  }
   async function start(account, task) {
     const key = account + task.id;
     if (jobs.has(key)) throw Error("任务正在检索，请稍候。");
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(new DOMException('检索超时', 'TimeoutError')), searchTimeoutMs);
+    const jobFetcher = (url, options = {}) => abortable(() => fetcher(url, { ...options,
+      signal: options.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal }), controller.signal);
+    jobFetcher.trustedRelayHosts = fetcher.trustedRelayHosts;
+    const old = new Map(task.items.map(x => [x.url + ':' + x.imageSha256, x]));
+    const retainReview = items => items.map(x => {
+      const previous = old.get(x.url + ':' + x.imageSha256);
+      return previous ? { ...x, id: previous.id, review: previous.review, selected: previous.selected, note: previous.note, reviewedAt: previous.reviewedAt } : x;
+    });
+    let active = true;
     const job = (async () => {
       try {
-        const result = photoSearch ? await searchPhotos(task.input, { fetcher, plans: searchPlan(task.input), readPage: getPublic, readImage: getImage, saveAsset }) : await runSearch(task.input, fetcher);
-        const old = new Map(task.items.map((x) => [x.url + ':' + x.imageSha256, x]));
-        task.items = result.items.map((x) => {
-          const previous = old.get(x.url + ':' + x.imageSha256);
-          return previous ? { ...x, id: previous.id, review: previous.review, selected: previous.selected, note: previous.note, reviewedAt: previous.reviewedAt } : x;
-        });
-        task.channels = result.channels;
-        task.status = "review";
-        task.message = task.items.length
-          ? ""
-          : "未找到同时符合关键词、可用图片及原始来源核对条件的结果。限定时间会排除发布日期未知的图片，可调整关键词、来源范围或选择不限时间。";
-      } catch (e) {
-        task.status = "error";
-        task.message = e.message;
-      } finally {
-        task.updatedAt = new Date().toISOString();
-        try {
+        const onProgress = async ({ items, channels, ...progress }) => {
+          if (!active || controller.signal.aborted) return;
+          task.progress = { ...task.progress, ...progress };
+          task.channels = channels;
+          if (items.length) task.items = retainReview(items);
+          task.updatedAt = new Date().toISOString();
           await save(account);
-        } catch {
-          task.status = "error";
-          task.message = "任务结果保存失败，请稍后重试。";
-        }
+        };
+        const result = await abortable(() => photoSearch ? searchPhotos(task.input, {
+          fetcher: jobFetcher, plans: searchPlan(task.input), readPage: getPublic, readImage: getImage,
+          saveAsset, signal: controller.signal, onProgress,
+        }) : runSearch(task.input, jobFetcher), controller.signal);
+        task.items = retainReview(result.items);
+        task.channels = result.channels;
+        task.status = 'review';
+        task.message = task.items.length ? '' : noResultsMessage(task);
+      } catch (e) {
+        const timedOut = controller.signal.aborted;
+        task.status = timedOut && task.progress.accepted ? 'review' : 'error';
+        task.message = timedOut
+          ? `本次检索已达到 ${Math.ceil(searchTimeoutMs / 1000)} 秒时限。${task.progress.accepted ? `已保留 ${task.items.length} 条通过来源核对的结果，可继续核查或重新检索。` : '部分来源未响应，请重试或调整条件。'}`
+          : e.message;
+      } finally {
+        active = false;
+        clearTimeout(timeout);
+        task.progress = { ...task.progress, stage: task.status === 'error' ? 'error' : 'done', finishedAt: new Date().toISOString() };
+        task.updatedAt = new Date().toISOString();
+        try { await save(account); }
+        catch { task.status = 'error'; task.message = '任务结果保存失败，请稍后重试。'; }
         jobs.delete(key);
       }
     })();
@@ -438,7 +480,7 @@ export function createApp({
           sourceCatalog,
         });
       }
-      if (u.pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "1.0.2", storage: "persistent-files" });
+      if (u.pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "1.0.3", storage: "persistent-files" });
       if (u.pathname === "/api/login" && req.method === "POST") {
         if (guestPreview)
           return json(res, 405, { error: "此预览直接进入，无需登录。" });
@@ -503,6 +545,7 @@ export function createApp({
             updatedAt: new Date().toISOString(),
             delivery: null,
           };
+          prepareSearch(task);
           db.tasks.unshift(task);
           await save(account);
           json(res, 201, { task });
@@ -576,8 +619,7 @@ export function createApp({
         if (m[2] === "retry") {
           if (task.delivery)
             return json(res, 409, { error: "请先重新打开交付。" });
-          task.status = "running";
-          task.message = "";
+          prepareSearch(task);
           await save(account);
           json(res, 200, { task });
           void start(account, task);

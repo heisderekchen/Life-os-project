@@ -1,3 +1,4 @@
+import { requestJSON } from "./request.js";
 const API_BASE = location.pathname.startsWith("/fashion/") ? "/fashion" : "";
 const $ = (s) => document.querySelector(s),
   root = $("#root");
@@ -76,12 +77,11 @@ function notice(message) {
   noticeTimer = setTimeout(() => ($("#notice").textContent = ""), 4500);
 }
 async function api(path, body) {
-  const r = await fetch(API_BASE + "/api" + path, {
+  const { response: r, data } = await requestJSON(API_BASE + "/api" + path, {
     method: body === undefined ? "GET" : "POST",
     headers: body === undefined ? {} : { "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const data = await r.json();
+  }, { timeoutMs: body === undefined ? 15000 : 90000 });
   if (!r.ok) {
     if (r.status === 401) {
       state.account = null;
@@ -267,6 +267,33 @@ function result(i, readonly = false) {
           )}</select></label><label>核查依据与选入理由<textarea name="note" maxlength="2000" placeholder="例如：原文鞋款与图片一致；材质尚需确认">${esc(i.note)}</textarea></label><label class="check"><input type="checkbox" name="selected" ${i.selected ? "checked" : ""}>选入本次交付</label><p class="hint">核查通过需填写依据。只有已核查结果可选入交付。</p><button class="secondary" type="submit">保存核查</button><p class="error-text" role="alert"></p></form></details>`
   }</div></article>`;
 }
+let refreshError = '';
+let refreshing = false;
+function searchStatus(t) {
+  const p = t.progress || {};
+  const elapsed = Math.max(0, Math.floor((Date.now() - Date.parse(p.startedAt || t.updatedAt || t.createdAt)) / 1000));
+  const limit = p.deadlineAt ? Math.ceil((Date.parse(p.deadlineAt) - Date.parse(p.startedAt)) / 1000) : 90;
+  const heading = p.stage === 'verify' ? '正在核对原始来源与图片' : '正在检索公开来源';
+  const counts = p.stage === 'verify' ? `已核对 ${p.checked || 0} / ${p.candidates || 0} 条候选 · 已保留 ${Math.min(p.accepted || 0, 8)} 条`
+    : `已完成 ${p.channelsDone || 0}${p.totalChannels ? ' / ' + p.totalChannels : ''} 组检索`;
+  const clock = elapsed >= limit ? '正在同步任务状态…' : `已用时 ${elapsed} 秒 · 单次检索最多 ${limit} 秒`;
+  return { heading, counts, clock };
+}
+function runningState(t) {
+  const { heading, counts, clock } = searchStatus(t);
+  return `<section class="run-state"><h2 data-run-heading>${heading}</h2><div class="activity" aria-hidden="true"></div><p data-run-counts role="status">${counts}</p><p data-run-clock>${clock}</p><p class="error-text" data-run-connection role="alert" ${refreshError ? '' : 'hidden'}>${esc(refreshError)}</p><button class="text-button" data-action="refresh">刷新状态</button></section>`;
+}
+function updateRunningState() {
+  const task = state.tasks.find(t => t.id === state.id);
+  if (state.page !== 'detail' || task?.status !== 'running') return;
+  const values = searchStatus(task);
+  for (const key of ['heading', 'counts', 'clock']) {
+    const node = root.querySelector('[data-run-' + key + ']');
+    if (node) node.textContent = values[key];
+  }
+  const connection = root.querySelector('[data-run-connection]');
+  if (connection) { connection.hidden = !refreshError; connection.textContent = refreshError; }
+}
 function detail(t) {
   const n = selected(t).length;
   const items = [...t.items].sort((a,b) => (Date.parse(b.publishedAt) || 0) - (Date.parse(a.publishedAt) || 0)).filter(
@@ -276,7 +303,7 @@ function detail(t) {
         ? i.selected
         : i.review === state.resultFilter),
   );
-  return `<button class="back" data-page="tasks">${icon("back")}返回任务</button><section class="task-summary"><div class="tag-line"><span class="status ${t.status}">${status(t)}</span>${t.sample ? '<span class="status sample">历史示例</span>' : ""}</div><h1>${esc(t.input.subject)}</h1><p>${t.input.days ? "近 " + t.input.days + " 天" : "不限时间"} · ${esc(sourceScopeText(t.input))}</p><p>创建于 ${day(t.createdAt)}</p><div class="counts"><span><b>${t.items.length}</b>条结果</span><span><b>${t.items.filter((i) => i.review === "verified").length}</b>条已核查</span><span><b>${n}</b>条已选</span></div></section>${t.sample ? `<p class="banner sample">${esc(t.message)}</p>` : ""}${t.status === "running" ? '<section class="run-state"><h2>正在查找公开来源</h2><div class="activity" aria-hidden="true"></div><p role="status">正在检索并读取来源配图。任务已保存，可以离开此页面稍后查看。</p></section>' : t.status === "error" ? `<div class="banner error" role="alert">${esc(t.message)}</div><button class="secondary" data-action="retry">重试检索</button>` : t.delivery ? '<p class="banner">本任务已形成交付结果。重新打开后可继续调整。</p><button class="primary" data-action="view-delivery">查看交付结果</button>' : t.items.length ? "" : `<section class="empty"><h2>本次没有符合条件的结果</h2><p>${esc(t.message)}</p><button class="primary" data-action="adjust">调整条件</button><button class="text-button" data-action="retry">按原条件重试</button></section>`}${
+  return `<button class="back" data-page="tasks">${icon("back")}返回任务</button><section class="task-summary"><div class="tag-line"><span class="status ${t.status}">${status(t)}</span>${t.sample ? '<span class="status sample">历史示例</span>' : ""}</div><h1>${esc(t.input.subject)}</h1><p>${t.input.days ? "近 " + t.input.days + " 天" : "不限时间"} · ${esc(sourceScopeText(t.input))}</p><p>创建于 ${day(t.createdAt)}</p><div class="counts"><span><b>${t.items.length}</b>条结果</span><span><b>${t.items.filter((i) => i.review === "verified").length}</b>条已核查</span><span><b>${n}</b>条已选</span></div></section>${t.sample ? `<p class="banner sample">${esc(t.message)}</p>` : ""}${t.status === "running" ? runningState(t) : t.status === "error" ? `<div class="banner error" role="alert">${esc(t.message)}</div><button class="secondary" data-action="retry">重试检索</button>` : t.delivery ? '<p class="banner">本任务已形成交付结果。重新打开后可继续调整。</p><button class="primary" data-action="view-delivery">查看交付结果</button>' : t.items.length ? (t.message ? `<p class="banner">${esc(t.message)}</p>` : "") : `<section class="empty"><h2>本次没有符合条件的结果</h2><p>${esc(t.message)}</p><button class="primary" data-action="adjust">调整条件</button><button class="text-button" data-action="retry">按原条件重试</button></section>`}${
     t.items.length
       ? `<div class="tools"><label><span class="small">显示 </span><select id="result-filter" aria-label="筛选结果">${[
           ["all", "全部结果"],
@@ -326,6 +353,9 @@ function render() {
     timer = setTimeout(refresh, 2500);
 }
 async function refresh() {
+  if (refreshing) return;
+  refreshing = true;
+  clearTimeout(timer);
   const before = JSON.stringify(
     state.page === "detail"
       ? state.tasks.find((t) => t.id === state.id)
@@ -333,6 +363,7 @@ async function refresh() {
   );
   try {
     const data = await api("/tasks");
+    refreshError = "";
     if (!state.account) return;
     if (state.menuOpen) { timer = setTimeout(refresh, 2500); return; }
     state.tasks = data.tasks;
@@ -344,13 +375,20 @@ async function refresh() {
     const dirty = !!root.querySelector('[data-dirty="true"]');
     if (before !== after && !dirty && ["tasks", "detail"].includes(state.page))
       render();
-    else if (state.tasks.some((t) => t.status === "running"))
-      timer = setTimeout(refresh, 2500);
-  } catch (e) {
-    notice(e.message);
-    if (state.account) timer = setTimeout(refresh, 4000);
+    else updateRunningState();
+  } catch {
+    refreshError = '暂时无法更新状态，正在重新连接。也可以点“刷新状态”。';
+    updateRunningState();
+  } finally {
+    refreshing = false;
+    clearTimeout(timer);
+    if (state.account && state.tasks.some(t => t.status === 'running')) timer = setTimeout(refresh, refreshError ? 4000 : 2500);
   }
 }
+// Mobile browsers suspend timers in the background; reconnect on return.
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && state.account) void refresh(); });
+window.addEventListener('pageshow', () => { if (state.account) void refresh(); });
+window.addEventListener('focus', () => { if (state.account) void refresh(); });
 function updateTask(t) {
   const i = state.tasks.findIndex((x) => x.id === t.id);
   if (i < 0) state.tasks.unshift(t);
@@ -485,7 +523,9 @@ function bind() {
             updateTask(task);
             go("detail", task.id);
           }
+          if (action === "refresh") await refresh();
           if (action === "retry") {
+            refreshError = "";
             await taskAction("retry");
             render();
           }
