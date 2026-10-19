@@ -143,7 +143,7 @@ function Graph({ groups, selection, expanded, onExpand, onSelect, menuFor, match
     return () => { if (focusTimer.current) clearTimeout(focusTimer.current) }
   }, [selectedId, expanded, flow, reducedMotion, groups, selection])
   return <ReactFlow<GraphNode> nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.06, maxZoom: 1 }}
-    minZoom={0.15} maxZoom={1.4} nodesDraggable nodesConnectable={false} nodesFocusable nodeDragThreshold={5} onNodesChange={moveNodes} onNodeDragStart={cancelFocus} onMoveStart={event => { if (event) cancelFocus() }} deleteKeyCode={null} multiSelectionKeyCode={null} elementsSelectable
+    minZoom={0.15} maxZoom={1.4} nodesDraggable nodesConnectable={false} nodesFocusable nodeDragThreshold={5} onNodesChange={moveNodes} onNodeDragStart={cancelFocus} onNodeDragStop={(_, node) => { const next = { ...positions, [node.id]: { ...node.position } }; setPositions(next); try { localStorage.setItem(positionKey, JSON.stringify(next)) } catch {} }} onMoveStart={event => { if (event) cancelFocus() }} deleteKeyCode={null} multiSelectionKeyCode={null} elementsSelectable
     onNodeClick={(_, node) => onSelect(node.data.target)} onNodeDoubleClick={(_, node) => node.data.onExpand?.()}
     onlyRenderVisibleElements={nodes.length > 200} proOptions={{ hideAttribution: false }} aria-label={zh ? '项目主题任务关系图' : 'Project topic task graph'}>
     <Controls showInteractive={false}><ControlButton onClick={resetPositions} title={zh ? '重置节点布局' : 'Reset node layout'} aria-label={zh ? '重置节点布局' : 'Reset node layout'}><RotateCcw size={14} /></ControlButton></Controls>
