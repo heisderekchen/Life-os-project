@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 
+export const SOURCE_QUEUE_READER_VERSION = 3;
+
 function stableId(domains, label) {
   const sorted = [...domains].sort();
   return createHash('sha1').update(sorted.join('\n') + '\u0000' + (label || '')).digest('hex');
@@ -45,7 +47,8 @@ export async function runSourceQueue({
   signal,
   concurrency = 3,
   entryTimeoutMs = 20000,
-  retryFailed = false
+  retryFailed = false,
+  previousReaderVersion = 1,
 }) {
   const prevById = new Map();
   for (const p of previous || []) {
@@ -58,10 +61,11 @@ export async function runSourceQueue({
   for (const raw of entries || []) {
     if (!raw || typeof raw !== 'object') continue;
     const domains = normalizeDomains(raw.domains);
-    if (domains.length === 0) continue;
+    if (domains.length === 0 && !raw.openDiscovery) continue;
     const uniqueDomains = [...new Set(domains)];
     const label = typeof raw.label === 'string' ? raw.label : '';
     const id = raw.id || stableId(uniqueDomains, label);
+    const requiredReaderVersion = Math.max(1, Number(raw.readerVersion) || 1);
     if (seen.has(id)) continue;
     seen.add(id);
     entryById.set(id, raw);
@@ -69,9 +73,13 @@ export async function runSourceQueue({
     let status = 'pending';
     let matchedDomains = [];
     let error = null;
+    let checkpoint = null;
     if (prev) {
       if (Array.isArray(prev.matchedDomains)) matchedDomains = [...prev.matchedDomains];
-      if (prev.status === 'done' && !(retryFailed && prev.sourceChecks?.some(c=>c.status==='error'))) status = 'done';
+      if (prev.checkpoint && typeof prev.checkpoint === 'object') checkpoint = structuredClone(prev.checkpoint);
+      const priorReaderVersion = Math.max(1, Number(prev.readerVersion || previousReaderVersion) || 1);
+      if (prev.status === 'done' && priorReaderVersion >= requiredReaderVersion &&
+          !(retryFailed && prev.sourceChecks?.some(c => c.status === 'error'))) status = 'done';
       else if (prev.status === 'error' && !retryFailed) { status = 'error'; error = prev.error || null; }
       else if (prev.status === 'running' || prev.status === 'pending') status = 'pending';
     }
@@ -79,10 +87,13 @@ export async function runSourceQueue({
       id,
       label,
       domains: uniqueDomains,
+      openDiscovery: Boolean(raw.openDiscovery),
+      readerVersion: Math.max(requiredReaderVersion, Number(prev?.readerVersion) || 0),
       status,
       error,
       matchedDomains,
-      sourceChecks: prev?.sourceChecks?.map(c=>({...c}))
+      sourceChecks: prev?.sourceChecks?.map(c=>({...c})),
+      ...(checkpoint ? { checkpoint } : {}),
     });
   }
 
@@ -156,6 +167,9 @@ export async function runSourceQueue({
   try { await emit(); } catch (error) { cleanup(); throw error; }
 
   const mergeMatched = (value, record) => {
+    if (value?.checkpoint && typeof value.checkpoint === 'object') {
+      record.checkpoint = structuredClone(value.checkpoint);
+    }
     if (Array.isArray(value?.sourceChecks) && value.sourceChecks.length) record.sourceChecks=value.sourceChecks.filter(c=>record.domains.includes(c.domain)).map(c=>({...c}));
     const items = value && Array.isArray(value.items) ? value.items : [];
     for (const item of items) {
@@ -173,6 +187,8 @@ export async function runSourceQueue({
   };
 
   const processEntry = async (record) => {
+    const scheduledEntry = entryById.get(record.id);
+    const perEntryTimeout = Math.max(1, Number(scheduledEntry?.timeoutMs) || entryTimeoutMs);
     const child = new AbortController();
     const entrySignal = child.signal;
     let active = true;
@@ -185,7 +201,7 @@ export async function runSourceQueue({
         e.name = 'TimeoutError';
         reject(e);
         child.abort(e);
-      }, entryTimeoutMs);
+      }, perEntryTimeout);
     });
 
     const stopPromise = new Promise((_, reject) => {
@@ -228,7 +244,11 @@ export async function runSourceQueue({
       let result;
       try {
         result = await Promise.race([
-          Promise.resolve().then(() => runEntry(entryById.get(record.id), { signal: entrySignal, onPartial })),
+          Promise.resolve().then(() => runEntry(entryById.get(record.id), {
+            signal: entrySignal,
+            onPartial,
+            checkpoint: record.checkpoint ? structuredClone(record.checkpoint) : null,
+          })),
           timeoutPromise,
           stopPromise
         ]);
@@ -309,4 +329,3 @@ export async function runSourceQueue({
   }
   return snapshot();
 }
-

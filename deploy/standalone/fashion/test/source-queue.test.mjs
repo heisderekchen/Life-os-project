@@ -16,6 +16,17 @@ test('1000 sources in 200 batches finish with immutable, separated counters',asy
  const updates=[];let sources=0;const end=await runSourceQueue({entries:batches(),concurrency:3,onUpdate:s=>updates.push(s),runEntry:async e=>{sources+=e.domains.length;return{items:e.domains.map(d=>({source:d}))};}});
  assert.equal(sources,1000);assert.equal(end.plannedSources,1000);assert.equal(end.queriedSources,1000);assert.equal(end.matchedSources,1000);assert.equal(end.failedSources,0);assert.equal(end.pendingSources,0);assert.equal(updates[0].queriedSources,0);assert(updates.length>=400);assert(updates[0].records.every(r=>r.status==='pending'));
 });
+test('open discovery queue entries run without changing the 1000-domain source counters',async()=>{
+ let ran=0;
+ const end=await runSourceQueue({entries:[{label:'公开网页发现',domains:[],openDiscovery:true,readerVersion:2}],
+   runEntry:async()=>{ran++;return{items:[{url:'https://editorial.example/shoe-story'}]};}});
+ assert.equal(ran,1);
+ assert.equal(end.plannedSources,0);
+ assert.equal(end.queriedSources,0);
+ assert.equal(end.pendingSources,0);
+ assert.equal(end.records[0].status,'done');
+ assert.equal(end.records[0].openDiscovery,true);
+});
 test('a hung source times out independently, preserves partial matches and continues',async()=>{
  const updates=[];const end=await runSourceQueue({entries:[{domains:['a.test','b.test']},{domains:['c.test']}],concurrency:1,entryTimeoutMs:25,onUpdate:s=>updates.push(s),runEntry:async(e,{onPartial})=>{if(e.domains.includes('a.test')){await onPartial({items:[{url:'https://sub.a.test/shoe'}]});return new Promise(()=>{});}return{items:[{url:'https://c.test/shoe'}]};}});
  assert.equal(end.queriedSources,3);assert.equal(end.failedSources,2);assert.equal(end.matchedSources,2);assert.equal(end.records[0].status,'error');assert(updates.some(s=>s.queriedSources===0&&s.matchedSources===1));
@@ -27,6 +38,22 @@ test('partial is visible before final gate, and different subdomains count as on
 test('resume skips completed entries independent of order and retries only unfinished/failed',async()=>{
  const entries=[{id:'done',domains:['a.test']},{id:'run',domains:['b.test']},{id:'fail',domains:['c.test']}];const previous=[{...entries[0],status:'done',matchedDomains:['a.test']},{...entries[1],status:'running'},{...entries[2],status:'error',error:'offline'}];
  const ran=[];const end=await runSourceQueue({entries:entries.toReversed(),previous,retryFailed:true,runEntry:async e=>{ran.push(e.id);return{items:[]};}});assert.deepEqual(ran.sort(),['fail','run']);assert.equal(end.queriedSources,3);assert.equal(end.matchedSources,1);
+});
+test('reader upgrade reruns a done legacy-schema catalogue record and preserves its checkpoint for resumable work',async()=>{
+ const entry={id:'catalog',domains:['nike.com'],readerVersion:3,timeoutMs:50};
+ const previous=[{...entry,status:'done',readerVersion:2,checkpoint:{next:'https://api.nike.com/next'}}];
+ let calls=0;
+ const end=await runSourceQueue({entries:[entry],previous,previousReaderVersion:2,retryFailed:true,
+   runEntry:async(e,{checkpoint,onPartial})=>{
+     calls++;
+     assert.equal(checkpoint.next,'https://api.nike.com/next');
+     await onPartial({checkpoint:{...checkpoint,next:'https://api.nike.com/next?anchor=48'},items:[]});
+     return{checkpoint:{...checkpoint,next:'https://api.nike.com/next?anchor=72'},items:[]};
+   }});
+ assert.equal(calls,1);
+ assert.equal(end.records[0].status,'done');
+ assert.equal(end.records[0].readerVersion,3);
+ assert.equal(end.records[0].checkpoint.next,'https://api.nike.com/next?anchor=72');
 });
 test('parent abort rejects immediately and late partial/final never write',async()=>{
  const ac=new AbortController();let writes=0;let release;const gate=new Promise(r=>release=r);
