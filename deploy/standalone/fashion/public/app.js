@@ -274,7 +274,7 @@ function searchStatus(t) {
   const elapsed = Math.max(0, Math.floor((Date.now() - Date.parse(p.startedAt || t.updatedAt || t.createdAt)) / 1000));
   const limit = p.deadlineAt ? Math.ceil((Date.parse(p.deadlineAt) - Date.parse(p.startedAt)) / 1000) : 90;
   const heading = p.stage === 'verify' ? '正在核对原始来源与图片' : '正在检索公开来源';
-  const counts = p.stage === 'verify' ? `已核对 ${p.checked || 0} / ${p.candidates || 0} 条候选 · 已保留 ${Math.min(p.accepted || 0, 8)} 条`
+  const counts = p.stage === 'verify' ? `已核对 ${p.checked || 0} / ${p.candidates || 0} 条候选 · 已保留 ${p.accepted || 0} 条`
     : `已完成 ${p.channelsDone || 0}${p.totalChannels ? ' / ' + p.totalChannels : ''} 组检索`;
   const clock = elapsed >= limit ? '正在同步任务状态…' : `已用时 ${elapsed} 秒 · 单次检索最多 ${limit} 秒`;
   return { heading, counts, clock };

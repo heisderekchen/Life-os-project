@@ -52,5 +52,5 @@ test('离线图片包逐张绑定原图、来源、核查依据和完整性摘�
 test('主图片渠道失败后用 Bing 发现候选，仍核查来源而不填充假结果',async()=>{
  const candidate={t:'Women suede loafers',purl:'https://example.com/products/loafer',murl:'https://cdn.example.com/loafer.jpg'};
  const result=await searchPhotos({subject:'women suede loafers',days:0,domains:[],sourceScope:2},{plans:[],fetcher:async url=>{if(String(url).includes('bing.com/images'))return new Response(`<a m='${JSON.stringify(candidate)}'>shoe</a>`);throw Error('primary unavailable');},readPage:async url=>({url,html:`<title>Women suede loafers</title><img src="${candidate.murl}">`}),readImage:async()=>({bytes:Buffer.from('test-image'),mime:'image/jpeg'}),saveAsset:async()=>{}});
- assert.equal(result.items.length,1);assert.equal(result.channels[0].provider,'Bing Images');assert.equal(result.items[0].publishedAt,null);assert.equal(result.items[0].sourceImageMatched,true);
+ assert.equal(result.items.length,1);assert(result.channels.some(c=>c.provider==='Bing Images'&&c.count===1));assert.equal(result.items[0].publishedAt,null);assert.equal(result.items[0].sourceImageMatched,true);
 });

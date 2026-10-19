@@ -295,6 +295,7 @@ export function createApp({
   secureCookie = false,
   persistentSessions = false,
   searchTimeoutMs = 90_000,
+  planSources = async () => null,
 } = {}) {
   const sessions = new Map();
   const stores = new Map();
@@ -400,8 +401,9 @@ export function createApp({
           task.updatedAt = new Date().toISOString();
           await save(account);
         };
+        const plans = await abortable(async () => await planSources(task.input) || searchPlan(task.input), controller.signal);
         const result = await abortable(() => photoSearch ? searchPhotos(task.input, {
-          fetcher: jobFetcher, plans: searchPlan(task.input), readPage: getPublic, readImage: getImage,
+          fetcher: jobFetcher, plans, readPage: getPublic, readImage: getImage,
           saveAsset, signal: controller.signal, onProgress,
         }) : runSearch(task.input, jobFetcher), controller.signal);
         task.items = retainReview(result.items);
@@ -480,7 +482,7 @@ export function createApp({
           sourceCatalog,
         });
       }
-      if (u.pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "1.0.3", storage: "persistent-files" });
+      if (u.pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "1.0.4", storage: "persistent-files" });
       if (u.pathname === "/api/login" && req.method === "POST") {
         if (guestPreview)
           return json(res, 405, { error: "此预览直接进入，无需登录。" });

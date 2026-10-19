@@ -62,16 +62,16 @@ test('deadline preserves verified partial photos and late upstream responses can
   const { call, jobs } = await service(t, { fetcher, searchTimeoutMs: 400 });
   const { task } = await call('/tasks', { subject: '乐福鞋', days: 7, sourceScope: 2, sources: [] });
   let progress;
-  for (let i = 0; i < 40; i++) { progress = (await call('/tasks/' + task.id)).task; if (progress.progress.checked === 3) break; await new Promise(r => setTimeout(r, 5)); }
+  for (let i = 0; i < 40; i++) { progress = (await call('/tasks/' + task.id)).task; if (progress.progress.checked === 4) break; await new Promise(r => setTimeout(r, 5)); }
   assert.equal(progress.status, 'running');
   assert.equal(progress.progress.stage, 'verify');
-  assert.equal(progress.progress.checked, 3);
-  assert.equal(progress.items.length, 3);
+  assert.equal(progress.progress.checked, 4);
+  assert.equal(progress.items.length, 4);
   await Promise.all([...jobs.values()]);
   const finished = (await call('/tasks/' + task.id)).task;
   assert.equal(finished.status, 'review');
-  assert.equal(finished.items.length, 3);
-  assert.match(finished.message, /已保留 3 条/);
+  assert.equal(finished.items.length, 4);
+  assert.match(finished.message, /已保留 4 条/);
   release(new Response('<title>Loafers late response</title>', { headers: { 'content-type': 'text/html' } }));
   await new Promise(r => setTimeout(r, 20));
   assert.deepEqual((await call('/tasks/' + task.id)).task, finished);
