@@ -187,7 +187,7 @@ function sameStrings(left: string[], right: string[]) {
 }
 
 // Map API task to local Task type
-function mapApiTask(apiTask: Record<string, unknown>): Task {
+export function mapApiTask(apiTask: Record<string, unknown>): Task {
   const dueDate = apiTask.dueDate ? new Date(apiTask.dueDate as string).toISOString().split('T')[0] : null
   const startDate = apiTask.startDate ? String(apiTask.startDate) : null
   const completedAt = apiTask.completedAt ? new Date(apiTask.completedAt as string).toISOString() : null
@@ -210,6 +210,9 @@ function mapApiTask(apiTask: Record<string, unknown>): Task {
     projectId: (apiTask.projectId as string) || null,
     sourceProject: (apiTask.sourceProject as string) || null,
     sourceType: (apiTask.sourceType as string) || null,
+    topicId: (apiTask.topicId as string) || null,
+    taskType: (apiTask.taskType as string) || null,
+    archived: Boolean(apiTask.archived),
     parentTaskId: (apiTask.parentTaskId as string) || null,
     recurrence: (apiTask.recurrence as string || null) as Task['recurrence'],
     recurrenceConfig: (apiTask.recurrenceConfig as string) || null,
@@ -219,7 +222,7 @@ function mapApiTask(apiTask: Record<string, unknown>): Task {
   }
 }
 
-function mapApiProject(apiProject: Record<string, unknown>): Project {
+export function mapApiProject(apiProject: Record<string, unknown>): Project {
   return {
     id: apiProject.id as string,
     name: apiProject.name as string,
@@ -423,7 +426,7 @@ const accentHexMap: Record<string, string> = {
   indigo: '#6366f1', pink: '#ec4899', lime: '#84cc16', sky: '#0ea5e9',
 }
 
-export function TasksPage() {
+export function TasksPage({ initialTaskId = null, detailOnly = false, onDetailClose }: { initialTaskId?: string | null; detailOnly?: boolean; onDetailClose?: () => void } = {}) {
   useInterfaceLanguage()
   const { taskView, setTaskView } = useTaskStore()
   const [queueFilter, setQueueFilter] = useState<'all' | 'in-progress' | 'todo' | 'overdue' | 'done'>('all')
@@ -456,7 +459,7 @@ export function TasksPage() {
 
   const [searchQuery, setSearchQuery] = useState('')
   const [taskSection, setTaskSection] = useState<'mine' | 'recurring'>('mine')
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(initialTaskId)
   const [selectedTaskCard, setSelectedTaskCard] = useState<TaskCard | null>(null)
   const [taskCardLoadState, setTaskCardLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [taskWorkspaceMode, setTaskWorkspaceMode] = useState<'detail' | 'edit'>('detail')
@@ -682,7 +685,8 @@ export function TasksPage() {
     setSelectedTaskId(null)
     setTaskWorkspaceMode('detail')
     setEditTask(null)
-  }, [])
+    onDetailClose?.()
+  }, [onDetailClose])
 
   const handleTaskWorkspaceOpenChange = useCallback((open: boolean) => {
     if (open) return
@@ -908,6 +912,30 @@ export function TasksPage() {
       </div>
     </div>
   ) : null
+
+  const taskWorkspaceDialog = (
+      <Dialog open={!!selectedTask} onOpenChange={handleTaskWorkspaceOpenChange}>
+        {selectedTask && <DialogContent showCloseButton={taskWorkspaceMode === 'edit'} className="flex h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-[min(92dvh,900px)] sm:w-[calc(100vw-2rem)] sm:max-w-5xl sm:rounded-xl sm:border" aria-describedby="task-workspace-description">
+          <DialogHeader className="sr-only"><DialogTitle>{taskWorkspaceMode === 'edit' ? t('tasks.editTask') : selectedTask.title}</DialogTitle><DialogDescription id="task-workspace-description">{t('tasks.taskDetails')}</DialogDescription></DialogHeader>
+          <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background" aria-label={t('tasks.taskDetails')}>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <div className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-8 sm:py-8">
+              {taskWorkspaceMode === 'edit' ? taskEditContent : taskDetailContent}
+            </div>
+          </div>
+          {taskWorkspaceMode === 'edit' && editTask && (
+            <div className="flex-none border-t border-border bg-background/95 px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] sm:px-8">
+              <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-3 sm:justify-end">
+                <Button className="h-11 min-w-24" variant="outline" onClick={cancelTaskEdit}>{uiText('Back to task')}</Button>
+                <Button className="h-11 min-w-24" onClick={handleUpdateTask} disabled={!editTask.title.trim() || updateTaskMutation.isPending}>{updateTaskMutation.isPending ? t('loading') : t('save')}</Button>
+              </div>
+            </div>
+          )}
+          </section>
+        </DialogContent>}
+      </Dialog>
+  )
+  if (detailOnly) return taskWorkspaceDialog
 
   return (
     <div className="flex h-full min-h-0">
@@ -1400,26 +1428,7 @@ export function TasksPage() {
         </div>}
       </div>
 
-      <Dialog open={!!selectedTask} onOpenChange={handleTaskWorkspaceOpenChange}>
-        {selectedTask && <DialogContent showCloseButton={taskWorkspaceMode === 'edit'} className="flex h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-[min(92dvh,900px)] sm:w-[calc(100vw-2rem)] sm:max-w-5xl sm:rounded-xl sm:border" aria-describedby="task-workspace-description">
-          <DialogHeader className="sr-only"><DialogTitle>{taskWorkspaceMode === 'edit' ? t('tasks.editTask') : selectedTask.title}</DialogTitle><DialogDescription id="task-workspace-description">{t('tasks.taskDetails')}</DialogDescription></DialogHeader>
-          <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background" aria-label={t('tasks.taskDetails')}>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-            <div className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-8 sm:py-8">
-              {taskWorkspaceMode === 'edit' ? taskEditContent : taskDetailContent}
-            </div>
-          </div>
-          {taskWorkspaceMode === 'edit' && editTask && (
-            <div className="flex-none border-t border-border bg-background/95 px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] sm:px-8">
-              <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-3 sm:justify-end">
-                <Button className="h-11 min-w-24" variant="outline" onClick={cancelTaskEdit}>{uiText('Back to task')}</Button>
-                <Button className="h-11 min-w-24" onClick={handleUpdateTask} disabled={!editTask.title.trim() || updateTaskMutation.isPending}>{updateTaskMutation.isPending ? t('loading') : t('save')}</Button>
-              </div>
-            </div>
-          )}
-          </section>
-        </DialogContent>}
-      </Dialog>
+      {taskWorkspaceDialog}
 
       {/* Bulk Action Bar */}
       {selectionMode && selectedIds.size > 0 && (

@@ -1,4 +1,5 @@
 import { json } from './app/response.mjs';
+import { handleProjectTopics, taskTopicForProject } from './project-topics.mjs';
 import { buildRecurringTaskSeries } from './recurring-task-series.mjs';
 import { importLifeOsTasks, previewLifeOsTaskImport } from './lifeos-task-import.mjs';
 import { normalizeDotTaskExport } from './dot-task-export.mjs';
@@ -148,9 +149,9 @@ export async function processLifeOsRecurringTasks(env, now = Date.now()) {
                 VALUES (?,?,?,?,?)`).bind(lifeOsId(), task.id, completionKey, generatedId, timestamp),
             env.DB.prepare(`INSERT INTO personal_workbench_lifeos_tasks
                 (id,title,description,status,priority,due_date,start_date,completed_at,estimated_minutes,actual_minutes,recurrence,
-                 recurrence_config,position,archived,project_id,parent_task_id,created_at,updated_at)
+                 recurrence_config,position,archived,project_id,parent_task_id,created_at,updated_at,topic_id,task_type)
                 SELECT ?,title,description,'todo',priority,?,?,NULL,estimated_minutes,NULL,recurrence,recurrence_config,position,0,
-                       project_id,parent_task_id,?,? FROM personal_workbench_lifeos_tasks source
+                       project_id,parent_task_id,?,?,topic_id,task_type FROM personal_workbench_lifeos_tasks source
                 WHERE source.id=? AND EXISTS (SELECT 1 FROM lifeos_task_recurrence_runs WHERE generated_task_id=?)`)
                 .bind(generatedId, base.toISOString(), task.start_date, timestamp, timestamp, task.id, generatedId)
         ];
@@ -918,7 +919,7 @@ function lifeOsTask(row, projectSourceId = null) {
         position: Number(row.position), archived: Boolean(row.archived),
         createdAt: row.created_at, updatedAt: row.updated_at,
         projectId: row.project_id === null ? null : (projectSourceId || String(row.project_id)),
-        parentTaskId: row.parent_task_id
+        parentTaskId: row.parent_task_id, topicId: row.topic_id ?? null, taskType: row.task_type ?? null
     };
 }
 
@@ -1962,7 +1963,7 @@ const LIFEOS_PROJECT_STATUSES = new Set(['active', 'on-hold', 'completed', 'canc
 const LIFEOS_DATA_TABLES = [
     ['profile', 'lifeos_user_profile'], ['settings', 'lifeos_settings'], ['workspace', 'lifeos_workspaces'],
     ['widgets', 'lifeos_dashboard_widgets'], ['dashboardLayout', 'lifeos_widgets'], ['tags', 'lifeos_tags'],
-    ['projects', 'personal_workbench_lifeos_projects'], ['tasks', 'personal_workbench_lifeos_tasks'],
+    ['projects', 'personal_workbench_lifeos_projects'], ['topics', 'lifeos_project_topics'], ['tasks', 'personal_workbench_lifeos_tasks'],
     ['taskTags', 'lifeos_task_tags'], ['taskDependencies', 'lifeos_task_dependencies'],
     ['noteFolders', 'lifeos_note_folders'], ['notes', 'lifeos_notes'], ['noteTags', 'lifeos_note_tags'],
     ['noteLinks', 'lifeos_note_links'], ['bookmarks', 'lifeos_bookmarks'], ['bookmarkTags', 'lifeos_bookmark_tags'],
@@ -2003,6 +2004,7 @@ async function handleLifeOsDataManagement(request, env, url, actor) {
         // Keep upstream Life OS project IDs stable at the API/backup boundary.
         const projectIds = new Map(data.projects.map(project => [String(project.id), project.sourceId || String(project.id)]));
         data.projects = data.projects.map(({ id, title, sourceId, ...row }) => ({ ...row, id: sourceId || String(id), name: title }));
+        data.topics = data.topics.map(topic => ({ ...topic, projectId: projectIds.get(String(topic.projectId)) || String(topic.projectId) }));
         data.tasks = data.tasks.map(task => ({ ...task, projectId: task.projectId == null ? null : (projectIds.get(String(task.projectId)) || String(task.projectId)) }));
         data.goalProjects = data.goalProjects.map(link => ({ ...link, projectId: projectIds.get(String(link.projectId)) || String(link.projectId) }));
         const stats = await handleLifeOsDataStats(request, env, new URL('https://local/api/personal-workbench/lifeos/data/stats'));
@@ -2014,6 +2016,8 @@ async function handleLifeOsDataManagement(request, env, url, actor) {
         if (!body || body.version !== '1.1.0' || !body.data || typeof body.data !== 'object' || Array.isArray(body.data)) {
             return json({ error: "Invalid import format: expected 'version' and object 'data'" }, 400);
         }
+        // Topics are additive; backups made before this organizational layer remain importable.
+        if (!Object.hasOwn(body.data, 'topics')) body.data.topics = [];
         const expectedKeys = new Set(LIFEOS_EXPORT_TABLES.map(([key]) => key));
         const suppliedKeys = Object.keys(body.data);
         const missingKeys = [...expectedKeys].filter(key => !Object.hasOwn(body.data, key));
@@ -2055,7 +2059,7 @@ async function handleLifeOsDataManagement(request, env, url, actor) {
             for (const rawRow of rows) {
                 let row = rawRow;
                 if (!row || typeof row !== 'object' || Array.isArray(row)) continue;
-                if (key === 'tasks' && row.projectId != null) {
+                if ((key === 'tasks' || key === 'topics') && row.projectId != null) {
                     const mappedProjectId = projectIdMap.get(String(row.projectId));
                     if (mappedProjectId !== undefined) row = { ...row, projectId: Number(mappedProjectId) };
                 }
@@ -2278,10 +2282,13 @@ async function handleLifeOsTasks(request, env, url, actor) {
         if (parentTaskId && !await env.DB.prepare('SELECT id FROM personal_workbench_lifeos_tasks WHERE id = ?').bind(parentTaskId).first()) {
             return json({ error: 'Parent task not found' }, 404);
         }
+        const topic = await taskTopicForProject(env, body.topicId, projectId);
+        if (topic.error) return json({ error: topic.error }, topic.status);
+        if (body.taskType != null && (typeof body.taskType !== 'string' || body.taskType.trim().length > 60)) return json({ error: '任务类型最多 60 个字符' }, 400);
         const created = await env.DB.prepare(`INSERT INTO personal_workbench_lifeos_tasks
             (id,title,description,status,priority,due_date,start_date,completed_at,estimated_minutes,actual_minutes,
-             recurrence,recurrence_config,position,archived,project_id,parent_task_id,created_at,updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?)`).bind(
+             recurrence,recurrence_config,position,archived,project_id,parent_task_id,created_at,updated_at,topic_id,task_type)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,?,?)`).bind(
             id, title, typeof body.description === 'string' && body.description !== '' ? body.description : null, status, priority,
             parseLifeOsDate(body.dueDate) ?? null, parseLifeOsDate(body.startDate) ?? null, null,
             Number.isInteger(body.estimatedMinutes) && body.estimatedMinutes !== 0 ? body.estimatedMinutes : null,
@@ -2289,7 +2296,7 @@ async function handleLifeOsTasks(request, env, url, actor) {
             typeof body.recurrence === 'string' && body.recurrence !== '' ? body.recurrence : null,
             typeof body.recurrenceConfig === 'string' && body.recurrenceConfig !== '' ? body.recurrenceConfig : null,
             Number.isInteger(body.position) ? body.position : 0,
-            projectId, parentTaskId, timestamp, timestamp
+            projectId, parentTaskId, timestamp, timestamp, topic.topicId, text(body.taskType, 60) || null
         ).run();
         if (!created.success) return json({ error: 'Could not create task' }, 500);
         if (body.tags !== undefined) await setLifeOsTaskTags(env, id, body.tags, timestamp);
@@ -2342,9 +2349,13 @@ async function handleLifeOsTasks(request, env, url, actor) {
             projectId = Number(project.id);
         }
     }
+    const topic = await taskTopicForProject(env, body.topicId === undefined
+        ? (Number(projectId) === Number(existing.project_id) ? existing.topic_id : null) : body.topicId, projectId);
+    if (topic.error) return json({ error: topic.error }, topic.status);
+    if (body.taskType != null && (typeof body.taskType !== 'string' || body.taskType.trim().length > 60)) return json({ error: '任务类型最多 60 个字符' }, 400);
     await env.DB.prepare(`UPDATE personal_workbench_lifeos_tasks SET title=?,description=?,status=?,priority=?,
         due_date=?,start_date=?,completed_at=?,estimated_minutes=?,actual_minutes=?,recurrence=?,recurrence_config=?,
-        position=?,archived=?,project_id=?,parent_task_id=?,updated_at=? WHERE id=?`).bind(
+        position=?,archived=?,project_id=?,parent_task_id=?,updated_at=?,topic_id=?,task_type=? WHERE id=?`).bind(
         title, patchString('description'), status, priority, optionalDate('dueDate', 'due_date'),
         optionalDate('startDate', 'start_date'), completedAt,
         body.estimatedMinutes === undefined ? existing.estimated_minutes : (Number.isInteger(body.estimatedMinutes) ? body.estimatedMinutes : null),
@@ -2352,7 +2363,8 @@ async function handleLifeOsTasks(request, env, url, actor) {
         nullable('recurrence'), nullable('recurrenceConfig', 'recurrence_config'),
         Number.isInteger(body.position) ? body.position : existing.position,
         typeof body.archived === 'boolean' ? (body.archived ? 1 : 0) : existing.archived, projectId,
-        body.parentTaskId === undefined ? existing.parent_task_id : (typeof body.parentTaskId === 'string' && body.parentTaskId !== '' ? body.parentTaskId : null), updatedAt, id
+        body.parentTaskId === undefined ? existing.parent_task_id : (typeof body.parentTaskId === 'string' && body.parentTaskId !== '' ? body.parentTaskId : null), updatedAt, topic.topicId,
+        body.taskType === undefined ? existing.task_type : (text(body.taskType, 60) || null), id
     ).run();
     if (body.tags !== undefined) await setLifeOsTaskTags(env, id, body.tags);
     await auditLifeOs(env, actor, 'task.updated', id, { changed: Object.keys(body) });
@@ -2395,6 +2407,8 @@ export async function handlePersonalWorkbench(request, env, url, auth) {
     if (lifeOsJournalResponse) return lifeOsJournalResponse;
     const projectCompatibilityResponse = await handleLifeOsProjectCompatibility(request, env, url, actor);
     if (projectCompatibilityResponse) return projectCompatibilityResponse;
+    const topicResponse = await handleProjectTopics(request, env, url, actor);
+    if (topicResponse) return topicResponse;
     const lifeOsTaskResponse = await handleLifeOsTasks(request, env, url, actor);
     if (lifeOsTaskResponse) return lifeOsTaskResponse;
     const lifeOsEventsResponse = await handleLifeOsEvents(request, env, url, actor);

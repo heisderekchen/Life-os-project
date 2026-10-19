@@ -4,6 +4,8 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  // Component tests do not compile production styles; browser acceptance covers CSS.
+  css: { postcss: { plugins: [] } },
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/__tests__/setup.ts'],

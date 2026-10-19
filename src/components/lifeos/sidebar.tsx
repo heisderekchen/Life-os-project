@@ -4,12 +4,12 @@ import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
 
 import { useEffect, useMemo, useState } from 'react'
 import { useAppStore, type ModuleId } from '@/stores/app-store'
+import { useTaskStore } from '@/stores/task-store'
 import { useTranslation } from '@/lib/i18n'
 import { apiPath } from '@/lib/api/client'
 import {
   LayoutDashboard,
   Bell,
-  CheckSquare,
   FolderKanban,
   StickyNote,
   Repeat,
@@ -49,7 +49,7 @@ function WorkspaceLinks() {
 
 function SidebarContent({ collapsed }: { collapsed: boolean }) {
   const { activeModule, setActiveModule, setMobileSidebarOpen, enabledModules } = useAppStore()
-  const { t } = useTranslation()
+  const { t, language } = useTranslation()
   const [projects, setProjects] = useState<{ id?: string; name?: string; archived?: boolean }[]>([])
   const [projectsStatus, setProjectsStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
@@ -89,13 +89,12 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
       items: [
         { id: 'dashboard' as ModuleId, label: t('nav.overview'), icon: LayoutDashboard },
         { id: 'reminders' as ModuleId, label: t('nav.attention'), icon: Bell },
-        { id: 'tasks' as ModuleId, label: t('nav.dynamicTasks'), icon: CheckSquare },
       ],
     },
     {
       title: t('nav.projects'),
       items: [
-        { id: 'projects' as ModuleId, label: t('nav.projects'), icon: FolderKanban },
+        { id: 'projects' as ModuleId, label: language === 'zh' ? '项目与任务' : 'Projects & tasks', icon: FolderKanban },
       ],
     },
     {
@@ -204,11 +203,11 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
           {!collapsed ? <div className="pt-1">
             <div className="mb-1 flex min-h-7 items-center justify-between px-2">
               <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">{t('nav.projectList')}</p>
-              <button type="button" className="rounded px-1 text-[11px] text-muted-foreground hover:text-foreground" onClick={() => handleNav('projects')}>全部</button>
+              <button type="button" className="rounded px-1 text-[11px] text-muted-foreground hover:text-foreground" onClick={() => { useTaskStore.getState().setSelectedProjectId('__all__'); handleNav('projects') }}>全部</button>
             </div>
             {projectsStatus === 'loading' ? <p className="px-2 py-2 text-xs text-muted-foreground">正在读取项目…</p>
               : projectsStatus === 'error' ? <p role="status" className="px-2 py-2 text-xs text-muted-foreground">项目暂不可用</p>
-                : projects.filter(project => !project.archived).slice(0, 4).map((project, index) => <button key={project.id || project.name} type="button" onClick={() => handleNav('projects')} className="flex min-h-9 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-muted-foreground hover:bg-accent/60 hover:text-foreground" title={project.name || ''}>
+                : projects.filter(project => !project.archived).slice(0, 4).map((project, index) => <button key={project.id || project.name} type="button" onClick={() => { useTaskStore.getState().setSelectedProjectId(project.id || null); handleNav('projects') }} className="flex min-h-9 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-muted-foreground hover:bg-accent/60 hover:text-foreground" title={project.name || ''}>
                   <span className={cn('h-2 w-2 shrink-0 rounded-[3px]', ['bg-emerald-500', 'bg-amber-500', 'bg-blue-500', 'bg-violet-500'][index % 4])} />
                   <span className="truncate">{project.name || '未命名项目'}</span>
                 </button>)}

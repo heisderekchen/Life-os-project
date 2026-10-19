@@ -447,7 +447,7 @@ async function workbench(path, method = 'GET', body) {
 const exportResponse = await workbench('/api/personal-workbench/lifeos/data/export')
 assert.equal(exportResponse.status, 200)
 const exported = await exportResponse.json()
-assert.equal(Object.keys(exported.data).length, 40)
+assert.equal(Object.keys(exported.data).length, 41)
 assert.equal(Object.keys(exported.data).every(key => !key.startsWith('platform')), true)
 assert.equal(Object.hasOwn(exported.data, 'accounts'), false)
 assert.equal(Object.hasOwn(exported.data, 'accountWorkspaces'), false)

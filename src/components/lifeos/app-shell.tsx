@@ -22,8 +22,7 @@ import { CommandPalette } from './command-palette'
 import { GlobalSearchPanel } from './global-search-panel'
 import { SetupWizard } from './setup/setup-wizard'
 import { WelcomeScreen } from './welcome/welcome-screen'
-import { TasksPage } from './tasks/tasks-page'
-import { ProjectsPage } from './projects/projects-page'
+import { ProjectWorkspace } from './projects/project-workspace'
 import { NotesPage } from './notes/notes-page'
 import { HabitsPage } from './habits/habits-page'
 import { JournalPage } from './journal/journal-page'
@@ -50,8 +49,8 @@ const moduleComponents: Record<string, React.ComponentType> = {
   dashboard: MyOsHome,
   reminders: RemindersPage,
   myos: MyOsPage,
-  tasks: TasksPage,
-  projects: ProjectsPage,
+  tasks: ProjectWorkspace,
+  projects: ProjectWorkspace,
   notes: NotesPage,
   habits: HabitsPage,
   journal: JournalPage,
@@ -367,6 +366,7 @@ export function MobilePrimaryNav({ activeModule, onNavigate }: {
   onNavigate: (module: ModuleId) => void
 }) {
   const { t } = useTranslation()
+  const currentModule = activeModule === 'projects' ? 'tasks' : activeModule
   const primary = [
     { id: 'dashboard' as ModuleId, label: t('nav.overview'), icon: Home },
     { id: 'reminders' as ModuleId, label: t('nav.reminders'), icon: Bell },
@@ -376,7 +376,7 @@ export function MobilePrimaryNav({ activeModule, onNavigate }: {
   return (
     <nav aria-label={uiText('Primary navigation')} className="grid min-h-14 shrink-0 grid-cols-4 gap-1 border-t border-border bg-background/95 px-2 pt-1 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
       {primary.map(({ id, label, icon: Icon }) => (
-        <button key={id} type="button" aria-current={activeModule === id ? 'page' : undefined} aria-pressed={activeModule === id} onClick={() => onNavigate(id)} className={activeModule === id ? 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md bg-accent text-foreground' : 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md text-muted-foreground'} style={activeModule === id ? { color: 'var(--accent-primary)', backgroundColor: 'color-mix(in srgb, var(--accent-primary) 12%, transparent)' } : undefined}>
+        <button key={id} type="button" aria-current={currentModule === id ? 'page' : undefined} aria-pressed={currentModule === id} onClick={() => onNavigate(id)} className={currentModule === id ? 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md bg-accent text-foreground' : 'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md text-muted-foreground'} style={currentModule === id ? { color: 'var(--accent-primary)', backgroundColor: 'color-mix(in srgb, var(--accent-primary) 12%, transparent)' } : undefined}>
           <Icon className="h-[18px] w-[18px]" />
           <span className="text-xs font-medium">{label}</span>
         </button>
