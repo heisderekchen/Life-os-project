@@ -16,7 +16,8 @@ test('real private catalogue supplies Nike and footwear media; admin exclusions 
   assert(plan.some(p => p.catalogue === 'nike' && p.domains.includes('nike.com')));
   assert(plan.flatMap(p => p.domains).length > 15);
   assert(plan.some(p => p.domains.includes('footwearnews.com')));
-  assert(!plan.some(p => p.domains.includes('miumiu.com')));
+  assert.equal(new Set(plan.flatMap(p => p.domains)).size, 1000);
+  assert(plan[0].domains.includes('nike.com'));
   const nike = data.sources.find(s => s.domain === 'nike.com');
   await store.update(nike.id, { review: 'exclude' }, data.revision);
   const changed = sourceSearchPlan(input, (await store.read()).sources);

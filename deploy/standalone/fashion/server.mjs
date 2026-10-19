@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { abortable } from "./async-control.mjs";
+import { runSourceQueue } from './source-queue.mjs';
 import { sourceCatalog } from "./public/source-catalog.js";
 import { searchPhotos, imageDeclared, matchesIntent, exportHTML } from "./photo-search.mjs";
 import { readFile, writeFile, mkdir, rename, unlink } from "node:fs/promises";
@@ -14,7 +15,7 @@ const json = (res, status, data) => {
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store",
   });
-  res.end(JSON.stringify(data));
+  res.end(JSON.stringify(data, (key, value) => key === 'sourceQueue' ? undefined : value));
 };
 const text = (v) =>
   String(v ?? "")
@@ -357,12 +358,20 @@ export function createApp({
   }
   function prepareSearch(task) {
     const now = new Date().toISOString();
+    const priorQueue = task.sourceQueue && Array.isArray(task.sourceQueue.records) ? task.sourceQueue : null;
     task.status = 'running';
     task.message = '';
     task.channels = [];
     task.updatedAt = now;
+    const priorProgress = priorQueue ? {
+      plannedSources: priorQueue.plannedSources || 0,
+      queriedSources: priorQueue.queriedSources || 0,
+      matchedSources: priorQueue.matchedSources || 0,
+      failedSources: priorQueue.failedSources || 0,
+      pendingSources: priorQueue.pendingSources || 0,
+    } : {};
     task.progress = { stage: 'discover', startedAt: now, deadlineAt: new Date(Date.now() + searchTimeoutMs).toISOString(),
-      channelsDone: 0, totalChannels: 0, candidates: 0, checked: 0, accepted: 0 };
+      channelsDone: 0, totalChannels: 0, candidates: 0, checked: 0, accepted: 0, ...priorProgress };
   }
   function noResultsMessage(task) {
     const rejected = task.channels.reduce((all, channel) => {
@@ -381,7 +390,8 @@ export function createApp({
     const key = account + task.id;
     if (jobs.has(key)) throw Error("任务正在检索，请稍候。");
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(new DOMException('检索超时', 'TimeoutError')), searchTimeoutMs);
+    let timeout = setTimeout(() => controller.abort(new DOMException('检索超时', 'TimeoutError')), searchTimeoutMs);
+    const clearMainTimer = () => { if (timeout) { clearTimeout(timeout); timeout = null; } };
     const jobFetcher = (url, options = {}) => abortable(() => fetcher(url, { ...options,
       signal: options.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal }), controller.signal);
     jobFetcher.trustedRelayHosts = fetcher.trustedRelayHosts;
@@ -390,6 +400,20 @@ export function createApp({
       const previous = old.get(x.url + ':' + x.imageSha256);
       return previous ? { ...x, id: previous.id, review: previous.review, selected: previous.selected, note: previous.note, reviewedAt: previous.reviewedAt } : x;
     });
+    const mergeItems = incoming => {
+      const existing = new Map(task.items.map(x => [x.imageSha256, x]));
+      for (const x of incoming) if (x && x.imageSha256 && !existing.has(x.imageSha256)) existing.set(x.imageSha256, x);
+      const list = [...existing.values()];
+      list.sort((a, b) => {
+        const da = a.publishedAt ? Date.parse(a.publishedAt) : NaN;
+        const db = b.publishedAt ? Date.parse(b.publishedAt) : NaN;
+        if (Number.isFinite(da) && Number.isFinite(db)) return db - da;
+        if (Number.isFinite(da)) return -1;
+        if (Number.isFinite(db)) return 1;
+        return 0;
+      });
+      task.items = list;
+    };
     let active = true;
     const job = (async () => {
       try {
@@ -397,28 +421,131 @@ export function createApp({
           if (!active || controller.signal.aborted) return;
           task.progress = { ...task.progress, ...progress };
           task.channels = channels;
-          if (items.length) task.items = retainReview(items);
+          if (items.length) mergeItems(retainReview(items));
           task.updatedAt = new Date().toISOString();
           await save(account);
         };
         const plans = await abortable(async () => await planSources(task.input) || searchPlan(task.input), controller.signal);
-        const result = await abortable(() => photoSearch ? searchPhotos(task.input, {
-          fetcher: jobFetcher, plans, readPage: getPublic, readImage: getImage,
-          saveAsset, signal: controller.signal, onProgress,
-        }) : runSearch(task.input, jobFetcher), controller.signal);
-        task.items = retainReview(result.items);
-        task.channels = result.channels;
-        task.status = 'review';
-        task.message = task.items.length ? '' : noResultsMessage(task);
+        const broadScope = photoSearch && task.input.sourceScope === 2 && Array.isArray(plans) && plans.some(p => p.domains.length);
+        if (broadScope) {
+          clearMainTimer();
+          const excludedDomains = plans.excludedDomains || [];
+          const priorRecords = (task.sourceQueue && Array.isArray(task.sourceQueue.records)) ? task.sourceQueue.records : [];
+          if (!priorRecords.length) task.items = [];
+          const resumeRecords = priorRecords.map(r => ({ ...r }));
+          const entries = plans;
+          const queueSignal = AbortSignal.any([controller.signal]);
+          const result = await runSourceQueue({
+            entries,
+            previous: resumeRecords,
+            signal: queueSignal,
+            concurrency: 3,
+            entryTimeoutMs: 20000,
+            retryFailed: true,
+            runEntry: async (entry, { signal: entrySignal, onPartial }) => {
+              const comboSignal = AbortSignal.any([entrySignal, controller.signal]);
+              const entryFetcher = (url, options = {}) => abortable(() => fetcher(url, { ...options,
+                signal: options.signal ? AbortSignal.any([comboSignal, options.signal]) : comboSignal }), comboSignal);
+              entryFetcher.trustedRelayHosts = fetcher.trustedRelayHosts;
+              const entryPlans = [entry];
+              entryPlans.excludedDomains = excludedDomains;
+              const value = await searchPhotos({ ...task.input, sourceScope: 0, domains: [] }, {
+                fetcher: entryFetcher,
+                plans: entryPlans,
+                readPage: getPublic,
+                readImage: getImage,
+                saveAsset,
+                signal: comboSignal,
+                onProgress: async (p) => { if (typeof onPartial === 'function') await onPartial(p); },
+              });
+              return value;
+            },
+            onPartial: async (value) => {
+              if (!active || controller.signal.aborted) return;
+              if (value && Array.isArray(value.items) && value.items.length) {
+                mergeItems(retainReview(value.items));
+                const storeChannel = { provider: '公开来源索引', query: '分批来源查询', count: task.items.length };
+                task.channels = [storeChannel];
+                task.updatedAt = new Date().toISOString();
+                await save(account);
+              }
+            },
+            onResult: async ({ entry, value }) => {
+              if (!active || controller.signal.aborted) return;
+              if (value && Array.isArray(value.items) && value.items.length) {
+                mergeItems(retainReview(value.items));
+              }
+              const storeChannel = { provider: '公开来源索引', query: '分批来源查询', count: task.items.length };
+              task.channels = [storeChannel];
+              task.updatedAt = new Date().toISOString();
+              await save(account);
+            },
+            onUpdate: async (snapshot) => {
+              if (!active || controller.signal.aborted) return;
+              const records = Array.isArray(snapshot.records) ? snapshot.records : [];
+              task.sourceQueue = {
+                records: records.map(r => ({ ...r })),
+                plannedSources: snapshot.plannedSources || 0,
+                queriedSources: snapshot.queriedSources || 0,
+                matchedSources: snapshot.matchedSources || 0,
+                failedSources: snapshot.failedSources || 0,
+                pendingSources: snapshot.pendingSources || 0,
+                updatedAt: new Date().toISOString(),
+              };
+              task.progress = {
+                ...task.progress,
+                stage: 'source-queue',
+                deadlineAt: null,
+                plannedSources: snapshot.plannedSources || 0,
+                queriedSources: snapshot.queriedSources || 0,
+                matchedSources: snapshot.matchedSources || 0,
+                failedSources: snapshot.failedSources || 0,
+                pendingSources: snapshot.pendingSources || 0,
+                accepted: task.items.length,
+              };
+              const storeChannel = { provider: '公开来源索引', query: '分批来源查询', count: task.items.length };
+              task.channels = [storeChannel];
+              task.updatedAt = new Date().toISOString();
+              await save(account);
+            },
+          });
+          const q = task.sourceQueue || {};
+          const planned = q.plannedSources || plans.length;
+          const queried = q.queriedSources || 0;
+          const failed = q.failedSources || 0;
+          const pending = q.pendingSources || 0;
+          if (pending > 0) {
+            task.status = task.items.length ? 'review' : 'error';
+            task.message = `已完成 ${queried} 个来源查询（失败 ${failed} 个），仍有 ${pending} 个来源未完成；可稍后继续（记录已保存）。`;
+          } else {
+            task.status = 'review';
+            const summary = `已完成 ${queried} / ${planned} 个来源查询，${failed} 个来源失败（失败不等于无结果）。`;
+            if (!task.items.length) {
+              task.message = noResultsMessage(task) + ' ' + summary;
+            } else {
+              task.message = summary;
+            }
+          }
+          task.channels = [{ provider: '公开来源索引', query: '分批来源查询', count: task.items.length }];
+        } else {
+          const result = await abortable(() => photoSearch ? searchPhotos(task.input, {
+            fetcher: jobFetcher, plans, readPage: getPublic, readImage: getImage,
+            saveAsset, signal: controller.signal, onProgress,
+          }) : runSearch(task.input, jobFetcher), controller.signal);
+          task.items = retainReview(result.items);
+          task.channels = result.channels;
+          task.status = 'review';
+          task.message = task.items.length ? '' : noResultsMessage(task);
+        }
       } catch (e) {
         const timedOut = controller.signal.aborted;
         task.status = timedOut && task.progress.accepted ? 'review' : 'error';
         task.message = timedOut
           ? `本次检索已达到 ${Math.ceil(searchTimeoutMs / 1000)} 秒时限。${task.progress.accepted ? `已保留 ${task.items.length} 条通过来源核对的结果，可继续核查或重新检索。` : '部分来源未响应，请重试或调整条件。'}`
-          : e.message;
+          : (e && e.message) || '检索失败';
       } finally {
         active = false;
-        clearTimeout(timeout);
+        clearMainTimer();
         task.progress = { ...task.progress, stage: task.status === 'error' ? 'error' : 'done', finishedAt: new Date().toISOString() };
         task.updatedAt = new Date().toISOString();
         try { await save(account); }
@@ -607,7 +734,7 @@ export function createApp({
         if (req.method === "GET") return json(res, 200, { task });
         if (req.method !== "POST")
           return json(res, 405, { error: "不支持的操作。" });
-        if (task.status === "running")
+        if (task.status === "running" && !(task.sourceQueue && ["review", "image-error"].includes(m[2])))
           return json(res, 409, { error: "任务正在执行，请稍候。" });
         if (m[2] === 'image-error') {
           const b = await body(req), item = task.items.find(i => i.id === b.id);
@@ -621,6 +748,7 @@ export function createApp({
         if (m[2] === "retry") {
           if (task.delivery)
             return json(res, 409, { error: "请先重新打开交付。" });
+          if (task.sourceQueue && task.sourceQueue.pendingSources === 0 && task.sourceQueue.failedSources === 0) delete task.sourceQueue;
           prepareSearch(task);
           await save(account);
           json(res, 200, { task });

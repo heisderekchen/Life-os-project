@@ -41,6 +41,7 @@ let state = {
     id: null,
     filter: "all",
     resultFilter: "all",
+    visibleCount: 60,
   },
   timer,
   noticeTimer,
@@ -98,6 +99,7 @@ function go(page, id = null) {
   state.page = page;
   state.id = id;
   state.resultFilter = "all";
+  state.visibleCount = 60;
   render();
   window.scrollTo({ top: 0, behavior: "instant" });
   const heading = root.querySelector("h1");
@@ -272,6 +274,18 @@ let refreshing = false;
 function searchStatus(t) {
   const p = t.progress || {};
   const elapsed = Math.max(0, Math.floor((Date.now() - Date.parse(p.startedAt || t.updatedAt || t.createdAt)) / 1000));
+  if (typeof p.plannedSources === 'number' && p.stage === 'source-queue') {
+    const heading = '正在分批检索来源';
+    const counts = `已查询 ${p.queriedSources || 0} / ${p.plannedSources || 0} 个来源 · 有素材 ${p.matchedSources || 0} 个 · 失败 ${p.failedSources || 0} 个`;
+    const clock = `已保留 ${p.accepted || 0} 条素材，检索会继续在后台进行`;
+    return { heading, counts, clock };
+  }
+  if (typeof p.plannedSources === 'number' && (p.stage === 'done' || p.stage === 'error')) {
+    const heading = p.stage === 'error' ? '来源检索已中断' : '来源检索已完成';
+    const counts = `已查询 ${p.queriedSources || 0} / ${p.plannedSources || 0} 个来源 · 有素材 ${p.matchedSources || 0} 个 · 失败 ${p.failedSources || 0} 个`;
+    const clock = `已保留 ${p.accepted || 0} 条素材`;
+    return { heading, counts, clock };
+  }
   const limit = p.deadlineAt ? Math.ceil((Date.parse(p.deadlineAt) - Date.parse(p.startedAt)) / 1000) : 90;
   const heading = p.stage === 'verify' ? '正在核对原始来源与图片' : '正在检索公开来源';
   const counts = p.stage === 'verify' ? `已核对 ${p.checked || 0} / ${p.candidates || 0} 条候选 · 已保留 ${p.accepted || 0} 条`
@@ -319,7 +333,7 @@ function detail(t) {
           )
           .join(
             "",
-          )}</select></label><span>先核查，再选入</span>${!t.delivery && t.status !== "running" ? '<button class="text-button" data-action="retry">重新检索</button>' : ""}</div><div class="results">${items.length ? items.map((i) => result(i, !!t.delivery || t.status === "running")).join("") : '<p class="hint">没有符合当前筛选的结果。</p>'}</div>`
+          )}</select></label><span>先核查，再选入</span>${!t.delivery && t.status !== "running" ? '<button class="text-button" data-action="retry">重新检索</button>' : ""}</div><div class="results">${items.length ? items.slice(0, state.visibleCount).map((i) => result(i, !!t.delivery || (t.status === "running" && !t.progress?.plannedSources))).join("") : '<p class="hint">没有符合当前筛选的结果。</p>'}</div>${items.length > state.visibleCount ? '<button class="secondary" data-action="more-results">显示更多素材</button>' : ''}`
       : ""
   }${t.channels.length ? `<details class="channel-log"><summary>本次检索范围与渠道记录</summary><ul>${t.channels.map((c) => `<li>${esc(c.provider)} · ${c.status === "error" ? "暂不可用" : c.count + " 条符合条件"}<br>${esc(c.query)}</li>`).join("")}</ul></details>` : ""}${t.items.length && !t.delivery ? `<div class="action-bar"><span>已选 ${n} 条<br>选入内容将保存为交付结果</span><button class="primary" data-action="deliver" ${n && t.status !== "running" ? "" : "disabled"}>生成交付结果</button></div>` : ""}`;
 }
@@ -455,6 +469,7 @@ function bind() {
   });
   $("#result-filter")?.addEventListener("change", (e) => {
     state.resultFilter = e.target.value;
+    state.visibleCount = 60;
     render();
   });
   root.querySelectorAll("[data-review]").forEach((f) => {
@@ -524,6 +539,7 @@ function bind() {
             go("detail", task.id);
           }
           if (action === "refresh") await refresh();
+          if (action === "more-results") { state.visibleCount += 60; render(); }
           if (action === "retry") {
             refreshError = "";
             await taskAction("retry");
