@@ -52,15 +52,44 @@ export async function handleProjectTopics(request, env, url, actor) {
   if (duplicate) return json({ error: '该项目下已有同名主题' }, 409)
   const timestamp = new Date().toISOString()
   const topicId = id || crypto.randomUUID()
+  if (id && body.fromUnclassified === true) return json({ error: '只能将未分类分组保存为新主题' }, 400)
+  let unclassified = []
+  if (!id && body.fromUnclassified === true) {
+    // Resolve recorded parent ownership just as the workspace does. This action
+    // covers the entire project group, independently of client-side filters.
+    const rows = (await env.DB.prepare('SELECT id,project_id,topic_id,parent_task_id,archived,updated_at FROM personal_workbench_lifeos_tasks').all()).results || []
+    const topicRows = (await env.DB.prepare('SELECT id,project_id FROM lifeos_project_topics').all()).results || []
+    const byId = new Map(rows.map(row => [row.id, row]))
+    const topicProjects = new Map(topicRows.map(row => [row.id, Number(row.project_id)]))
+    unclassified = rows.filter(row => {
+      if (row.archived) return false
+      const chain = [], seen = new Set()
+      let current = row
+      while (current && !seen.has(current.id)) { chain.push(current); seen.add(current.id); current = byId.get(current.parent_task_id) }
+      let effectiveProject = null, effectiveTopic = null
+      for (const ancestor of chain.reverse()) {
+        if (ancestor.project_id != null && ancestor.project_id !== effectiveProject) effectiveTopic = null
+        effectiveProject = ancestor.project_id ?? effectiveProject
+        effectiveTopic = ancestor.topic_id || effectiveTopic
+      }
+      return Number(effectiveProject) === projectId && (!effectiveTopic || topicProjects.get(effectiveTopic) !== projectId)
+    })
+  }
+  let movedTaskCount = 0
   try {
-    await env.DB.batch([
+    const result = await env.DB.batch([
       id ? env.DB.prepare('UPDATE lifeos_project_topics SET name=?,updated_at=? WHERE id=?').bind(name, timestamp, id)
         : env.DB.prepare('INSERT INTO lifeos_project_topics (id,project_id,name,created_at,updated_at) VALUES (?,?,?,?,?)').bind(topicId, projectId, name, timestamp, timestamp),
-      audit(id ? 'topic.updated' : 'topic.created', { id: topicId, name, projectId }),
+      ...unclassified.map(row => env.DB.prepare(`UPDATE personal_workbench_lifeos_tasks SET project_id=?,topic_id=?,updated_at=?
+        WHERE id=? AND updated_at=? AND project_id IS ? AND topic_id IS ? AND parent_task_id IS ?`)
+        .bind(projectId, topicId, timestamp, row.id, row.updated_at, row.project_id, row.topic_id, row.parent_task_id)),
+      audit(id ? 'topic.updated' : 'topic.created', { id: topicId, name, projectId, ...(body.fromUnclassified === true ? { fromUnclassified: true, taskIds: unclassified.map(row => row.id) } : {}) }),
     ])
+    movedTaskCount = result.slice(1, 1 + unclassified.length).reduce((sum, item) => sum + Number(item.meta?.changes || 0), 0)
   } catch (error) {
     if (/UNIQUE constraint/i.test(String(error))) return json({ error: '该项目下已有同名主题' }, 409)
     throw error
   }
-  return json(serialize(await env.DB.prepare(`${select} WHERE t.id=?`).bind(topicId).first()), id ? 200 : 201)
+  const topic = serialize(await env.DB.prepare(`${select} WHERE t.id=?`).bind(topicId).first())
+  return json({ ...topic, ...(body.fromUnclassified === true ? { movedTaskCount, skippedTaskCount: unclassified.length - movedTaskCount } : {}) }, id ? 200 : 201)
 }

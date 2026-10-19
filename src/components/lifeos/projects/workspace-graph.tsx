@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
-import { ReactFlow, ReactFlowProvider, Controls, Handle, Position, useReactFlow, type Node, type NodeProps, type Edge } from '@xyflow/react'
-import { ChevronRight, FileText, Folder, Layers } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ReactFlow, ReactFlowProvider, Controls, ControlButton, Handle, Position, useReactFlow, type Node, type NodeProps, type Edge, type NodeChange, type XYPosition } from '@xyflow/react'
+import { ChevronRight, FileText, Folder, Layers, RotateCcw } from 'lucide-react'
 import { useReducedMotion } from 'framer-motion'
 import { nodeKey, taskAncestors, taskTree, type TaskBranch, type WorkspaceGroup, type WorkspaceSelection } from './workspace-model'
 import { WorkspaceContextMenu, WorkspaceActionsButton, type WorkspaceMenu } from './workspace-actions'
@@ -15,7 +15,7 @@ function WorkspaceNode({ data, selected }: NodeProps<GraphNode>) {
   const Icon = data.kind === 'project' ? Folder : data.kind === 'topic' ? Layers : FileText
   return <WorkspaceContextMenu menu={data.menu}><div className={`workspace-node ${selected ? 'is-selected' : ''} ${data.contextOnly ? 'is-context' : ''}`}>
     <Handle type="target" position={Position.Left} className="workspace-handle" />
-    <button type="button" className="workspace-node-content nodrag nopan" onClick={event => { event.stopPropagation(); data.onSelect() }} aria-label={`${data.label}, ${data.caption}`} aria-pressed={selected}>
+    <button type="button" className="workspace-node-content nopan" onClick={event => { event.stopPropagation(); data.onSelect() }} aria-label={`${data.label}, ${data.caption}`} aria-pressed={selected} onDoubleClick={event => { event.stopPropagation(); data.menu?.actions.find(action => action.id === 'rename')?.run() }} onKeyDown={event => { if (event.key === 'F2') { event.preventDefault(); data.menu?.actions.find(action => action.id === 'rename')?.run() } }}>
       <Icon size={18} aria-hidden="true" />
       <span className="min-w-0 flex-1"><span className="block truncate font-medium" title={data.label}>{data.label}</span><span className="mt-1 block truncate text-xs text-muted-foreground">{data.caption}</span></span>
     </button>
@@ -31,6 +31,41 @@ function Graph({ groups, selection, expanded, onExpand, onSelect, menuFor, match
 }) {
   const flow = useReactFlow<GraphNode>()
   const reducedMotion = useReducedMotion()
+  const [positions, setPositions] = useState<Record<string, XYPosition>>({})
+  const [positionsReady, setPositionsReady] = useState(false)
+  const focusTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const focused = useRef<string | null>(null)
+  const positionKey = 'myos-workspace-node-positions-v1'
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(positionKey) || '{}')
+      if (saved && typeof saved === 'object') setPositions(Object.fromEntries(Object.entries(saved).filter(([, value]) => {
+        const point = value as XYPosition | null
+        return point && Number.isFinite(point.x) && Number.isFinite(point.y) && Math.abs(point.x) < 1e6 && Math.abs(point.y) < 1e6
+      })) as Record<string, XYPosition>)
+    } catch { /* Storage may be unavailable. */ }
+    setPositionsReady(true)
+  }, [])
+  useEffect(() => {
+    if (!positionsReady) return
+    const timer = setTimeout(() => { try { localStorage.setItem(positionKey, JSON.stringify(positions)) } catch {} }, 120)
+    return () => clearTimeout(timer)
+  }, [positions, positionsReady])
+  const moveNodes = (changes: NodeChange<GraphNode>[]) => {
+    const moved = changes.filter(change => change.type === 'position' && change.position)
+    if (!moved.length) return
+    setPositions(previous => {
+      const next = { ...previous }
+      for (const change of moved) if (change.type === 'position' && change.position) next[change.id] = change.position
+      return next
+    })
+  }
+  const cancelFocus = () => { if (focusTimer.current) clearTimeout(focusTimer.current) }
+  const resetPositions = () => {
+    setPositions({}); try { localStorage.removeItem(positionKey) } catch {}
+    cancelFocus()
+    requestAnimationFrame(() => { void flow.fitView({ duration: reducedMotion ? 0 : 180, padding: 0.08, maxZoom: 1 }) })
+  }
   const { nodes, edges } = useMemo(() => {
     const nodes: GraphNode[] = [], edges: Edge[] = []
     let y = 0
@@ -38,9 +73,9 @@ function Graph({ groups, selection, expanded, onExpand, onSelect, menuFor, match
     const selectedTask = selection?.kind === 'task' ? allTasks.find(task => task.id === selection.id) : null
     const retained = new Set(selectedTask ? [selectedTask.id, ...taskAncestors(selectedTask, allTasks).map(task => task.id)] : [])
     const add = (id: string, target: Target, label: string, caption: string, x: number, at: number, expand?: string, overflow = false) => {
-      nodes.push({ id, type: 'workspace', position: { x, y: at }, selected: !overflow && selection !== null && nodeKey(selection) === id,
+      nodes.push({ id, type: 'workspace', position: positions[id] || { x, y: at }, selected: !overflow && selection !== null && nodeKey(selection) === id,
         data: { kind: target.kind, target, label, caption, zh, onSelect: () => onSelect(target), menu: overflow ? undefined : menuFor(target), contextOnly: target.kind === 'task' && !overflow && !matchedIds.has(target.id), ...(expand ? { expanded: expanded.has(expand), onExpand: () => onExpand(expand) } : {}) },
-        ariaLabel: `${label}, ${caption}`, selectable: true, draggable: false })
+        ariaLabel: `${label}, ${caption}`, selectable: true, draggable: !overflow })
     }
     const link = (source: string, target: string) => edges.push({ id: `${source}/${target}`, source, target, type: 'default', style: { stroke: 'var(--workspace-edge)', strokeWidth: 1.3 }, selectable: false })
     const renderBranches = (branches: TaskBranch[], parentNode: string, parentTarget: Target, depth: number) => {
@@ -75,12 +110,21 @@ function Graph({ groups, selection, expanded, onExpand, onSelect, menuFor, match
       add(projectNode, { kind: 'project', id: group.id }, group.name, `${group.topics.length} ${zh ? '个主题' : 'topics'} · ${group.tasks.filter(task => matchedIds.has(task.id)).length} ${zh ? '项任务' : 'tasks'}`, 0, (start + y - 86) / 2, projectNode)
       y += 48
     }
+    // Explicit alternate ownership must not erase an existing parent link.
+    const visible = new Set(nodes.map(node => node.id))
+    for (const task of allTasks) {
+      const source = `task:${task.parentTaskId}`, target = `task:${task.id}`
+      if (task.parentTaskId && visible.has(source) && visible.has(target) && !edges.some(edge => edge.source === source && edge.target === target)) {
+        edges.push({ id: `parent:${source}/${target}`, source, target, label: zh ? '子任务' : 'Subtask', style: { stroke: 'var(--primary)', strokeWidth: 1.4 }, selectable: false })
+      }
+    }
     return { nodes, edges }
-  }, [groups, expanded, selection, onExpand, onSelect, menuFor, matchedIds, zh])
+  }, [groups, expanded, selection, onExpand, onSelect, menuFor, matchedIds, zh, positions])
   const selectedId = selection ? nodeKey(selection) : null
   useEffect(() => {
-    if (!selectedId) return
-    const timer = setTimeout(() => {
+    if (!selectedId || focused.current === selectedId) return
+    focused.current = selectedId
+    focusTimer.current = setTimeout(() => {
       const ids = new Set([selectedId])
       for (const group of groups) {
         if (selection?.kind === 'task') {
@@ -96,13 +140,13 @@ function Graph({ groups, selection, expanded, onExpand, onSelect, menuFor, match
       }
       void flow.fitView({ nodes: [...ids].map(id => ({ id })), duration: reducedMotion ? 0 : 180, minZoom: 0.65, maxZoom: 1, padding: 0.06 })
     }, 50)
-    return () => clearTimeout(timer)
+    return () => { if (focusTimer.current) clearTimeout(focusTimer.current) }
   }, [selectedId, expanded, flow, reducedMotion, groups, selection])
   return <ReactFlow<GraphNode> nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.06, maxZoom: 1 }}
-    minZoom={0.15} maxZoom={1.4} nodesDraggable={false} nodesConnectable={false} nodesFocusable={false} deleteKeyCode={null} multiSelectionKeyCode={null} elementsSelectable
+    minZoom={0.15} maxZoom={1.4} nodesDraggable nodesConnectable={false} nodesFocusable nodeDragThreshold={5} onNodesChange={moveNodes} onNodeDragStart={cancelFocus} onMoveStart={event => { if (event) cancelFocus() }} deleteKeyCode={null} multiSelectionKeyCode={null} elementsSelectable
     onNodeClick={(_, node) => onSelect(node.data.target)} onNodeDoubleClick={(_, node) => node.data.onExpand?.()}
     onlyRenderVisibleElements={nodes.length > 200} proOptions={{ hideAttribution: false }} aria-label={zh ? '项目主题任务关系图' : 'Project topic task graph'}>
-    <Controls showInteractive={false} />
+    <Controls showInteractive={false}><ControlButton onClick={resetPositions} title={zh ? '重置节点布局' : 'Reset node layout'} aria-label={zh ? '重置节点布局' : 'Reset node layout'}><RotateCcw size={14} /></ControlButton></Controls>
   </ReactFlow>
 }
 export function WorkspaceGraph(props: Parameters<typeof Graph>[0]) { return <ReactFlowProvider><Graph {...props} /></ReactFlowProvider> }
