@@ -39,3 +39,8 @@ test('image bytes, rather than search metadata, determine usable dimensions', as
  const {imageDimensions}=await import('../server.mjs');const png=Buffer.alloc(100);png.writeUInt32BE(800,16);png.writeUInt32BE(600,20);assert.deepEqual(imageDimensions(png,'image/png'),{width:800,height:600});
  const jpeg=Buffer.from([255,216,255,192,0,17,8,2,88,3,32,3,1,17,0,2,17,0,3,17,0]);assert.deepEqual(imageDimensions(jpeg,'image/jpeg'),{width:800,height:600});assert.equal(imageDimensions(Buffer.from('invalid'),'image/jpeg'),null);
 });
+
+test('public IPv6 websites stay reachable while private and mapped addresses remain blocked',async()=>{
+ const {privateAddress}=await import('../server.mjs');assert.equal(privateAddress('2620:0:861:ed1a::1'),false);assert.equal(privateAddress('8.8.8.8'),false);
+ for(const ip of ['127.0.0.1','10.0.0.1','192.168.1.1','172.16.0.1','::1','::ffff:127.0.0.1','fc00::1','fd00::1','fe80::1','febf::1'])assert.equal(privateAddress(ip),true,ip);
+});

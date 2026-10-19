@@ -148,11 +148,11 @@ export function parseRSS(xml, input, now = Date.now()) {
     })
     .slice(0, 24);
 }
-function privateAddress(address) {
+export function privateAddress(address) {
   return (
     /^(127\.|10\.|192\.168\.|169\.254\.|0\.|172\.(1[6-9]|2\d|3[01])\.|::|fc|fd|fe80)/i.test(
       address,
-    ) || address.includes(":")
+    ) || /^(?:ff|fe[89ab]|2001:db8:)/i.test(address)
   );
 }
 async function publicURL(value) {
