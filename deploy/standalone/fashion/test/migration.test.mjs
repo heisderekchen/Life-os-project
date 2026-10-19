@@ -50,3 +50,7 @@ test('edge connector reads only pinned overseas sources and leaves original URLs
  const original='https://commons.wikimedia.org/wiki/File:Presidio_Loafer.jpg';assert.equal(await(await connected(original)).text(),'original bytes');assert.equal(new URL(seen[0]).searchParams.get('url'),original);assert.equal(new URL(seen[0]).host,'fashion-source-connector.yecol.workers.dev');
  await connected('https://example.com/photo');assert.equal(seen[1],'https://example.com/photo');assert(!connected.trustedRelayHosts.has('commons.wikimedia.org.evil.test'));
 });
+
+test('Commons tracking parameters do not change original asset identity',async()=>{
+ const {commonsPhotoCandidates}=await import('../legacy-search.mjs');const r=await commonsPhotoCandidates('loafers',async()=>Response.json({query:{pages:{1:{title:'File:Loafers.jpg',imageinfo:[{url:'https://upload.wikimedia.org/wikipedia/commons/a/ab/Loafers.jpg?utm_source=commons.wikimedia.org&utm_content=original',descriptionurl:'https://commons.wikimedia.org/wiki/File:Loafers.jpg',width:800,height:600}]}}}}));assert.equal(r[0].image,'https://upload.wikimedia.org/wikipedia/commons/a/ab/Loafers.jpg');
+});
