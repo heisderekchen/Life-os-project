@@ -139,3 +139,9 @@
 
 .project-workspace:has(.workspace-resize-x[data-dragging=true]) * { cursor:col-resize !important; user-select:none; }
 .project-workspace:has(.workspace-resize-y[data-dragging=true]) * { cursor:row-resize !important; user-select:none; }
+
+@media (max-width:600px) {
+  .workspace-list-content:has(.workspace-idle) { grid-template-rows:minmax(0,1fr); }
+  .workspace-list-content:has(.workspace-idle) > .workspace-resize,
+  .workspace-list-content:has(.workspace-idle) > .workspace-detail { display:none; }
+}
