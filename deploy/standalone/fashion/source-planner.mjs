@@ -41,7 +41,8 @@ export function sourceSearchPlan(input, sources) {
     for (let i = 0; i < domainsList.length; i += 5) {
       const domains = domainsList.slice(i, i + 5);
       if (!domains.length) continue;
-      plans.push({ label: '来源检索', domains, catalogue: catalogueOf(domains) });
+      plans.push({ label: '来源检索', domains, catalogue: catalogueOf(domains),
+        sources: pool.slice(i, i + 5).map(p => ({domain:p.source.domain,url:p.source.url,feedUrls:p.source.feedUrls || []})) });
     }
   } else {
     const take = input.sourceScope === 1 ? 6 : 3;
@@ -50,7 +51,8 @@ export function sourceSearchPlan(input, sources) {
       const chosen = [...pool].sort((a, b) => rank(b) - rank(a) || a.domain.localeCompare(b.domain)).slice(0, take);
       for (let i = 0; i < chosen.length; i += 3) {
         const domains = chosen.slice(i, i + 3).map(s => s.domain);
-        plans.push({ label: { official: '品牌官方', media: '专业媒体', retail: '零售平台' }[id], domains, catalogue: catalogueOf(domains) });
+        plans.push({ label: { official: '品牌官方', media: '专业媒体', retail: '零售平台' }[id], domains, catalogue: catalogueOf(domains),
+          sources: chosen.slice(i, i + 3).map(s => ({domain:s.domain,url:s.url,feedUrls:s.feedUrls || []})) });
       }
     }
   }
@@ -60,7 +62,7 @@ export function sourceSearchPlan(input, sources) {
     if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(lower) || plans.some(p => p.domains.includes(lower))) continue;
     const excluded = sources.some(s => s.review === 'exclude' && String(s.domain).toLowerCase().replace(/^www\./, '') === lower);
     if (excluded) continue;
-    plans.push({ label: '补充来源', domains: [lower], catalogue: catalogueOf([lower]) });
+    plans.push({ label: '补充来源', domains: [lower], catalogue: catalogueOf([lower]), sources:[{domain:lower,url:'https://'+lower+'/',feedUrls:[]}] });
   }
 
   const excludedDomains = sources
