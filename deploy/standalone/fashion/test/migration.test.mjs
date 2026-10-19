@@ -34,3 +34,8 @@ test('migration keeps customer session/tasks across restart and isolates visitor
   response=await fetch(app.base+'/fashion/api/search/materials',{method:'POST',headers:{'content-type':'application/json'},body:'{}'});assert.equal(response.status,400);
  }finally{await app.close();await rm(temporary,{recursive:true,force:true});}
 });
+
+test('image bytes, rather than search metadata, determine usable dimensions', async()=>{
+ const {imageDimensions}=await import('../server.mjs');const png=Buffer.alloc(100);png.writeUInt32BE(800,16);png.writeUInt32BE(600,20);assert.deepEqual(imageDimensions(png,'image/png'),{width:800,height:600});
+ const jpeg=Buffer.from([255,216,255,192,0,17,8,2,88,3,32,3,1,17,0,2,17,0,3,17,0]);assert.deepEqual(imageDimensions(jpeg,'image/jpeg'),{width:800,height:600});assert.equal(imageDimensions(Buffer.from('invalid'),'image/jpeg'),null);
+});

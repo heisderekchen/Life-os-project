@@ -1,3 +1,4 @@
+import { bingImages, commonsPhotoCandidates } from './legacy-search.mjs';
 import { createHash, randomBytes } from 'node:crypto';
 
 const translations = [
@@ -17,7 +18,7 @@ export function photoQuery(subject) {
 const stop = new Set(['women', 'womens', 'woman', 'ladies', 'female', 'for', 'and', 'the', 'with', 'of', 'in', 'a', 's']);
 export function matchesIntent(subject, value) {
   const terms = photoQuery(subject).toLowerCase().replace(/['’]/g, '').match(/[\p{L}\p{N}]+/gu) || [];
-  const hay = value.toLowerCase().replace(/['’]/g, '');
+  const hay = photoQuery(value).toLowerCase().replace(/['’]/g, '');
   if (terms.includes('leather') && /\bfaux\b|\bsynthetic\b|leather[- ]look|仿皮|人造革/i.test(value)) return false;
   return terms.filter(t => !stop.has(t)).every(t => {
     const stem = t.length > 4 && t.endsWith('s') ? t.slice(0, -1) : t;
@@ -40,7 +41,7 @@ export function imageDeclared(html, image) {
     try { return keyURL(m[0].startsWith('//') ? 'https:' + m[0] : m[0]) === key; } catch { return false; }
   });
 }
-async function discover(query, fetcher) {
+async function duckDiscover(query, fetcher) {
   const headers = { accept: 'text/html', 'user-agent': 'Mozilla/5.0' };
   const page = await fetcher('https://duckduckgo.com/?q=' + encodeURIComponent(query), { headers, signal: AbortSignal.timeout(9000) });
   if (!page.ok) throw Error('图片搜索暂不可用');
@@ -55,6 +56,15 @@ async function discover(query, fetcher) {
   return data.results;
 }
 
+async function discover(query,fetcher) {
+ let empty=null;
+ for(const [provider,load] of [['DuckDuckGo Images',()=>duckDiscover(query,fetcher)],['Bing Images',()=>bingImages(query,fetcher)],['Wikimedia Commons',()=>commonsPhotoCandidates(query,fetcher)]]) {
+  try {const results=await load();if(results.length)return {results,provider};empty={results,provider};}catch{}
+ }
+ if(empty)return empty;
+ throw Error('公开图片来源暂时均不可用，请稍后重试。');
+}
+
 export async function searchPhotos(input, { fetcher, plans, readPage, readImage, saveAsset }) {
   const channels = [], candidates = [], pages = new Set(), images = new Set(), hashes = new Set();
   const base = photoQuery(input.subject);
@@ -65,20 +75,20 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readImage,
   if (!entries.length) entries.push({ query: base, domains: input.domains, label: '公开图片' });
   for (let index = 0; index < entries.length; index += 2) await Promise.all(entries.slice(index, index + 2).map(async entry => {
     try {
-      const found = await discover(entry.query, fetcher);
+      const {results:found,provider} = await discover(entry.query, fetcher);
       const matches = found.filter(x => {
         try {
           const u = new URL(x.url);
           return /^https?:$/.test(u.protocol) && !blocked.test(u.hostname) && u.pathname !== '/' &&
             !/\/(search|collections|category|categories)(\/|$)|[?&]q=/i.test(u.pathname + u.search) &&
             (!entry.domains.length || entry.domains.some(d => u.hostname === d || u.hostname.endsWith('.' + d))) &&
-            matchesIntent(input.subject, x.title || '') && Number(x.width) >= 350 && Number(x.height) >= 250;
+            matchesIntent(input.subject, x.title || '') && (x.width === undefined || Number(x.width) >= 350) && (x.height === undefined || Number(x.height) >= 250);
         } catch { return false; }
       });
-      channels.push({ provider: 'DuckDuckGo Images', query: entry.query, label: entry.label, status: matches.length ? 'ready' : 'empty', count: 0, discovered: found.length, intentMatched: matches.length, rejected: {} });
+      channels.push({ provider, query: entry.query, label: entry.label, status: matches.length ? 'ready' : 'empty', count: 0, discovered: found.length, intentMatched: matches.length, rejected: {} });
       const channel = channels.at(-1);
       candidates.push(...matches.map(x => ({ ...x, channel, domains: entry.domains })));
-    } catch (e) { channels.push({ provider: 'DuckDuckGo Images', query: entry.query, label: entry.label, status: 'error', count: 0, error: e.message }); }
+    } catch (e) { channels.push({ provider: '公开图片检索', query: entry.query, label: entry.label, status: 'error', count: 0, error: e.message }); }
   }));
   if (channels.every(c => c.status === 'error')) throw Error('公开图片检索暂不可用，任务已保留，请稍后重试。');
   const unique = candidates.filter(x => {

@@ -199,6 +199,13 @@ export async function getPublic(value, fetcher, redirects = 0) {
   }
   return { html, url: u.href };
 }
+export function imageDimensions(bytes,mime) {
+ if(mime==='image/png'&&bytes.length>=24)return {width:bytes.readUInt32BE(16),height:bytes.readUInt32BE(20)};
+ if(mime==='image/jpeg') {let p=2;while(p+8<bytes.length){if(bytes[p++]!==255)continue;while(bytes[p]===255)p++;const marker=bytes[p++];if(marker===218||marker===217)break;if(marker===216||marker===1)continue;if(p+2>bytes.length)break;const size=bytes.readUInt16BE(p);if(size<2||p+size>bytes.length)break;if([192,193,194,195,197,198,199,201,202,203,205,206,207].includes(marker))return {width:bytes.readUInt16BE(p+5),height:bytes.readUInt16BE(p+3)};p+=size;}}
+ if(mime==='image/webp'&&bytes.length>=30){const type=bytes.subarray(12,16).toString();if(type==='VP8X')return {width:bytes.readUIntLE(24,3)+1,height:bytes.readUIntLE(27,3)+1};if(type==='VP8 ')return {width:bytes.readUInt16LE(26)&16383,height:bytes.readUInt16LE(28)&16383};if(type==='VP8L'){const bits=bytes.readUInt32LE(21);return {width:(bits&16383)+1,height:((bits>>>14)&16383)+1};}}
+ if(mime==='image/avif'){const p=bytes.indexOf(Buffer.from('ispe'));if(p>=0&&p+16<=bytes.length)return {width:bytes.readUInt32BE(p+8),height:bytes.readUInt32BE(p+12)};}
+ return null;
+}
 export async function getImage(value, fetcher, redirects = 0) {
   const u = await publicURL(value);
   const r = await fetcher(u, { signal: AbortSignal.timeout(9000), redirect: "manual", headers: { accept: "image/avif,image/webp,image/*", "user-agent": "Mozilla/5.0" } });
@@ -217,7 +224,9 @@ export async function getImage(value, fetcher, redirects = 0) {
   const bytes = Buffer.concat(chunks);
   const magic = mime === 'image/jpeg' ? bytes[0] === 255 && bytes[1] === 216 : mime === 'image/png' ? bytes.subarray(1, 4).toString() === 'PNG' : mime === 'image/webp' ? bytes.subarray(8, 12).toString() === 'WEBP' : bytes.subarray(4, 8).toString() === 'ftyp';
   if (!magic || bytes.length < 100) throw Error("图片内容无效");
-  return { bytes, mime };
+  const dimensions=imageDimensions(bytes,mime);
+  if(!dimensions||dimensions.width<350||dimensions.height<250)throw Error('图片分辨率不足或格式不可读取');
+  return { bytes, mime, ...dimensions };
 }
 async function preview(item, fetcher) {
   try {
@@ -428,7 +437,7 @@ export function createApp({
           sourceCatalog,
         });
       }
-      if (u.pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "1.0.0", storage: "persistent-files" });
+      if (u.pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "1.0.1", storage: "persistent-files" });
       if (u.pathname === "/api/login" && req.method === "POST") {
         if (guestPreview)
           return json(res, 405, { error: "此预览直接进入，无需登录。" });
