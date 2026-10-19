@@ -59,5 +59,17 @@ try {
   const orphan = (await call(`/tasks/${task.id}`, 'GET')).body
   assert.equal(orphan.projectId, null); assert.equal(orphan.topicId, null)
   assert.equal((await call('/topics')).body.length, 0)
-  console.log('Topic ownership, persistence after reconnect, cross-project rejection, recurrence metadata, and non-destructive deletion passed.')
+  // Exercise the legacy import tool's direct SQL reassociation as well as PATCH.
+  const payload = { sourceKey: 'topic-ownership-fixture', confirm: true, tasks: [{ sourceId: 'upstream-1', title: '导入归属验收', sourceProject: '项目 B' }] }
+  assert.equal((await call('/tasks/import', 'POST', payload)).status, 201)
+  const importedId = db.prepare('SELECT task_id FROM lifeos_task_import_sources WHERE source_key=?').get(payload.sourceKey).task_id
+  const importedTopic = (await call('/topics', 'POST', { projectId: other.id, name: '导入主题' })).body
+  await call(`/tasks/${importedId}`, 'PATCH', { topicId: importedTopic.id, taskType: '研究' })
+  await call('/tasks/import', 'POST', { ...payload, reconcile: true })
+  assert.equal((await call(`/tasks/${importedId}`, 'GET')).body.topicId, importedTopic.id, 'same-project reconciliation preserves the topic')
+  await call('/tasks/import', 'POST', { ...payload, reconcile: true, tasks: [{ ...payload.tasks[0], sourceProject: '项目 C' }] })
+  const reassociated = (await call(`/tasks/${importedId}`, 'GET')).body
+  assert.equal(reassociated.topicId, null, 'legacy project reassociation clears an incompatible topic')
+  assert.equal(reassociated.taskType, '研究', 'user-owned type remains intact')
+  console.log('Topic ownership, persistence after reconnect, cross-project rejection, recurrence metadata, non-destructive deletion, and legacy import reconciliation passed.')
 } finally { db.close(); rmSync(directory, { recursive: true, force: true }) }
