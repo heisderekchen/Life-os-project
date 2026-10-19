@@ -1,0 +1,165 @@
+window.MIU_SAMPLE = {
+  "brand": "Miu Miu",
+  "season": "2027 春夏",
+  "event_date": "2026-10-04",
+  "first_seen": "2026-10-05T21:17:17+08:00",
+  "collected_at": "2026-10-05T21:25:43+08:00",
+  "source_published_at": null,
+  "items": [
+    {
+      "id": "001",
+      "title": "蓝黄配色运动鞋",
+      "family": "RC150 联名运动鞋",
+      "description": "蓝黄拼色、网眼感鞋面、对比色鞋带与前端外置系带。品牌官网确认本系列包含 New Balance × Miu Miu RC150；图像特征由人工目视记录。",
+      "tags": [
+        "运动鞋",
+        "蓝黄拼色",
+        "外置系带"
+      ],
+      "image": "https://www.miumiu.com/content/dam/miumiu/2026/001_fashion_show/SS27_Fashion_show/details/001.jpg/jcr:content/renditions/miumiunux_color.1280.1280.jpg",
+      "source": "https://www.miumiu.com/us/en/miumiu-club/fashion-shows/ss27-fashion-show.html",
+      "brand": "Miu Miu",
+      "season": "2027 春夏",
+      "published_at": null,
+      "first_seen": "2026-10-05T21:17:17+08:00",
+      "visual_reviewed_on": "2026-10-05"
+    },
+    {
+      "id": "005",
+      "title": "鳞纹乐福鞋",
+      "family": "乐福鞋参考",
+      "description": "深色鳞纹外观、低跟、系结装饰与做旧感边缘。产品正式名称和真实材质尚未确认，当前保留外观描述。",
+      "tags": [
+        "乐福鞋",
+        "鳞纹外观",
+        "系结装饰"
+      ],
+      "image": "https://www.miumiu.com/content/dam/miumiu/2026/001_fashion_show/SS27_Fashion_show/details/005.jpg/jcr:content/renditions/miumiunux_color.1280.1280.jpg",
+      "source": "https://www.miumiu.com/us/en/miumiu-club/fashion-shows/ss27-fashion-show.html",
+      "brand": "Miu Miu",
+      "season": "2027 春夏",
+      "published_at": null,
+      "first_seen": "2026-10-05T21:17:17+08:00",
+      "visual_reviewed_on": "2026-10-05"
+    },
+    {
+      "id": "008",
+      "title": "绿黄配色运动鞋",
+      "family": "RC150 联名运动鞋",
+      "description": "绿黄拼色运动鞋的上脚侧后视角，与蓝黄样本归为同一联名系列的不同配色参考。是否属于同一商品型号仍待产品资料确认。",
+      "tags": [
+        "运动鞋",
+        "绿黄拼色",
+        "上脚参考"
+      ],
+      "image": "https://www.miumiu.com/content/dam/miumiu/2026/001_fashion_show/SS27_Fashion_show/details/008.jpg/jcr:content/renditions/miumiunux_color.1280.1280.jpg",
+      "source": "https://www.miumiu.com/us/en/miumiu-club/fashion-shows/ss27-fashion-show.html",
+      "brand": "Miu Miu",
+      "season": "2027 春夏",
+      "published_at": null,
+      "first_seen": "2026-10-05T21:17:17+08:00",
+      "visual_reviewed_on": "2026-10-05"
+    }
+  ],
+  "audit": [
+    {
+      "asset": "001",
+      "url": "https://www.miumiu.com/content/dam/miumiu/2026/001_fashion_show/SS27_Fashion_show/details/001.jpg/jcr:content/renditions/miumiunux_color.1280.1280.jpg",
+      "classification": "鞋履",
+      "reviewed_on": "2026-10-05",
+      "content_changed_since_visual_review": null,
+      "url_id": "3ef8b7ab5861291f"
+    },
+    {
+      "asset": "002",
+      "url": "https://www.miumiu.com/content/dam/miumiu/2026/001_fashion_show/SS27_Fashion_show/details/002.jpg/jcr:content/renditions/miumiunux_color.1280.1280.jpg",
+      "classification": "服装",
+      "reviewed_on": "2026-10-05",
+      "content_changed_since_visual_review": null,
+      "url_id": "419e6ca9b986d4ba"
+    },
+    {
+      "asset": "003",
+      "url": "https://www.miumiu.com/content/dam/miumiu/2026/001_fashion_show/SS27_Fashion_show/details/003.jpg/jcr:content/renditions/miumiunux_color.1280.1280.jpg",
+      "classification": "服装",
+      "reviewed_on": "2026-10-05",
+      "content_changed_since_visual_review": null,
+      "url_id": "d31c9610e03b2d95"
+    },
+    {
+      "asset": "004",
+      "url": "https://www.miumiu.com/content/dam/miumiu/2026/001_fashion_show/SS27_Fashion_show/details/004.jpg/jcr:content/renditions/miumiunux_color.1280.1280.jpg",
+      "classification": "包袋",
+      "reviewed_on": "2026-10-05",
+      "content_changed_since_visual_review": null,
+      "url_id": "5fc75552269a11a6"
+    },
+    {
+      "asset": "005",
+      "url": "https://www.miumiu.com/content/dam/miumiu/2026/001_fashion_show/SS27_Fashion_show/details/005.jpg/jcr:content/renditions/miumiunux_color.1280.1280.jpg",
+      "classification": "鞋履",
+      "reviewed_on": "2026-10-05",
+      "content_changed_since_visual_review": null,
+      "url_id": "f1c02a2c793ed6ed"
+    },
+    {
+      "asset": "006",
+      "url": "https://www.miumiu.com/content/dam/miumiu/2026/001_fashion_show/SS27_Fashion_show/details/006.jpg/jcr:content/renditions/miumiunux_color.1280.1280.jpg",
+      "classification": "服装",
+      "reviewed_on": "2026-10-05",
+      "content_changed_since_visual_review": null,
+      "url_id": "66ca39dd9a7fc8ac"
+    },
+    {
+      "asset": "007",
+      "url": "https://www.miumiu.com/content/dam/miumiu/2026/001_fashion_show/SS27_Fashion_show/details/007.jpg/jcr:content/renditions/miumiunux_color.1280.1280.jpg",
+      "classification": "包袋",
+      "reviewed_on": "2026-10-05",
+      "content_changed_since_visual_review": null,
+      "url_id": "3f7795011919dca7"
+    },
+    {
+      "asset": "008",
+      "url": "https://www.miumiu.com/content/dam/miumiu/2026/001_fashion_show/SS27_Fashion_show/details/008.jpg/jcr:content/renditions/miumiunux_color.1280.1280.jpg",
+      "classification": "鞋履",
+      "reviewed_on": "2026-10-05",
+      "content_changed_since_visual_review": null,
+      "url_id": "eb4ce51041bd1841"
+    },
+    {
+      "asset": "009",
+      "url": "https://www.miumiu.com/content/dam/miumiu/2026/001_fashion_show/SS27_Fashion_show/details/009.jpg/jcr:content/renditions/miumiunux_color.1280.1280.jpg",
+      "classification": "服装",
+      "reviewed_on": "2026-10-05",
+      "content_changed_since_visual_review": null,
+      "url_id": "0d17a1e4b9e6baeb"
+    }
+  ],
+  "sources": [
+    {
+      "name": "Miu Miu 官方系列页",
+      "kind": "品牌官网",
+      "url": "https://www.miumiu.com/us/en/miumiu-club/fashion-shows/ss27-fashion-show.html",
+      "status": "已读取",
+      "published_at": null,
+      "checked_at": "2026-10-05T21:25:43+08:00"
+    },
+    {
+      "name": "巴黎时装周主办方 FHCM",
+      "kind": "主办方",
+      "url": "https://www.fhcm.paris/en/collection/miu-miu-womenswear-springsummer-2027",
+      "status": "已读取",
+      "event_date": "2026-10-04",
+      "checked_at": "2026-10-05T21:25:43+08:00"
+    },
+    {
+      "name": "发布会视频",
+      "kind": "视频频道",
+      "url": "https://www.youtube.com/watch?v=mIsFARBSg0E",
+      "status": "已找到入口，视频内容未逐帧核对",
+      "checked_at": "2026-10-05T21:25:43+08:00"
+    }
+  ],
+  "errors": [],
+  "scope": "公开来源单次样本；人工目视筛选；非自动监控，非完整系列覆盖；按 URL 去重，未做全网图像去重。后续页面同 URL 的图像是否变化需重新核对。"
+};
