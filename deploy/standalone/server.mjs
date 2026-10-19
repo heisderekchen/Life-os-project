@@ -1,3 +1,4 @@
+import { createFashionRouter } from './fashion/router.mjs'
 import { createServer, request as httpRequest } from 'node:http'
 import { DatabaseSync } from 'node:sqlite'
 import { spawn } from 'node:child_process'
@@ -447,6 +448,15 @@ async function handlePlatformRequest(req, res, requestUrl, principal) {
   return sendWebResponse(res, response, { 'cache-control': 'no-store' })
 }
 
+const handleFashion = createFashionRouter({
+  dataDir: join(dirname(DB_PATH), 'fashion-workbench'),
+  authorizeAdmin: async req => {
+    if (!forwardedSecure(req) || (req.headers.origin && req.headers.origin !== PUBLIC_ORIGIN)) return false
+    const principal = await resolvePrincipal(env, cookie(req)).catch(() => null)
+    return Boolean(principal && isPlatformAdmin(principal))
+  },
+})
+
 const server = createServer((req, res) => {
   void handleHttpRequest(req, res).catch(error => {
     if (res.destroyed) return
@@ -465,6 +475,7 @@ async function handleHttpRequest(req, res) {
   res.setHeader('permissions-policy', 'camera=(), microphone=(), geolocation=()')
   const requestUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`)
   const pathname = requestUrl.pathname
+  if (await handleFashion(req, res)) return
   if (pathname === '/internal/health') return json(res, 200, { ok: true, recurrenceEnabled: RECURRENCE_ENABLED })
 
   // Authority is always re-resolved from SQLite so disable, grant revocation
