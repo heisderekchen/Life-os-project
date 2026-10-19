@@ -44,6 +44,26 @@ describe('project workspace', () => {
     await user.click(screen.getByRole('button', { name: /^列表$/ }))
     expect(screen.getByRole('combobox', { name: '类型筛选' })).toHaveValue('研究')
   })
+  it('keeps peer project metadata and navigation after selection, while flat rows retain the selected scope', async () => {
+    setup(); const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: '图主题 主题 A' }))
+    const list = screen.getByRole('region', { name: '任务列表' })
+    expect(within(list).getByRole('heading', { name: '全部项目' })).toBeInTheDocument()
+    const peer = within(list).getByRole('button', { name: /^项目 B/ }).closest('tr')!
+    expect(peer).toHaveTextContent('进行中')
+    expect(peer).toHaveTextContent('10/19')
+    await user.click(within(peer).getByRole('button', { name: '展开或收起项目 项目 B' }))
+    await user.click(within(list).getByRole('button', { name: /^未分类/ }))
+    expect(within(list).getByRole('button', { name: '其他任务' })).toBeInTheDocument()
+    expect(within(list).getByRole('button', { name: '联动任务' })).toBeInTheDocument()
+    await user.click(within(list).getByRole('button', { name: '平铺' }))
+    expect(within(list).getByRole('button', { name: /^其他任务/ })).toBeInTheDocument()
+    expect(within(list).queryByRole('button', { name: /^联动任务/ })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('separator')).toHaveLength(2)
+    await user.click(screen.getByRole('button', { name: /^关系图$/ }))
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument()
+  })
+
   it('clears an incompatible topic when a task moves project and saves explicit type and status', async () => {
     const api = setup(); const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: '图任务 联动任务' }))
@@ -139,7 +159,7 @@ describe('project workspace', () => {
     fireEvent.change(within(dialog).getByLabelText('新名称'), { target: { value: '预约流程' } })
     await user.click(within(dialog).getByRole('button', { name: '保存' }))
     await waitFor(() => expect(created).toEqual({ name: '预约流程', projectId: 'project-a', fromUnclassified: true }))
-    await waitFor(() => expect(within(list).getByRole('heading', { level: 2 })).toHaveTextContent('预约流程'))
+    await waitFor(() => expect(within(list).getByRole('button', { name: /^预约流程/ })).toBeInTheDocument())
     expect(within(list).getByRole('button', { name: '筛选外任务' })).toBeInTheDocument()
   })
 
