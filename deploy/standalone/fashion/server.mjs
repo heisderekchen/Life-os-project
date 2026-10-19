@@ -172,7 +172,7 @@ async function publicURL(value, fetcher) {
     throw Error("网站地址不可用。");
   return u;
 }
-export async function getPublic(value, fetcher, redirects = 0) {
+export async function getPublic(value, fetcher, redirects = 0, allowFeed = false) {
   const u = await publicURL(value, fetcher);
   const r = await fetcher(u, {
     signal: AbortSignal.timeout(7000),
@@ -185,21 +185,25 @@ export async function getPublic(value, fetcher, redirects = 0) {
       new URL(r.headers.get("location"), u).href,
       fetcher,
       redirects + 1,
+      allowFeed,
     );
   }
-  if (!r.ok || !r.headers.get("content-type")?.includes("text/html"))
+  const mime = r.headers.get("content-type") || "";
+  if (!r.ok || !(mime.includes("text/html") || (allowFeed && /(?:application\/(?:rss\+xml|atom\+xml|xml)|text\/xml)/i.test(mime))))
     throw Error("网页不可读");
   let html = "";
+  const decoder = new TextDecoder();
   const reader = r.body.getReader();
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
-    html += new TextDecoder().decode(value);
+    html += decoder.decode(value, {stream:true});
     if (html.length > 2000000) {
       await reader.cancel();
       break;
     }
   }
+  html += decoder.decode();
   return { html, url: u.href };
 }
 export function imageDimensions(bytes,mime) {
@@ -430,7 +434,7 @@ export function createApp({
         if (broadScope) {
           clearMainTimer();
           const excludedDomains = plans.excludedDomains || [];
-          const priorRecords = (task.sourceQueue && Array.isArray(task.sourceQueue.records)) ? task.sourceQueue.records : [];
+          const priorRecords = (task.sourceQueue?.readerVersion === 2 && Array.isArray(task.sourceQueue.records)) ? task.sourceQueue.records : [];
           if (!priorRecords.length) task.items = [];
           const resumeRecords = priorRecords.map(r => ({ ...r }));
           const entries = plans;
@@ -440,7 +444,7 @@ export function createApp({
             previous: resumeRecords,
             signal: queueSignal,
             concurrency: 3,
-            entryTimeoutMs: 20000,
+            entryTimeoutMs: 30000,
             retryFailed: true,
             runEntry: async (entry, { signal: entrySignal, onPartial }) => {
               const comboSignal = AbortSignal.any([entrySignal, controller.signal]);
@@ -453,6 +457,7 @@ export function createApp({
                 fetcher: entryFetcher,
                 plans: entryPlans,
                 readPage: getPublic,
+                readDocument: (url, f) => getPublic(url, f, 0, true),
                 readImage: getImage,
                 saveAsset,
                 signal: comboSignal,
@@ -484,6 +489,7 @@ export function createApp({
               if (!active || controller.signal.aborted) return;
               const records = Array.isArray(snapshot.records) ? snapshot.records : [];
               task.sourceQueue = {
+                readerVersion: 2,
                 records: records.map(r => ({ ...r })),
                 plannedSources: snapshot.plannedSources || 0,
                 queriedSources: snapshot.queriedSources || 0,
@@ -529,7 +535,7 @@ export function createApp({
           task.channels = [{ provider: '公开来源索引', query: '分批来源查询', count: task.items.length }];
         } else {
           const result = await abortable(() => photoSearch ? searchPhotos(task.input, {
-            fetcher: jobFetcher, plans, readPage: getPublic, readImage: getImage,
+            fetcher: jobFetcher, plans, readPage: getPublic, readDocument: (url, f) => getPublic(url, f, 0, true), readImage: getImage,
             saveAsset, signal: controller.signal, onProgress,
           }) : runSearch(task.input, jobFetcher), controller.signal);
           task.items = retainReview(result.items);
@@ -609,7 +615,7 @@ export function createApp({
           sourceCatalog,
         });
       }
-      if (u.pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "1.0.4", storage: "persistent-files" });
+      if (u.pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "1.0.5", storage: "persistent-files" });
       if (u.pathname === "/api/login" && req.method === "POST") {
         if (guestPreview)
           return json(res, 405, { error: "此预览直接进入，无需登录。" });

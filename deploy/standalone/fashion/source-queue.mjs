@@ -71,7 +71,7 @@ export async function runSourceQueue({
     let error = null;
     if (prev) {
       if (Array.isArray(prev.matchedDomains)) matchedDomains = [...prev.matchedDomains];
-      if (prev.status === 'done') status = 'done';
+      if (prev.status === 'done' && !(retryFailed && prev.sourceChecks?.some(c=>c.status==='error'))) status = 'done';
       else if (prev.status === 'error' && !retryFailed) { status = 'error'; error = prev.error || null; }
       else if (prev.status === 'running' || prev.status === 'pending') status = 'pending';
     }
@@ -81,7 +81,8 @@ export async function runSourceQueue({
       domains: uniqueDomains,
       status,
       error,
-      matchedDomains
+      matchedDomains,
+      sourceChecks: prev?.sourceChecks?.map(c=>({...c}))
     });
   }
 
@@ -96,18 +97,18 @@ export async function runSourceQueue({
       }
       for (const d of r.matchedDomains) matched.add(d);
     }
-    const done = new Set(records.filter(r => r.status === 'done').flatMap(r => r.domains));
+    const done = new Set(records.flatMap(r => r.sourceChecks ? r.sourceChecks.filter(c=>c.status==='queried').map(c=>c.domain) : r.status==='done'?r.domains:[]));
     const failed = new Set();
     for (const r of records) {
-      if (r.status === 'error') {
-        for (const d of r.domains) {
+      if (r.sourceChecks || r.status === 'error') {
+        for (const d of r.sourceChecks ? r.sourceChecks.filter(c=>c.status==='error').map(c=>c.domain) : r.domains) {
           if (!done.has(d)) failed.add(d);
         }
       }
     }
     const pending = [...planned].filter((d) => !queried.has(d));
     return {
-      records: records.map(r => ({...r, domains:[...r.domains], matchedDomains:[...r.matchedDomains]})),
+      records: records.map(r => ({...r, domains:[...r.domains], matchedDomains:[...r.matchedDomains],sourceChecks:r.sourceChecks?.map(c=>({...c}))})),
       plannedSources: planned.size, queriedSources: queried.size,
       matchedSources: matched.size, failedSources: failed.size, pendingSources: pending.length,
     };
@@ -155,6 +156,7 @@ export async function runSourceQueue({
   try { await emit(); } catch (error) { cleanup(); throw error; }
 
   const mergeMatched = (value, record) => {
+    if (Array.isArray(value?.sourceChecks) && value.sourceChecks.length) record.sourceChecks=value.sourceChecks.filter(c=>record.domains.includes(c.domain)).map(c=>({...c}));
     const items = value && Array.isArray(value.items) ? value.items : [];
     for (const item of items) {
       const url = itemUrl(item);
