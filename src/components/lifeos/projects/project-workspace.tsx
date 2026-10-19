@@ -163,7 +163,15 @@ export function ProjectWorkspace() {
     setSelection(next); setPage(0)
     if (!next) return
     const target = selectedScope(next, allGroups, tasks)
-    if (target) setExpanded(previous => new Set([...previous, `project:${target.projectId}`, ...(target.topicId ? [`topic:${target.topicId}`] : []), ...(next.kind === 'task' ? [tasks.find(task => task.id === next.id)!, ...taskAncestors(tasks.find(task => task.id === next.id)!, tasks)].map(task => `task:${task.id}`) : [])]))
+    if (target) {
+      const task = next.kind === 'task' ? tasks.find(task => task.id === next.id) : null
+      const chain = task ? [task, ...taskAncestors(task, tasks)] : []
+      const owners = [target, ...chain.map(item => selectedScope({ kind: 'task', id: item.id }, allGroups, tasks))]
+      setExpanded(previous => new Set([...previous,
+        ...owners.flatMap(owner => owner ? [`project:${owner.projectId}`, ...(owner.topicId ? [`topic:${owner.topicId}`] : [])] : []),
+        ...chain.map(item => `task:${item.id}`),
+      ]))
+    }
   }, [allGroups, tasks])
   const selectGraph = select
   const change = <K extends keyof Preferences>(key: K, value: Preferences[K]) => { setPrefs(previous => ({ ...previous, [key]: value })); setPage(0); if (['search', 'status', 'type', 'project'].includes(key)) setExpanded(new Set([...allGroups.flatMap(group => [`project:${group.id}`, ...group.topics.map(topic => `topic:${topic.id}`)]), ...tasks.filter(task => tasks.some(child => child.parentTaskId === task.id)).map(task => `task:${task.id}`)])) }

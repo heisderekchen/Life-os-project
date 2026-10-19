@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ReactFlow, ReactFlowProvider, Controls, ControlButton, Handle, Position, useReactFlow, type Node, type NodeProps, type Edge, type NodeChange, type XYPosition } from '@xyflow/react'
+import { ReactFlow, ReactFlowProvider, Controls, ControlButton, Handle, Position, useReactFlow, useNodesInitialized, useStore, type Node, type NodeProps, type Edge, type NodeChange, type XYPosition } from '@xyflow/react'
 import { ChevronRight, FileText, Folder, Layers, RotateCcw } from 'lucide-react'
 import { useReducedMotion } from 'framer-motion'
-import { nodeKey, taskAncestors, taskTree, type TaskBranch, type WorkspaceGroup, type WorkspaceSelection } from './workspace-model'
+import { nodeKey, taskTree, type TaskBranch, type WorkspaceGroup, type WorkspaceSelection } from './workspace-model'
 import { WorkspaceContextMenu, WorkspaceActionsButton, type WorkspaceMenu } from './workspace-actions'
 import '@xyflow/react/dist/style.css'
 
@@ -31,6 +31,10 @@ function Graph({ groups, selection, expanded, onExpand, onSelect, menuFor, match
 }) {
   const flow = useReactFlow<GraphNode>()
   const reducedMotion = useReducedMotion()
+  const nodesInitialized = useNodesInitialized()
+  const viewportWidth = useStore(state => state.width)
+  const viewportHeight = useStore(state => state.height)
+  const [dimensions, setDimensions] = useState<Record<string, { width: number; height: number }>>({})
   const [positions, setPositions] = useState<Record<string, XYPosition>>({})
   const [positionsReady, setPositionsReady] = useState(false)
   const focusTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -52,6 +56,12 @@ function Graph({ groups, selection, expanded, onExpand, onSelect, menuFor, match
     return () => clearTimeout(timer)
   }, [positions, positionsReady])
   const moveNodes = (changes: NodeChange<GraphNode>[]) => {
+    const resized = changes.filter(change => change.type === 'dimensions' && change.dimensions)
+    if (resized.length) setDimensions(previous => {
+      const next = { ...previous }
+      for (const change of resized) if (change.type === 'dimensions' && change.dimensions) next[change.id] = change.dimensions
+      return next
+    })
     const moved = changes.filter(change => change.type === 'position' && change.position)
     if (!moved.length) return
     setPositions(previous => {
@@ -64,35 +74,27 @@ function Graph({ groups, selection, expanded, onExpand, onSelect, menuFor, match
   const resetPositions = () => {
     setPositions({}); try { localStorage.removeItem(positionKey) } catch {}
     cancelFocus()
-    requestAnimationFrame(() => { void flow.fitView({ duration: reducedMotion ? 0 : 180, padding: 0.08, maxZoom: 1 }) })
+    requestAnimationFrame(() => { void flow.fitView({ duration: reducedMotion ? 0 : 180, padding: 0.08, minZoom: 0.01, maxZoom: 1 }) })
   }
   const { nodes, edges } = useMemo(() => {
     const nodes: GraphNode[] = [], edges: Edge[] = []
     let y = 0
     const allTasks = groups.flatMap(group => group.tasks)
-    const selectedTask = selection?.kind === 'task' ? allTasks.find(task => task.id === selection.id) : null
-    const retained = new Set(selectedTask ? [selectedTask.id, ...taskAncestors(selectedTask, allTasks).map(task => task.id)] : [])
-    const add = (id: string, target: Target, label: string, caption: string, x: number, at: number, expand?: string, overflow = false) => {
-      nodes.push({ id, type: 'workspace', position: positions[id] || { x, y: at }, selected: !overflow && selection !== null && nodeKey(selection) === id,
-        data: { kind: target.kind, target, label, caption, zh, onSelect: () => onSelect(target), menu: overflow ? undefined : menuFor(target), contextOnly: target.kind === 'task' && !overflow && !matchedIds.has(target.id), ...(expand ? { expanded: expanded.has(expand), onExpand: () => onExpand(expand) } : {}) },
-        ariaLabel: `${label}, ${caption}`, selectable: true, draggable: !overflow })
+    const add = (id: string, target: Target, label: string, caption: string, x: number, at: number, expand?: string) => {
+      nodes.push({ id, type: 'workspace', measured: dimensions[id], position: positions[id] || { x, y: at }, selected: selection !== null && nodeKey(selection) === id,
+        data: { kind: target.kind, target, label, caption, zh, onSelect: () => onSelect(target), menu: menuFor(target), contextOnly: target.kind === 'task' && !matchedIds.has(target.id), ...(expand ? { expanded: expanded.has(expand), onExpand: () => onExpand(expand) } : {}) },
+        ariaLabel: `${label}, ${caption}`, selectable: true, draggable: true })
     }
     const link = (source: string, target: string) => edges.push({ id: `${source}/${target}`, source, target, type: 'default', style: { stroke: 'var(--workspace-edge)', strokeWidth: 1.3 }, selectable: false })
-    const renderBranches = (branches: TaskBranch[], parentNode: string, parentTarget: Target, depth: number) => {
-      const shown = branches.filter((branch, index) => index < 7 || retained.has(branch.task.id))
-      for (const { task, children } of shown) {
+    const renderBranches = (branches: TaskBranch[], parentNode: string, depth: number) => {
+      for (const { task, children } of branches) {
         const start = y, id = `task:${task.id}`, target: Target = { kind: 'task', id: task.id }
-        if (children.length && expanded.has(id)) renderBranches(children, id, target, depth + 1)
+        if (children.length && expanded.has(id)) renderBranches(children, id, depth + 1)
         if (y === start) y += 86
         const status = task.status === 'in-progress' ? (zh ? '进行中' : 'In progress') : task.status === 'done' ? (zh ? '已完成' : 'Completed') : task.status === 'cancelled' ? (zh ? '已取消' : 'Cancelled') : (zh ? '待办' : 'To do')
         const caption = [status, children.length ? `${children.length} ${zh ? '项子任务' : 'subtasks'}` : '', !matchedIds.has(task.id) ? (zh ? '父任务上下文' : 'Parent context') : ''].filter(Boolean).join(' · ')
         add(id, target, task.title, caption, 428 + depth * 214, (start + y - 86) / 2, children.length ? id : undefined)
         link(parentNode, id)
-      }
-      if (shown.length < branches.length) {
-        const id = `more:${parentNode}`
-        add(id, parentTarget, `+ ${branches.length - shown.length} ${zh ? '项任务' : 'tasks'}`, zh ? '选择后在列表中查看' : 'Select to view in the list', 428 + depth * 214, y, undefined, true)
-        link(parentNode, id); y += 86
       }
     }
     for (const group of groups) {
@@ -100,7 +102,7 @@ function Graph({ groups, selection, expanded, onExpand, onSelect, menuFor, match
       if (expanded.has(projectNode)) {
         for (const topic of group.topics) {
           const topicStart = y, topicNode = `topic:${topic.id}`
-          if (expanded.has(topicNode)) renderBranches(taskTree(topic.tasks), topicNode, { kind: 'topic', id: topic.id }, 0)
+          if (expanded.has(topicNode)) renderBranches(taskTree(topic.tasks), topicNode, 0)
           if (y === topicStart) y += 86
           add(topicNode, { kind: 'topic', id: topic.id }, topic.name, `${topic.tasks.filter(task => matchedIds.has(task.id)).length} ${zh ? '项任务' : 'tasks'}`, 214, (topicStart + y - 86) / 2, topicNode)
           link(projectNode, topicNode); y += 20
@@ -119,31 +121,23 @@ function Graph({ groups, selection, expanded, onExpand, onSelect, menuFor, match
       }
     }
     return { nodes, edges }
-  }, [groups, expanded, selection, onExpand, onSelect, menuFor, matchedIds, zh, positions])
-  const selectedId = selection ? nodeKey(selection) : null
+  }, [groups, expanded, selection, onExpand, onSelect, menuFor, matchedIds, zh, positions, dimensions])
+  const visibleNodeIds = nodes.map(node => node.id).join('|')
   useEffect(() => {
-    if (!selectedId || focused.current === selectedId) return
-    focused.current = selectedId
+    if (!positionsReady || !nodesInitialized || !visibleNodeIds) return
+    const focusKey = `${visibleNodeIds}/${viewportWidth}/${viewportHeight}`
+    if (focused.current === focusKey) return
+    // Fit topology/size changes only. Selection must preserve the user viewport
+    // so clicking a node never pans an ancestor away or resets manual zoom.
     focusTimer.current = setTimeout(() => {
-      const ids = new Set([selectedId])
-      for (const group of groups) {
-        if (selection?.kind === 'task') {
-          const topic = group.topics.find(topic => topic.tasks.some(task => task.id === selection.id))
-          const task = group.tasks.find(task => task.id === selection.id)
-          const parent = task?.parentTaskId ? group.tasks.find(parent => parent.id === task.parentTaskId) : null
-          // Deep ancestry remains available by panning and in the list path.
-          // Focus the immediate relationship instead of shrinking five columns
-          // of ancestors until task labels become unreadable in linked mode.
-          if (parent) ids.add(`task:${parent.id}`)
-          else if (topic) { ids.add(`project:${group.id}`); ids.add(`topic:${topic.id}`) }
-        } else if (selection?.kind === 'topic' && group.topics.some(topic => topic.id === selection.id)) ids.add(`project:${group.id}`)
-      }
-      void flow.fitView({ nodes: [...ids].map(id => ({ id })), duration: reducedMotion ? 0 : 180, minZoom: 0.65, maxZoom: 1, padding: 0.06 })
+      focused.current = focusKey
+      focusTimer.current = null
+      void flow.fitView({ duration: reducedMotion ? 0 : 180, minZoom: 0.01, maxZoom: 1, padding: 0.08 })
     }, 50)
     return () => { if (focusTimer.current) clearTimeout(focusTimer.current) }
-  }, [selectedId, expanded, flow, reducedMotion, groups, selection])
-  return <ReactFlow<GraphNode> nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.06, maxZoom: 1 }}
-    minZoom={0.15} maxZoom={1.4} nodesDraggable nodesConnectable={false} nodesFocusable nodeDragThreshold={5} onNodesChange={moveNodes} onNodeDragStart={cancelFocus} onNodeDragStop={(_, node) => { const next = { ...positions, [node.id]: { ...node.position } }; setPositions(next); try { localStorage.setItem(positionKey, JSON.stringify(next)) } catch {} }} onMoveStart={event => { if (event) cancelFocus() }} deleteKeyCode={null} multiSelectionKeyCode={null} elementsSelectable
+  }, [visibleNodeIds, positionsReady, nodesInitialized, viewportWidth, viewportHeight, flow, reducedMotion])
+  return <ReactFlow<GraphNode> nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.08, minZoom: 0.01, maxZoom: 1 }}
+    minZoom={0.01} maxZoom={1.4} nodesDraggable nodesConnectable={false} nodesFocusable nodeDragThreshold={5} onNodesChange={moveNodes} onNodeDragStart={cancelFocus} onNodeDragStop={(_, node) => { const next = { ...positions, [node.id]: { ...node.position } }; setPositions(next); try { localStorage.setItem(positionKey, JSON.stringify(next)) } catch {} }} onMoveStart={event => { if (event) cancelFocus() }} deleteKeyCode={null} multiSelectionKeyCode={null} elementsSelectable
     onNodeClick={(_, node) => onSelect(node.data.target)} onNodeDoubleClick={(_, node) => node.data.onExpand?.()}
     onlyRenderVisibleElements={nodes.length > 200} proOptions={{ hideAttribution: false }} aria-label={zh ? '项目主题任务关系图' : 'Project topic task graph'}>
     <Controls showInteractive={false}><ControlButton onClick={resetPositions} title={zh ? '重置节点布局' : 'Reset node layout'} aria-label={zh ? '重置节点布局' : 'Reset node layout'}><RotateCcw size={14} /></ControlButton></Controls>
