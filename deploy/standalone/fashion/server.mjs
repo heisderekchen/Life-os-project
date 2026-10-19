@@ -155,7 +155,7 @@ export function privateAddress(address) {
     ) || /^(?:ff|fe[89ab]|2001:db8:)/i.test(address)
   );
 }
-async function publicURL(value) {
+async function publicURL(value, fetcher) {
   const u = new URL(value);
   if (
     !safeURL(value) ||
@@ -164,13 +164,14 @@ async function publicURL(value) {
     !u.hostname.includes(".")
   )
     throw Error("仅支持公开网站。");
+  if (fetcher?.trustedRelayHosts?.has(u.hostname)) return u;
   const ips = await lookup(u.hostname, { all: true });
   if (!ips.length || ips.some((x) => privateAddress(x.address)))
     throw Error("网站地址不可用。");
   return u;
 }
 export async function getPublic(value, fetcher, redirects = 0) {
-  const u = await publicURL(value);
+  const u = await publicURL(value, fetcher);
   const r = await fetcher(u, {
     signal: AbortSignal.timeout(7000),
     redirect: "manual",
@@ -207,7 +208,7 @@ export function imageDimensions(bytes,mime) {
  return null;
 }
 export async function getImage(value, fetcher, redirects = 0) {
-  const u = await publicURL(value);
+  const u = await publicURL(value, fetcher);
   const r = await fetcher(u, { signal: AbortSignal.timeout(9000), redirect: "manual", headers: { accept: "image/avif,image/webp,image/*", "user-agent": "Mozilla/5.0" } });
   if (r.status >= 300 && r.status < 400 && redirects < 3)
     return getImage(new URL(r.headers.get("location"), u).href, fetcher, redirects + 1);
@@ -437,7 +438,7 @@ export function createApp({
           sourceCatalog,
         });
       }
-      if (u.pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "1.0.1", storage: "persistent-files" });
+      if (u.pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "1.0.2", storage: "persistent-files" });
       if (u.pathname === "/api/login" && req.method === "POST") {
         if (guestPreview)
           return json(res, 405, { error: "此预览直接进入，无需登录。" });

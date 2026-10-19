@@ -44,3 +44,9 @@ test('public IPv6 websites stay reachable while private and mapped addresses rem
  const {privateAddress}=await import('../server.mjs');assert.equal(privateAddress('2620:0:861:ed1a::1'),false);assert.equal(privateAddress('8.8.8.8'),false);
  for(const ip of ['127.0.0.1','10.0.0.1','192.168.1.1','172.16.0.1','::1','::ffff:127.0.0.1','fc00::1','fd00::1','fe80::1','febf::1'])assert.equal(privateAddress(ip),true,ip);
 });
+
+test('edge connector reads only pinned overseas sources and leaves original URLs intact',async()=>{
+ const {sourceFetch}=await import('../connector.mjs');const seen=[];const connected=sourceFetch(async(url)=>{seen.push(String(url));return new Response('original bytes');});
+ const original='https://commons.wikimedia.org/wiki/File:Presidio_Loafer.jpg';assert.equal(await(await connected(original)).text(),'original bytes');assert.equal(new URL(seen[0]).searchParams.get('url'),original);assert.equal(new URL(seen[0]).host,'fashion-source-connector.yecol.workers.dev');
+ await connected('https://example.com/photo');assert.equal(seen[1],'https://example.com/photo');assert(!connected.trustedRelayHosts.has('commons.wikimedia.org.evil.test'));
+});
