@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -12,10 +12,11 @@ const timestamp = '2026-10-19T01:00:00Z'
 const project = (id: string, name: string) => ({ id, name, status: 'active', color: '#0f766e', archived: false, createdAt: timestamp, updatedAt: timestamp })
 const topic = { id: 'topic-a', projectId: 'project-a', name: '主题 A', createdAt: timestamp, updatedAt: timestamp }
 const fixture = { id: 'task-a', title: '联动任务', status: 'todo', priority: 'medium', projectId: 'project-a', topicId: topic.id, taskType: '需求', createdAt: timestamp, updatedAt: timestamp }
-function setup(failPatch = false, failTopics = false) {
-  let tasks = [fixture, { ...fixture, id: 'task-b', title: '其他任务', projectId: 'project-b', topicId: null, status: 'done', taskType: '研究' }]
+function setup(failPatch = false, failTopics = false, initialTasks?: Record<string, unknown>[]) {
+  let tasks: Record<string, unknown>[] = initialTasks || [fixture, { ...fixture, id: 'task-b', title: '其他任务', projectId: 'project-b', topicId: null, status: 'done', taskType: '研究' }]
   let patch: Record<string, unknown> | null = null
-  server.use(http.get('*/api/projects', () => HttpResponse.json([project('project-a', '项目 A'), project('project-b', '项目 B')])), http.get('*/api/topics', () => failTopics ? HttpResponse.json({ error: 'Unavailable' }, { status: 503 }) : HttpResponse.json([topic])), http.get('*/api/tasks', () => HttpResponse.json(tasks)), http.patch('*/api/tasks/:id', async ({ request, params }) => {
+  let created: Record<string, unknown> | null = null
+  server.use(http.get('*/api/projects', () => HttpResponse.json([project('project-a', '项目 A'), project('project-b', '项目 B')])), http.get('*/api/topics', () => failTopics ? HttpResponse.json({ error: 'Unavailable' }, { status: 503 }) : HttpResponse.json([topic])), http.get('*/api/tasks', () => HttpResponse.json(tasks)), http.post('*/api/tasks', async ({ request }) => { created = await request.json() as Record<string, unknown>; const task = { ...fixture, ...created, id: 'new-task' }; tasks.push(task); return HttpResponse.json(task, { status: 201 }) }), http.patch('*/api/tasks/:id', async ({ request, params }) => {
     patch = await request.json() as Record<string, unknown>
     if (failPatch) return HttpResponse.json({ error: '保存失败测试' }, { status: 503 })
     tasks = tasks.map(task => task.id === params.id ? { ...task, ...patch } as typeof fixture : task)
@@ -23,9 +24,10 @@ function setup(failPatch = false, failTopics = false) {
   }))
   useAppStore.setState({ language: 'zh' })
   render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}><ProjectWorkspace /></QueryClientProvider>)
-  return { patch: () => patch }
+  return { patch: () => patch, created: () => created }
 }
 beforeAll(() => Object.defineProperty(Element.prototype, 'scrollIntoView', { value: vi.fn(), configurable: true }))
+beforeEach(() => localStorage.clear())
 afterEach(() => cleanup())
 describe('project workspace', () => {
   it('uses a topic selection to scope the list and preserves filters between view modes', async () => {
@@ -66,4 +68,54 @@ describe('project workspace', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('读取失败')
     expect(screen.getByRole('button', { name: '重试' })).toBeInTheDocument()
   })
+  it('sorts flat rows from their headers and exposes direction to assistive technology', async () => {
+    setup(false, false, [{ ...fixture, title: 'B task', taskType: 'Bug' }, { ...fixture, id: 'task-b', title: 'A task', taskType: 'Analysis' }]); const user = userEvent.setup()
+    const list = await screen.findByRole('region', { name: '任务列表' })
+    await user.click(within(list).getByRole('button', { name: '平铺' }))
+    const table = within(list).getByRole('table')
+    await user.click(within(table).getByRole('button', { name: '名称' }))
+    expect(table.querySelector('[data-workspace-task]')).toHaveAttribute('data-workspace-task', 'task-b')
+    expect(within(table).getByRole('columnheader', { name: '名称' })).toHaveAttribute('aria-sort', 'ascending')
+    await user.click(within(table).getByRole('button', { name: '名称' }))
+    expect(table.querySelector('[data-workspace-task]')).toHaveAttribute('data-workspace-task', 'task-a')
+    expect(within(table).getByRole('columnheader', { name: '名称' })).toHaveAttribute('aria-sort', 'descending')
+    await user.click(within(table).getByRole('button', { name: '类型' }))
+    expect(table.querySelector('[data-workspace-task]')).toHaveAttribute('data-workspace-task', 'task-b')
+    expect(screen.getByRole('combobox', { name: '排序字段' })).toHaveValue('type')
+  })
+  it('shows children under their parent and keeps real unassigned tasks separate', async () => {
+    setup(false, false, [fixture, { ...fixture, id: 'child', title: '真正的子任务', projectId: null, topicId: null, parentTaskId: fixture.id }, { ...fixture, id: 'unassigned', title: '独立任务', projectId: null, topicId: null }]); const user = userEvent.setup()
+    const list = await screen.findByRole('region', { name: '任务列表' })
+    const row = list.querySelector('[data-workspace-task="child"]')!
+    expect(row).toHaveTextContent('父任务：联动任务')
+    expect(list.querySelectorAll('[data-workspace-task]')).toHaveLength(2)
+    await user.click(within(row as HTMLElement).getByRole('button', { name: /^真正的子任务/ }))
+    const inspector = screen.getByRole('region', { name: '任务概要' })
+    expect(inspector).toHaveTextContent('项目 A')
+    expect(within(inspector).getByRole('button', { name: '联动任务' })).toBeInTheDocument()
+    expect(within(inspector).getByLabelText('所属项目')).toHaveValue('')
+  })
+  it('renames from a right-click menu without rewriting a child’s inherited ownership', async () => {
+    const api = setup(false, false, [fixture, { ...fixture, id: 'child', title: '子任务', projectId: null, topicId: null, parentTaskId: fixture.id }]); const user = userEvent.setup()
+    const list = await screen.findByRole('region', { name: '任务列表' })
+    fireEvent.contextMenu(list.querySelector('[data-workspace-task="child"]')!, { clientX: 100, clientY: 100 })
+    await user.click(await screen.findByRole('menuitem', { name: '重命名' }))
+    const dialog = screen.getByRole('dialog', { name: '重命名' })
+    await user.clear(within(dialog).getByLabelText('新名称')); await user.type(within(dialog).getByLabelText('新名称'), '重命名的子任务')
+    await user.click(within(dialog).getByRole('button', { name: '保存' }))
+    await waitFor(() => expect(api.patch()).toEqual({ title: '重命名的子任务' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+  it('creates a subtask through the same actions without losing the parent ID', async () => {
+    const api = setup(); const user = userEvent.setup()
+    const list = await screen.findByRole('region', { name: '任务列表' })
+    await user.click(within(list).getByRole('button', { name: '快捷操作 联动任务' }))
+    await user.click(await screen.findByRole('menuitem', { name: '新建子任务' }))
+    const dialog = screen.getByRole('dialog', { name: '新建子任务' })
+    expect(dialog).toHaveTextContent('父任务：联动任务')
+    await user.type(within(dialog).getByLabelText('名称'), '关联的新子任务')
+    await user.click(within(dialog).getByRole('button', { name: '创建' }))
+    await waitFor(() => expect(api.created()).toMatchObject({ parentTaskId: fixture.id, projectId: 'project-a', topicId: topic.id }))
+  })
+
 })

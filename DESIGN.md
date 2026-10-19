@@ -105,21 +105,23 @@ Controls and graph nodes use gently curved control corners; chips and inner view
 
 - **View switch:** Linked, List, and Graph share one preference. The pressed choice uses the filled local accent; keyboard focus remains visible.
 - **Search and filters:** One search field and shared project/type/status filters update both representations immediately. Status counts belong in actionable filters. Use the inherited focus ring with a two-pixel offset; search focuses its enclosing field.
-- **Ownership graph:** Project → topic → task columns use 190px nodes on a 214px stride. Task positions advance by 86px. Show up to seven tasks per topic plus an overflow-count node; retain a selected task beyond that limit. Selecting overflow scopes the topic list. Node selection keeps ancestors in view; expansion has a separate control.
-- **Table and inspector:** A row selection locates its graph node and opens its inspector. A graph selection scopes rows while retaining ownership context. Status remains text-readable: completed is muted, cancelled is muted and struck through, and overdue uses destructive text. Editing ownership persists through the server; a topic belongs to one project. Inbox and Unclassified remain explicit choices.
+- **Ownership graph:** Project → topic → task → subtask columns use 190px nodes on a 214px stride. Task positions advance by 86px. Show up to seven tasks per topic plus an overflow-count node; retain a selected task beyond that limit. Selecting overflow scopes the corresponding list. Subtasks follow recorded parent links and expand recursively. Selection focuses the immediate parent relationship at readable scale; earlier ancestors remain available by panning and in breadcrumbs. Expansion has a separate control.
+- **Table and inspector:** A row selection locates its graph node and opens its inspector. A graph selection scopes rows while retaining ownership context. Status remains text-readable: completed is muted, cancelled is muted and struck through, and overdue uses destructive text. Editing ownership persists through the server; a topic belongs to one project. Unassigned project and Unclassified remain explicit choices. Missing subtask ownership may inherit from a recorded parent for display; edits use the original API record.
+- **Column sorting:** All five table headers share the toolbar sort state and expose direction through `aria-sort`. Empty dates/types stay last in both directions.
+- **Context actions:** Graph nodes and hierarchy rows share the incumbent Radix menu pattern. Visible, named Actions triggers expose the same commands to keyboard and touch input; phone targets remain at least 44px. Menu entry is 120ms, exit is immediate, and reduced motion removes animation.
 - **Actions and details:** Reuse existing primary, outline, ghost, destructive, input, and dialog components. Full details opens the existing execution workspace. The native phone More menu contains project/topic creation, project management, and recurring/execution access.
 - **Feedback and motion:** Loading, retry, empty results, saving, and field errors remain explicit. Semantic selection/filter updates are immediate. Optional graph viewport movement takes 180ms and yields to a newer selection; reduced motion uses zero-duration positioning and suppresses workspace transitions/animation. Add no entrance or decorative motion.
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** preserve one dataset, one selection, and the project → topic → task relationship.
+- **Do** preserve one dataset, one selection, and the project → topic → task → subtask relationship.
 - **Do** inherit the existing app shell, typography, neutral tokens, and full-detail controls.
-- **Do** keep explicit Inbox and Unclassified states and persist ownership on the server.
+- **Do** keep explicit Unassigned project and Unclassified states and persist user ownership edits on the server.
 - **Do** retain horizontal table scrolling, visible keyboard focus, and the phone touch-target floor.
 
 ### Don't:
-- **Don't** infer ownership for existing unclassified records.
+- **Don't** persist inferred ownership for existing unclassified records; display inheritance may follow recorded parent links.
 - **Don't** add decorative card grids, entrance animation, or new font assets to this workspace.
 - **Don't** treat fixture screenshots as evidence of real-account acceptance or deployment.
 - **Don't** apply this workspace composition or local accent globally.

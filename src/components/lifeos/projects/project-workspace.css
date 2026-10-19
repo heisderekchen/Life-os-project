@@ -96,3 +96,23 @@
 @media (max-width:600px) { .workspace-view-switch button { padding:7px 9px; min-width:44px; } .workspace-view-switch button > svg { display:none; } }
 
 .dark .project-workspace { --primary:#5eead4; --primary-foreground:#042f2e; }
+
+.workspace-task-cell { display:flex; align-items:center; gap:2px; min-width:0; }
+.workspace-task-cell .workspace-row-name { flex:1; width:0; }
+.workspace-row-path { display:block; margin-top:2px; font-size:11px; color:var(--muted-foreground); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.workspace-actions-button { flex:none; display:grid; place-items:center; min-width:28px; min-height:32px; color:var(--muted-foreground); border-radius:4px; }
+.workspace-actions-button:hover { background:var(--muted); color:var(--foreground); }
+.workspace-node > .workspace-actions-button { min-width:22px; }
+.workspace-context-menu { min-width:208px; max-width:calc(100vw - 16px); animation-duration:120ms; }
+.workspace-context-menu [role=menuitem] { min-height:36px; }
+.workspace-column-sort { display:flex; align-items:center; gap:3px; width:100%; min-height:30px; text-align:start; }
+.workspace-column-sort svg { flex:none; width:12px; height:12px; }
+.workspace-column-sort:hover { color:var(--primary); }
+.workspace-table th[aria-sort=ascending], .workspace-table th[aria-sort=descending] { color:var(--primary); }
+.workspace-parent-path { margin-top:12px; font-size:12px; color:var(--muted-foreground); overflow-wrap:anywhere; }
+.workspace-parent-path button { color:var(--primary); text-decoration:underline; text-underline-offset:3px; }
+.workspace-node.is-context { border-style:dashed; }
+.workspace-table tr[data-context-only=true] .workspace-task-title { color:var(--muted-foreground); }
+@media (max-width:600px) { .workspace-actions-button { min-width:44px; min-height:44px; } .workspace-context-menu [role=menuitem] { min-height:44px; } .workspace-column-sort { min-height:44px; } }
+@media (prefers-reduced-motion:reduce) { .workspace-context-menu { animation:none !important; transition:none !important; } }
+.workspace-context-menu[data-state=closed] { animation:none; }
