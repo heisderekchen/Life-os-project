@@ -116,3 +116,8 @@
 @media (max-width:600px) { .workspace-actions-button { min-width:44px; min-height:44px; } .workspace-context-menu [role=menuitem] { min-height:44px; } .workspace-column-sort { min-height:44px; } }
 @media (prefers-reduced-motion:reduce) { .workspace-context-menu { animation:none !important; transition:none !important; } }
 .workspace-context-menu[data-state=closed] { animation:none; }
+
+.workspace-node-content { cursor:grab; touch-action:none; }
+.workspace-node-content:active { cursor:grabbing; }
+
+.workspace-canvas .react-flow__controls-button svg.lucide { fill:none; }

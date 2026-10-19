@@ -118,4 +118,29 @@ describe('project workspace', () => {
     await waitFor(() => expect(api.created()).toMatchObject({ parentTaskId: fixture.id, projectId: 'project-a', topicId: topic.id }))
   })
 
+  it('renames the unclassified hierarchy into a persisted topic independently of search filters', async () => {
+    const records: Record<string, unknown>[] = [{ ...fixture, title: '可见任务', topicId: null }, { ...fixture, id: 'hidden', title: '筛选外任务', topicId: null }]
+    setup(false, false, records)
+    let created: Record<string, unknown> | null = null
+    const topics = [topic]
+    server.use(http.get('*/api/topics', () => HttpResponse.json(topics)), http.post('*/api/topics', async ({ request }) => {
+      created = await request.json() as Record<string, unknown>
+      const saved = { ...topic, id: 'renamed-group', name: String(created.name) }
+      topics.push(saved); records.forEach(task => { task.topicId = saved.id })
+      return HttpResponse.json({ ...saved, movedTaskCount: records.length, skippedTaskCount: 0 }, { status: 201 })
+    }))
+    const user = userEvent.setup()
+    const list = await screen.findByRole('region', { name: '任务列表' })
+    fireEvent.change(screen.getByRole('textbox', { name: '搜索项目、主题或任务' }), { target: { value: '可见任务' } })
+    await user.click(within(list).getByRole('button', { name: '快捷操作 未分类' }))
+    await user.click(await screen.findByRole('menuitem', { name: '重命名' }))
+    const dialog = screen.getByRole('dialog', { name: '重命名' })
+    expect(dialog).toHaveTextContent('不受当前筛选限制')
+    fireEvent.change(within(dialog).getByLabelText('新名称'), { target: { value: '预约流程' } })
+    await user.click(within(dialog).getByRole('button', { name: '保存' }))
+    await waitFor(() => expect(created).toEqual({ name: '预约流程', projectId: 'project-a', fromUnclassified: true }))
+    await waitFor(() => expect(within(list).getByRole('heading', { level: 2 })).toHaveTextContent('预约流程'))
+    expect(within(list).getByRole('button', { name: '筛选外任务' })).toBeInTheDocument()
+  })
+
 })

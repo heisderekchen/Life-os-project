@@ -14,3 +14,6 @@ Server persistence, reloading, cross-project topic rejection, unclassified/inbox
 
 ## Feedback refinement 2026-10-19
 Honor recorded parentTaskId in graph, hierarchy, filter context and flat-row breadcrumbs. Inherit missing ownership only for display; explicit ownership and API records stay authoritative. Rename Inbox to Unassigned project. Reuse app Radix menus for graph/row context actions, keyboard and touch access; use existing dialogs for rename and ownership edits. All five table headers share the existing sort state, expose aria-sort, and keep empty dates last. Menu entry is at most 120ms, reduced motion removes it; commands do not wait on animation.
+
+## Screenshot rejection correction 2026-10-19
+The circled Unclassified topic must support Rename to create a real topic and assign the whole project group atomically, preserving parentTaskId. Keep duplicate validation and rollback. Node drag changes local browser layout, background drag pans, and Reset restores automatic layout. Clicking a parent reveals children; cross-ownership parent links remain drawn when endpoints are visible.

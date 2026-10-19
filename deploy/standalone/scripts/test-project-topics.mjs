@@ -71,5 +71,35 @@ try {
   const reassociated = (await call(`/tasks/${importedId}`, 'GET')).body
   assert.equal(reassociated.topicId, null, 'legacy project reassociation clears an incompatible topic')
   assert.equal(reassociated.taskType, '研究', 'user-owned type remains intact')
+  const grouped = (await call('/compat/projects', 'POST', { name: '未分类重命名验收' })).body
+  const existingTopic = (await call('/topics', 'POST', { projectId: grouped.id, name: '既有主题' })).body
+  const root = (await call('/tasks', 'POST', { title: '未分类父任务', projectId: grouped.id })).body
+  const child = (await call('/tasks', 'POST', { title: '未分类子任务', parentTaskId: root.id })).body
+  const grandchild = (await call('/tasks', 'POST', { title: '未分类孙任务', parentTaskId: child.id })).body
+  const assigned = (await call('/tasks', 'POST', { title: '已有归属', projectId: grouped.id, topicId: existingTopic.id })).body
+  const inheritedAssigned = (await call('/tasks', 'POST', { title: '沿用已有主题', parentTaskId: assigned.id })).body
+  const archived = (await call('/tasks', 'POST', { title: '已归档', projectId: grouped.id })).body
+  await call(`/tasks/${archived.id}`, 'PATCH', { archived: true })
+  const unrelated = (await call('/tasks', 'POST', { title: '另一项目未分类', projectId: other.id })).body
+  assert.equal((await call('/topics', 'POST', { projectId: grouped.id, name: existingTopic.name, fromUnclassified: true })).status, 409)
+  assert.equal((await call(`/tasks/${root.id}`, 'GET')).body.topicId, null)
+  db.exec(`CREATE TRIGGER fail_topic_group_test BEFORE UPDATE ON personal_workbench_lifeos_tasks WHEN OLD.id='${child.id}' BEGIN SELECT RAISE(ABORT,'group-test-failure'); END`)
+  await assert.rejects(() => call('/topics', 'POST', { projectId: grouped.id, name: '应回滚', fromUnclassified: true }), /group-test-failure/)
+  db.exec('DROP TRIGGER fail_topic_group_test')
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM lifeos_project_topics WHERE name=?').get('应回滚').count, 0)
+  assert.equal((await call(`/tasks/${root.id}`, 'GET')).body.topicId, null, 'a failed group rename rolls back all task writes')
+  const renamedGroup = await call('/topics', 'POST', { projectId: grouped.id, name: '预约流程', fromUnclassified: true })
+  assert.equal(renamedGroup.status, 201); assert.equal(renamedGroup.body.movedTaskCount, 3)
+  for (const item of [root, child, grandchild]) {
+    const saved = (await call(`/tasks/${item.id}`, 'GET')).body
+    assert.equal(saved.topicId, renamedGroup.body.id); assert.equal(saved.projectId, grouped.id)
+    assert.equal(saved.parentTaskId, item.parentTaskId, 'group naming must preserve every recorded parent ID')
+  }
+  assert.equal((await call(`/tasks/${inheritedAssigned.id}`, 'GET')).body.topicId, null, 'a child of a classified parent is not an unclassified task')
+  assert.equal((await call(`/tasks/${archived.id}`, 'GET')).body.topicId, null)
+  assert.equal((await call(`/tasks/${unrelated.id}`, 'GET')).body.topicId, null)
+  db.close(); db = new DatabaseSync(file); db.exec('PRAGMA foreign_keys=ON'); env = { DB: createD1Sqlite(db) }
+  assert.equal((await call(`/tasks/${grandchild.id}`, 'GET')).body.parentTaskId, child.id)
+  assert.equal((await call(`/tasks/${grandchild.id}`, 'GET')).body.topicId, renamedGroup.body.id)
   console.log('Topic ownership, persistence after reconnect, cross-project rejection, recurrence metadata, non-destructive deletion, and legacy import reconciliation passed.')
 } finally { db.close(); rmSync(directory, { recursive: true, force: true }) }
