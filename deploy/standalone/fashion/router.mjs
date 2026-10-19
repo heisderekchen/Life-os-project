@@ -1,5 +1,6 @@
 import { sourceFetch } from './connector.mjs';
 import { createApp } from './server.mjs';
+import { sourceSearchPlan } from './source-planner.mjs';
 import { createAdmin } from './admin/server.mjs';
 import { createFashionIntelligenceSearch } from './legacy-search.mjs';
 import { resolve, dirname } from 'node:path';
@@ -8,8 +9,9 @@ import { fileURLToPath } from 'node:url';
 const HERE=dirname(fileURLToPath(import.meta.url));
 export function createFashionRouter({dataDir,authorizeAdmin,fetcher=fetch,photoSearch=true}) {
   fetcher=sourceFetch(fetcher);
-  const customer=createApp({dataDir,fetcher,guestPreview:true,persistentSessions:true,cookiePath:'/fashion/',secureCookie:true,photoSearch});
   const admin=createAdmin({settingsFile:resolve(dataDir,'source-admin.json'),authorize:authorizeAdmin});
+  const customer=createApp({dataDir,fetcher,guestPreview:true,persistentSessions:true,cookiePath:'/fashion/',secureCookie:true,photoSearch,
+    planSources: async input => sourceSearchPlan(input, (await admin.store.read()).sources)});
   const legacy=createFashionIntelligenceSearch({fetcher});
   let initialized;
   async function seed() {

@@ -150,10 +150,14 @@ function htmlEntities(value) {
         .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 }
 
-async function bingImages(query, fetcher) {
+async function bingImages(query, fetcher, { offset = 0 } = {}) {
     const endpoint = new URL('https://www.bing.com/images/search');
     endpoint.searchParams.set('q', query);
-    endpoint.searchParams.set('count', '40');
+    endpoint.searchParams.set('count', '60');
+    endpoint.searchParams.set('first', String(offset + 1));
+    endpoint.searchParams.set('mkt', 'en-US');
+    endpoint.searchParams.set('setlang', 'en-US');
+    endpoint.searchParams.set('ensearch', '1');
     endpoint.searchParams.set('adlt', 'strict');
     const html = await imageSource(fetcher, endpoint, 'text');
     const results = [];
