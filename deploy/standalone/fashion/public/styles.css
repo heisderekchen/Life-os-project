@@ -638,12 +638,15 @@ img {
 }
 .run-state p {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   margin-top: 10px;
 }
+.run-state .text-button { margin-top: 16px; }
+.run-state [data-run-clock] { font-variant-numeric: tabular-nums; }
+.run-state [data-run-connection] { color: var(--bad); }
 .activity {
   height: 3px;
-  background: #dfece7;
+  background: var(--line);
   overflow: hidden;
   margin: 22px 0;
 }

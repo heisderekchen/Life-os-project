@@ -33,7 +33,7 @@ test('来源日期未知时限定时间不伪造新品，空查询不补历史�
   };
   const filtered = await searchPhotos({ subject: candidate.title, days: 7, domains: [] }, dependencies);
   assert.equal(filtered.items.length, 0);
-  assert.equal(filtered.channels[0].rejected.dateUnconfirmedOrOutsideRange, 1);
+  assert.equal(filtered.channels[0].rejected.dateUnconfirmed, 1);
   const empty = await searchPhotos({ subject: 'zznonexistent loafer', days: 0, domains: [] }, { ...dependencies, fetcher: async u => new Response(String(u).includes('/i.js?') ? '{"results":[]}' : "vqd='4-123'") });
   assert.equal(empty.items.length, 0);
   await assert.rejects(searchPhotos({ subject: 'loafers', days: 0, domains: [] }, { ...dependencies, fetcher: async () => { throw Error('offline'); } }), /任务已保留/);
