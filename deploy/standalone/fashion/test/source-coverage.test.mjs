@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sourceSearchPlan } from '../source-planner.mjs';
 import { createSourceStore } from '../admin/store.mjs';
-import { searchPhotos, photoQueries, declaredImageURL, imageDeclared, matchesIntent, createPageLRU, PAGE_CACHE_LIMIT, sourcePublishedAt, countResultSources } from '../photo-search.mjs';
+import { searchPhotos, photoQueries, declaredImageURL, imageDeclared, matchesIntent, createPageLRU, createPageReadLimiter, PAGE_CACHE_LIMIT, PAGE_CACHE_BYTE_LIMIT, sourcePublishedAt, countResultSources } from '../photo-search.mjs';
 import { nikeCatalogNext, nikeCatalogPhotos, nikeProductPhotos } from '../source-adapters.mjs';
 
 test('real private catalogue supplies Nike and footwear media; admin exclusions apply to subsequent searches', async t => {
@@ -70,6 +70,32 @@ test('PDP page cache is a bounded LRU and touches recently reused pages', () => 
   assert.equal(cache.get('c'), 3);
   assert.equal(cache.get('d'), 4);
   assert.equal(PAGE_CACHE_LIMIT, 48);
+  assert.equal(PAGE_CACHE_BYTE_LIMIT, 8 * 1024 * 1024);
+});
+
+test('shared page-read limiter bounds concurrent large-page parsing', async () => {
+  const limit = createPageReadLimiter(2);
+  let active = 0, peak = 0;
+  await Promise.all(Array.from({ length: 10 }, (_, index) => limit(async () => {
+    active++;
+    peak = Math.max(peak, active);
+    await new Promise(resolve => setTimeout(resolve, index % 2 ? 2 : 1));
+    active--;
+  })));
+  assert.equal(peak, 2);
+  assert.equal(active, 0);
+});
+
+test('PDP page cache enforces a byte budget in addition to the entry count', () => {
+  const cache = createPageLRU(10, 10);
+  cache.set('a', 'a', 4);
+  cache.set('b', 'b', 4);
+  assert.equal(cache.get('a'), 'a');
+  cache.set('c', 'c', 4);
+  assert.equal(cache.get('b'), undefined);
+  assert.equal(cache.bytes, 8);
+  cache.set('too-large', 'x', 11);
+  assert.equal(cache.get('too-large'), undefined);
 });
 
 test('sitemap lastModifiedAt never substitutes for article publication date, while RSS pubDate remains valid', () => {
@@ -90,15 +116,19 @@ test('broad discovery combines providers, exceeds eight photos, rejects demo lis
   const more = Array.from({ length: 65 }, (_, i) => ({ t: 'Nike shoes ' + i, purl: `https://${i % 2 ? 'second' : 'third'}.example.com/product/${i}`, murl: `https://cdn.example.com/${i}.jpg` }));
   more.unshift({ t: '演示数据 Nike shoes', purl: 'https://store.example.com/demo', murl: 'https://cdn.example.com/demo.jpg' });
   const plans = []; plans.excludedDomains = ['third.example.com'];
+  const streamed = [];
   const result = await searchPhotos({ subject: 'nike', days: 0, domains: [], sourceScope: 2 }, {
     plans, fetcher: async url => new Response(String(url).includes('bing.com/images') ? more.map(c => `<a m='${JSON.stringify(c)}'>shoe</a>`).join('') : String(url).includes('/i.js?') ? JSON.stringify({ results: [one] }) : "vqd='4-123'"),
     readPage: async url => ({ url, html: `<title>Nike shoes</title><img src="${url===one.url ? one.image : 'https://cdn.example.com/'+url.split('/').at(-1)+'.jpg'}">` }),
     readImage: async url => ({ bytes: Buffer.from(url), mime: 'image/jpeg' }), saveAsset: async () => {},
+    incrementalProgress: true, onProgress: async progress => streamed.push(...progress.items),
   });
   assert(result.items.length > 8);
   assert(result.items.some(i => i.source === 'first.example.com'));
   assert(result.items.some(i => i.source === 'second.example.com'));
   assert(result.items.every(i => i.source !== 'third.example.com' && !i.url.endsWith('/demo')));
+  assert.equal(streamed.length, result.items.length);
+  assert.equal(new Set(streamed.map(item => item.id)).size, result.items.length);
 });
 
 test('official footwear catalogue extracts products only; higher resolution must be the same declared asset', () => {

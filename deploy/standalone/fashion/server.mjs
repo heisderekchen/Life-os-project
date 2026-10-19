@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { abortable } from "./async-control.mjs";
 import { runSourceQueue, SOURCE_QUEUE_READER_VERSION } from './source-queue.mjs';
 import { sourceCatalog } from "./public/source-catalog.js";
-import { searchPhotos, imageDeclared, matchesIntent, exportHTML, countResultSources } from "./photo-search.mjs";
+import { searchPhotos, imageDeclared, matchesIntent, exportHTML, countResultSources, createPageReadLimiter } from "./photo-search.mjs";
 import { readFile, writeFile, mkdir, rename, unlink } from "node:fs/promises";
 import { resolve, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -399,16 +399,23 @@ export function createApp({
     const jobFetcher = (url, options = {}) => abortable(() => fetcher(url, { ...options,
       signal: options.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal }), controller.signal);
     jobFetcher.trustedRelayHosts = fetcher.trustedRelayHosts;
+    const limitPageRead = createPageReadLimiter();
     const old = new Map(task.items.map(x => [x.url + ':' + x.imageSha256, x]));
     const retainReview = items => items.map(x => {
       const previous = old.get(x.url + ':' + x.imageSha256);
       return previous ? { ...x, id: previous.id, review: previous.review, selected: previous.selected, note: previous.note, reviewedAt: previous.reviewedAt } : x;
     });
+    const itemByHash = new Map(task.items.map(item => [item.imageSha256, item]));
     const mergeItems = incoming => {
-      const existing = new Map(task.items.map(x => [x.imageSha256, x]));
-      for (const x of incoming) if (x && x.imageSha256 && !existing.has(x.imageSha256)) existing.set(x.imageSha256, x);
-      const list = [...existing.values()];
-      list.sort((a, b) => {
+      let added = false;
+      for (const x of incoming) {
+        if (!x || !x.imageSha256 || itemByHash.has(x.imageSha256)) continue;
+        itemByHash.set(x.imageSha256, x);
+        task.items.push(x);
+        added = true;
+      }
+      if (!added) return;
+      task.items.sort((a, b) => {
         const da = a.publishedAt ? Date.parse(a.publishedAt) : NaN;
         const db = b.publishedAt ? Date.parse(b.publishedAt) : NaN;
         if (Number.isFinite(da) && Number.isFinite(db)) return db - da;
@@ -416,14 +423,32 @@ export function createApp({
         if (Number.isFinite(db)) return 1;
         return 0;
       });
-      task.items = list;
     };
-    let progressSaveTimer = null, progressSaveError = null;
+    let progressSaveTimer = null, progressSaveError = null, progressSaveInFlight = null, progressDirty = false;
+    const runProgressSave = async () => {
+      if (progressSaveInFlight) {
+        progressDirty = true;
+        return progressSaveInFlight;
+      }
+      do {
+        progressDirty = false;
+        progressSaveInFlight = save(account);
+        try {
+          await progressSaveInFlight;
+        } catch (error) {
+          progressSaveError = error;
+          return;
+        } finally {
+          progressSaveInFlight = null;
+        }
+      } while (progressDirty);
+    };
     const scheduleProgressSave = () => {
-      if (!progressSaveTimer) {
+      progressDirty = true;
+      if (!progressSaveTimer && !progressSaveInFlight) {
         progressSaveTimer = setTimeout(() => {
           progressSaveTimer = null;
-          void save(account).catch(error => { progressSaveError = error; });
+          void runProgressSave();
         }, 50);
       }
       return Promise.resolve();
@@ -433,8 +458,10 @@ export function createApp({
         clearTimeout(progressSaveTimer);
         progressSaveTimer = null;
       }
+      progressDirty = true;
+      if (progressSaveInFlight) await progressSaveInFlight;
+      if (progressDirty) await runProgressSave();
       if (progressSaveError) throw progressSaveError;
-      await save(account);
     };
     let active = true;
     const job = (async () => {
@@ -483,6 +510,8 @@ export function createApp({
                 signal: comboSignal,
                 resultLimit: entry.catalogResultLimit,
                 checkpoint,
+                incrementalProgress: true,
+                limitPageRead,
                 onProgress: async (p) => { if (typeof onPartial === 'function') await onPartial(p); },
               });
               return value;
@@ -639,7 +668,7 @@ export function createApp({
           sourceCatalog,
         });
       }
-      if (u.pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "1.0.6", storage: "persistent-files" });
+      if (u.pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "1.0.7", storage: "persistent-files" });
       if (u.pathname === "/api/login" && req.method === "POST") {
         if (guestPreview)
           return json(res, 405, { error: "此预览直接进入，无需登录。" });
