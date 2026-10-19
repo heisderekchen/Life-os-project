@@ -1,5 +1,5 @@
 # Unified project workspace
-Mode: Operate. Scope: project/topic/task organization; preserve existing execution details.
+Mode: Operate. Scope: project/topic/task/subtask organization; preserve existing execution details.
 ## Direction contract
 THESIS: One selection and one filtered dataset connect a spatial ownership tree with dense operational rows.
 OWN-WORLD: Preserve the app theme; neutral surfaces, restrained teal/primary selection, system Chinese typography, thin dividers, compact rows, recognizable folder/document icons.
@@ -11,3 +11,6 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 Selection and filtering are immediate. Optional graph viewport movement takes 180ms, interrupted by a newer selection; reduced motion uses an immediate jump. No entrance or decorative animation.
 ## Acceptance
 Server persistence, reloading, cross-project topic rejection, unclassified/inbox visibility, shared filtering, keyboard access, empty/error/loading states, desktop and phone overflow, and the existing task execution dialog.
+
+## Feedback refinement 2026-10-19
+Honor recorded parentTaskId in graph, hierarchy, filter context and flat-row breadcrumbs. Inherit missing ownership only for display; explicit ownership and API records stay authoritative. Rename Inbox to Unassigned project. Reuse app Radix menus for graph/row context actions, keyboard and touch access; use existing dialogs for rename and ownership edits. All five table headers share the existing sort state, expose aria-sort, and keep empty dates last. Menu entry is at most 120ms, reduced motion removes it; commands do not wait on animation.

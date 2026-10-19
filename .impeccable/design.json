@@ -200,13 +200,13 @@
       }
     ],
     "dos": [
-      "Do preserve one dataset, one selection, and the project → topic → task relationship.",
+      "Do preserve one dataset, one selection, and the project → topic → task → subtask relationship.",
       "Do inherit the existing app shell, typography, neutral tokens, and full-detail controls.",
-      "Do keep explicit Inbox and Unclassified states and persist ownership on the server.",
+      "Do keep explicit Unassigned project and Unclassified states and persist user ownership edits on the server.",
       "Do retain horizontal table scrolling, visible keyboard focus, and the phone touch-target floor."
     ],
     "donts": [
-      "Don't infer ownership for existing unclassified records.",
+      "Don't persist inferred ownership for existing unclassified records; display inheritance may follow recorded parent links.",
       "Don't add decorative card grids, entrance animation, or new font assets to this workspace.",
       "Don't treat fixture screenshots as evidence of real-account acceptance or deployment.",
       "Don't apply this workspace composition or local accent globally."
