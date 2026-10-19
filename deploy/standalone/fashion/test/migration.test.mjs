@@ -29,6 +29,7 @@ test('migration keeps customer session/tasks across restart and isolates visitor
   response=await fetch(app.base+'/fashion-admin/api/sources',{headers});const catalog=await response.json();assert.equal(catalog.sources.length,1000);
   response=await fetch(app.base+'/fashion-admin/api/sources/'+catalog.sources[0].id,{method:'PATCH',headers:{...headers,'content-type':'application/json'},body:JSON.stringify({revision:catalog.revision,changes:{note:'migration-test'}})});assert.equal(response.status,200);
   assert.equal(JSON.parse(await readFile(join(temporary,'source-admin.json'),'utf8')).revision,catalog.revision+1);
+  const legacyPage=await fetch(app.base+'/fashion-admin/legacy/rich.html',{headers});assert.match(legacyPage.headers.get('content-security-policy'),/script-src 'self' 'unsafe-inline'/);
   for(const path of ['/migration.html','/migration.js','/legacy/rich.html','/legacy/local-api.js'])assert.equal((await fetch(app.base+'/fashion-admin'+path,{headers})).status,200);
   response=await fetch(app.base+'/fashion/api/search/materials',{method:'POST',headers:{'content-type':'application/json'},body:'{}'});assert.equal(response.status,400);
  }finally{await app.close();await rm(temporary,{recursive:true,force:true});}
