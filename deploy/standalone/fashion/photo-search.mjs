@@ -41,26 +41,89 @@ export function discoveryIntent(subject, title) {
 const blocked = /(?:pinterest|etsy|ebay|1stdibs|ufonomore|therealreal|vestiairecollective|grailed|carousell|amazon|walmart|poshmark|depop|mercari|aliexpress|temu|storage\.googleapis|lyst\.|gihut\.com|dashangu\.com|wenmiyuan\.com)/i;
 const decode = s => s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&ndash;/g, '–').replace(/&mdash;/g, '—').replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&#x([a-f\d]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));
 const plain = s => decode(s.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
+const copyString = value => typeof value === 'string' ? Buffer.from(value, 'utf8').toString('utf8') : value;
 export const PAGE_CACHE_LIMIT = 48;
-export function createPageLRU(limit = PAGE_CACHE_LIMIT) {
+export const PAGE_CACHE_BYTE_LIMIT = 8 * 1024 * 1024;
+export const PAGE_READ_CONCURRENCY = 6;
+function estimatePageBytes(value) {
+  const html = typeof value === 'string' ? value : value?.html;
+  return typeof html === 'string' ? html.length * 2 : 0;
+}
+export function createPageLRU(limit = PAGE_CACHE_LIMIT, maxBytes = PAGE_CACHE_BYTE_LIMIT) {
   const entries = new Map();
   const max = Math.max(1, Number(limit) || PAGE_CACHE_LIMIT);
-  const touch = (key, value) => {
-    entries.delete(key);
-    entries.set(key, value);
-    while (entries.size > max) entries.delete(entries.keys().next().value);
+  const byteLimit = Math.max(1, Number(maxBytes) || PAGE_CACHE_BYTE_LIMIT);
+  let bytes = 0;
+  const touch = (key, value, size = estimatePageBytes(value)) => {
+    const previous = entries.get(key);
+    if (previous) {
+      bytes -= previous.size;
+      entries.delete(key);
+    }
+    if (size > byteLimit) return;
+    entries.set(key, { value, size });
+    bytes += size;
+    while (entries.size > max || bytes > byteLimit) {
+      const oldest = entries.keys().next().value;
+      bytes -= entries.get(oldest).size;
+      entries.delete(oldest);
+    }
   };
   return {
     get(key) {
       if (!entries.has(key)) return undefined;
-      const value = entries.get(key);
-      touch(key, value);
-      return value;
+      const entry = entries.get(key);
+      touch(key, entry.value, entry.size);
+      return entry.value;
     },
-    set(key, value) { touch(key, value); },
-    delete(key) { entries.delete(key); },
-    clear() { entries.clear(); },
+    set(key, value, size = estimatePageBytes(value)) { touch(key, value, size); },
+    delete(key) {
+      const entry = entries.get(key);
+      if (entry) bytes -= entry.size;
+      entries.delete(key);
+    },
+    clear() { entries.clear(); bytes = 0; },
     get size() { return entries.size; },
+    get bytes() { return bytes; },
+  };
+}
+export function createPageReadLimiter(limit = PAGE_READ_CONCURRENCY) {
+  const maximum = Math.max(1, Number(limit) || PAGE_READ_CONCURRENCY);
+  let active = 0;
+  const waiters = [];
+  const acquire = signal => {
+    if (signal?.aborted) return Promise.reject(signal.reason);
+    if (active < maximum) {
+      active++;
+      return Promise.resolve();
+    }
+    return new Promise((resolve, reject) => {
+      const waiter = () => {
+        signal?.removeEventListener('abort', onAbort);
+        active++;
+        resolve();
+      };
+      const onAbort = () => {
+        const index = waiters.indexOf(waiter);
+        if (index >= 0) waiters.splice(index, 1);
+        reject(signal.reason);
+      };
+      waiters.push(waiter);
+      signal?.addEventListener('abort', onAbort, { once: true });
+    });
+  };
+  const release = () => {
+    active--;
+    const next = waiters.shift();
+    if (next) next();
+  };
+  return async (task, signal) => {
+    await acquire(signal);
+    try {
+      return await task();
+    } finally {
+      release();
+    }
   };
 }
 export function countResultSources(items) {
@@ -77,27 +140,37 @@ function keyURL(value) {
 export function imageDeclared(html, image) {
   // Exact asset identity in page markup / embedded structured data. Query-size
   // transforms may differ, but filenames, paths, and hosts must correspond.
-  const normalized = decode(html).replace(/\\\//g, '/').replace(/\\u0026/g, '&');
   const key = keyURL(image);
+  if (html.includes(new URL(image).href)) return true;
+  if (new URL(image).hostname === 'static.nike.com') {
+    const asset = new URL(image).pathname.match(/[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}/i)?.[0];
+    if (asset && html.includes(asset)) return true;
+  }
+  const rawUrls = [...html.matchAll(/(?:https?:)?\/\/[^\s"'<>\\]+/g)];
+  if (rawUrls.some(match => {
+    try { return keyURL(match[0].startsWith('//') ? 'https:' + match[0] : match[0]) === key; } catch { return false; }
+  })) return true;
+  if (!html.includes('\\/')) return false;
+  const normalized = decode(html).replace(/\\\//g, '/').replace(/\\u0026/g, '&');
   return normalized.includes(new URL(image).href) || [...normalized.matchAll(/(?:https?:)?\/\/[^\s"'<>\\]+/g)].some(m => {
     try { return keyURL(m[0].startsWith('//') ? 'https:' + m[0] : m[0]) === key; } catch { return false; }
   });
 }
 export function declaredImageURL(html, image) {
   if (new URL(image).hostname !== 'static.nike.com') return image;
-  const normalized = decode(html).replace(/\\\//g, '/').replace(/\\u0026/g, '&');
+  const normalized = html.includes('\\/') ? decode(html).replace(/\\\//g, '/').replace(/\\u0026/g, '&') : html;
   const urls = [...normalized.matchAll(/https:\/\/static\.nike\.com\/a\/images\/[^\s"'<>\\]+/g)].map(m => m[0]);
   const size = url => Number(url.match(/t_(?:web_pdp|PDP)_(\d+)/)?.[1] || 320);
   const declared = urls.filter(url => { try { return keyURL(url) === keyURL(image); } catch { return false; } })
     .sort((a, b) => size(b) - size(a))[0];
-  if (declared && !declared.includes('/t_default/')) return declared;
-  if (/\/a\/images\/t_(?:web_pdp|PDP)_\d+/i.test(new URL(image).pathname)) return image;
+  if (declared && !declared.includes('/t_default/')) return copyString(declared);
+  if (/\/a\/images\/t_(?:web_pdp|PDP)_\d+/i.test(new URL(image).pathname)) return copyString(image);
   if (image.includes('/a/images/t_default/')) {
     // PDP JSON declares the asset under t_default; the same asset id can be
     // rendered at a qualifying size by the public image CDN.
-    return image.replace('/a/images/t_default/', '/a/images/t_web_pdp_936_v2/f_auto,');
+    return copyString(image.replace('/a/images/t_default/', '/a/images/t_web_pdp_936_v2/f_auto,'));
   }
-  return declared || image;
+  return copyString(declared || image);
 }
 async function duckDiscover(query, fetcher) {
   const headers = { accept: 'text/html', 'user-agent': 'Mozilla/5.0' };
@@ -197,16 +270,16 @@ async function discoverOpenSources(entry, fetcher, readDocument, input, signal, 
   return attempts;
 }
 
-export async function searchPhotos(input, { fetcher, plans, readPage, readDocument = readPage, readImage, saveAsset, signal, onProgress = async () => {}, resultLimit, checkpoint = null, pageCacheLimit = PAGE_CACHE_LIMIT } = {}) {
+export async function searchPhotos(input, { fetcher, plans, readPage, readDocument = readPage, readImage, saveAsset, signal, onProgress = async () => {}, resultLimit, checkpoint = null, pageCacheLimit = PAGE_CACHE_LIMIT, pageCacheByteLimit = PAGE_CACHE_BYTE_LIMIT, incrementalProgress = false, limitPageRead = task => task() } = {}) {
   const channels = [], buckets = [], images = new Set(), hashes = new Set();
   const limits = photoLimits(input);
   const maxResults = Number.isFinite(resultLimit) && resultLimit > 0 ? resultLimit : limits.results;
   const sourceChecks = [];
-  const pageCache = createPageLRU(pageCacheLimit);
+  const pageCache = createPageLRU(pageCacheLimit, pageCacheByteLimit);
   const readCached = (url, f = fetcher) => {
     if (pageCache.get(url) === undefined) {
-      const pending = abortable(() => readPage(url, f), signal).then(value => {
-        pageCache.set(value.url, Promise.resolve(value));
+      const pending = abortable(() => limitPageRead(() => readPage(url, f), signal), signal).then(value => {
+        pageCache.set(value.url, Promise.resolve(value), estimatePageBytes(value));
         if (value.url !== url) pageCache.delete(url);
         return value;
       }).catch(error => {
@@ -253,11 +326,14 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
   let catalogCheckpoint = null;
   let catalogDiscoveryError = null;
   let catalogCompleted = new Set();
+  let reportedItemCount = 0;
   const report = async (stage, totalCandidates = buckets.reduce((n, b) => n + b.length, 0)) => {
     signal?.throwIfAborted();
+    const progressItems = incrementalProgress ? items.slice(reportedItemCount) : items.slice(0, maxResults);
+    if (incrementalProgress) reportedItemCount = items.length;
     await onProgress(structuredClone({ stage, channelsDone: completed, totalChannels: entries.length,
       candidates: totalCandidates, checked, resultLimit: maxResults, accepted: Math.min(items.length, maxResults),
-      matchedSources: countResultSources(items), items: items.slice(0, maxResults), channels, sourceChecks,
+      matchedSources: countResultSources(items), items: progressItems, channels, sourceChecks,
       ...(catalogCheckpoint ? { checkpoint: catalogCheckpoint } : {}) }));
   };
   await report('discover');

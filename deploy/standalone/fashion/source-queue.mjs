@@ -219,7 +219,7 @@ export async function runSourceQueue({
 
     timeoutPromise.catch(() => {});
     stopPromise.catch(() => {});
-    const pendingPartials = [];
+    const pendingPartials = new Set();
     record.status = 'running';
     record.error = null;
 
@@ -228,15 +228,18 @@ export async function runSourceQueue({
 
       const onPartial = (value) => {
         if (!active || child.signal.aborted || localStop.signal.aborted) return Promise.resolve();
-        const op = enqueue(async () => {
+        let op;
+        op = enqueue(async () => {
           if (!active) return;
           if (child.signal.aborted) return;
           if (localStop.signal.aborted) return;
           await onResult({ entry: entryById.get(record.id), value, partial: true });
           mergeMatched(value, record);
           await onUpdate(snapshot());
+        }).finally(() => {
+          pendingPartials.delete(op);
         });
-        pendingPartials.push(op);
+        pendingPartials.add(op);
         op.catch(() => {});
         return op;
       };
@@ -263,7 +266,7 @@ export async function runSourceQueue({
       }
 
       // wait pending partial callbacks
-      await Promise.all(pendingPartials);
+      await Promise.all([...pendingPartials]);
 
       if (!active || child.signal.aborted || localStop.signal.aborted) return;
 

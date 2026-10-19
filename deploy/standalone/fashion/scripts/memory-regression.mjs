@@ -3,13 +3,16 @@ import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { searchPhotos } from '../photo-search.mjs';
+import { getHeapStatistics } from 'node:v8';
+import { searchPhotos, PAGE_CACHE_LIMIT, PAGE_CACHE_BYTE_LIMIT, PAGE_READ_CONCURRENCY, createPageReadLimiter } from '../photo-search.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const output = resolve(process.env.FASHION_MEMORY_EVIDENCE ||
   resolve(here, '../../../../../../output/acceptance-300-clues-500-images/round25-memory-regression.json'));
 const pageBytesTarget = Number(process.env.FASHION_MEMORY_PAGE_BYTES || 1_800_000);
 const productCount = Number(process.env.FASHION_MEMORY_PRODUCTS || 600);
+const heapLimitMiB = getHeapStatistics().heap_size_limit / 1024 / 1024;
+const maxOldSpaceFlagMiB = Number(process.execArgv.find(value => value.startsWith('--max-old-space-size='))?.split('=')[1] || 0) || null;
 
 const uuid = (number, suffix) =>
   `11111111-1111-1111-1111-${String(number).padStart(8, '0')}${String(suffix).padStart(4, '0')}`;
@@ -134,6 +137,10 @@ async function run(label, products, pageSource) {
     readImage: async url => tinyPNG(url),
     saveAsset: async () => {},
     resultLimit: products.length * 2,
+    incrementalProgress: true,
+    pageCacheLimit: PAGE_CACHE_LIMIT,
+    pageCacheByteLimit: PAGE_CACHE_BYTE_LIMIT,
+    limitPageRead: createPageReadLimiter(PAGE_READ_CONCURRENCY),
   });
   const memory = sampler.stop();
   return {
@@ -150,7 +157,7 @@ async function run(label, products, pageSource) {
     ...memory,
     pass: pageReads === products.length + 1 &&
       result.items.length === products.length * 2 &&
-      memory.peakHeapUsedMiB < 512,
+      memory.peakHeapUsedMiB < heapLimitMiB,
   };
 }
 
@@ -164,7 +171,11 @@ const warm = await run('warm-resident-local-replay', warmProducts, item => warmP
 const report = {
   generatedAt: new Date().toISOString(),
   node: process.version,
-  heapLimitMiB: 512,
+  maxOldSpaceFlagMiB,
+  heapLimitMiB: +heapLimitMiB.toFixed(1),
+  pageCacheLimit: PAGE_CACHE_LIMIT,
+  pageCacheByteLimit: PAGE_CACHE_BYTE_LIMIT,
+  pageReadConcurrency: PAGE_READ_CONCURRENCY,
   limitation: 'Local cold/warm replay validates page-cache retention under a restricted V8 heap; it does not claim another live 1000-source network crawl.',
   cold,
   warm,

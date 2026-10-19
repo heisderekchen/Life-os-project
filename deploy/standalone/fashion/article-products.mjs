@@ -1,4 +1,5 @@
 const ent=s=>s.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&#x2F;/g,'/');
+const copy=s=>typeof s==='string'?Buffer.from(s,'utf8').toString('utf8'):s;
 const abs=(u,b)=>{try{const x=new URL(ent(u),b);return /^https?:$/.test(x.protocol)?x.href:null}catch{return null}};
 const imgOf=b=>{const m=/<img\b[^>]*>/i.exec(b);if(!m)return null;const t=m[0];const a=/\balt\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(t);if(!a)return null;const alt=ent(a[2]??a[3]??a[4]??'');const s=/\bsrc\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(t);if(!s)return null;return{alt,src:ent(s[2]??s[3]??s[4]??'')}};
 export function articleProductPhotos(html,pageURL,isRelevant){
@@ -9,7 +10,7 @@ export function articleProductPhotos(html,pageURL,isRelevant){
   // only featured_product_block if present
   let fb=blk;const f=/<div\b[^>]*class\s*=\s*("[^"]*\bfeatured_product_block\b[^"]*"|'[^']*\bfeatured_product_block\b[^']*')[^>]*>/i.exec(blk);if(f)fb=blk.slice(f.index+f[0].length);
   const dm=/\bdata-model-name\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(fb);if(!dm)continue;const name=ent(dm[2]??dm[3]??dm[4]??'');if(!name||!isRelevant(name))continue;
-  const im=imgOf(fb);if(!im||!im.alt||!isRelevant(im.alt))continue;if(!im.src.trim()||/^(?:data|javascript):/i.test(im.src))continue;const url=abs(im.src,pageURL);if(!url||/^data:/i.test(url))continue;if(seen.has(url))continue;seen.add(url);out.push({title:name,image:url,url:pageURL});
+  const im=imgOf(fb);if(!im||!im.alt||!isRelevant(im.alt))continue;if(!im.src.trim()||/^(?:data|javascript):/i.test(im.src))continue;const url=abs(im.src,pageURL);if(!url||/^data:/i.test(url))continue;if(seen.has(url))continue;seen.add(url);out.push({title:copy(name),image:copy(url),url:pageURL});
  }
  return out;
 }
