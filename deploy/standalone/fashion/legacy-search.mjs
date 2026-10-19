@@ -234,5 +234,5 @@ export async function commonsPhotoCandidates(query, fetcher) {
  for(const [key,value] of Object.entries({action:'query',generator:'search',gsrsearch:query,gsrnamespace:'6',gsrlimit:'30',prop:'imageinfo',iiprop:'url|size|extmetadata',iiurlwidth:'1000',format:'json'}))endpoint.searchParams.set(key,value);
  const payload=await imageSource(fetcher,endpoint,'json');
  if(payload?.error||(!payload?.query&&!Object.hasOwn(payload||{},'batchcomplete')))throw Error('备用图库返回异常。');
- return Object.values(payload?.query?.pages||{}).flatMap(page=>{const image=page.imageinfo?.[0];if(!image?.url||!image.descriptionurl)return [];return [{title:htmlEntities((page.title||'').replace(/^File:/,'')+' '+String(image.extmetadata?.ImageDescription?.value||'').replace(/<[^>]*>/g,' ')),url:image.descriptionurl,image:image.url,width:image.width,height:image.height}];});
+ return Object.values(payload?.query?.pages||{}).flatMap(page=>{const image=page.imageinfo?.[0];if(!image?.url||!image.descriptionurl)return [];return [{title:htmlEntities((page.title||'').replace(/^File:/,'')+' '+String(image.extmetadata?.ImageDescription?.value||'').replace(/<[^>]*>/g,' ')),url:image.descriptionurl,image:new URL(image.url).origin+new URL(image.url).pathname,width:image.width,height:image.height}];});
 }

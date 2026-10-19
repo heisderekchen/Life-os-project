@@ -1,3 +1,4 @@
+import { sourceFetch } from './connector.mjs';
 import { createApp } from './server.mjs';
 import { createAdmin } from './admin/server.mjs';
 import { createFashionIntelligenceSearch } from './legacy-search.mjs';
@@ -6,6 +7,7 @@ import { mkdir, copyFile, access } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 const HERE=dirname(fileURLToPath(import.meta.url));
 export function createFashionRouter({dataDir,authorizeAdmin,fetcher=fetch,photoSearch=true}) {
+  fetcher=sourceFetch(fetcher);
   const customer=createApp({dataDir,fetcher,guestPreview:true,persistentSessions:true,cookiePath:'/fashion/',secureCookie:true,photoSearch});
   const admin=createAdmin({settingsFile:resolve(dataDir,'source-admin.json'),authorize:authorizeAdmin});
   const legacy=createFashionIntelligenceSearch({fetcher});
