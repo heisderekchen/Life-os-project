@@ -22,11 +22,12 @@ const stop = new Set(['women', 'womens', 'woman', 'ladies', 'female', 'shoe', 's
 export function matchesIntent(subject, value) {
   const terms = photoQuery(subject).toLowerCase().replace(/['’]/g, '').match(/[\p{L}\p{N}]+/gu) || [];
   const hay = photoQuery(value).toLowerCase().replace(/['’]/g, '');
+  if (/\b(?:duffel|handbag|backpack|shoebox|shoe bag|shoe box|storefront|logo)\b|鞋盒|手提包|鞋袋/i.test(value)) return false;
   if (terms.includes('leather') && /\bfaux\b|\bsynthetic\b|leather[- ]look|仿皮|人造革/i.test(value)) return false;
   return terms.filter(t => !stop.has(t)).every(t => {
     const stem = t.length > 4 && t.endsWith('s') ? t.slice(0, -1) : t;
     return hay.includes(stem);
-  }) && /loafer|ballet|flat|sandal|boot|shoe|heel|mule|sneaker|mary.jane|pump|slipper|鞋|靴/i.test(value);
+  }) && /\b(?:loafer|ballet|flat|sandal|boot|shoe|heel|mule|sneaker|pump|slipper)s?\b|\bmary.jane\b|鞋|靴/i.test(value);
 }
 const blocked = /(?:pinterest|etsy|ebay|1stdibs|ufonomore|therealreal|vestiairecollective|grailed|carousell|amazon|walmart|poshmark|depop|mercari|aliexpress|temu|storage\.googleapis|lyst\.|gihut\.com|dashangu\.com|wenmiyuan\.com)/i;
 const decode = s => s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&ndash;/g, '–').replace(/&mdash;/g, '—').replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&#x([a-f\d]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));

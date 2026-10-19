@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sourceSearchPlan } from '../source-planner.mjs';
 import { createSourceStore } from '../admin/store.mjs';
-import { searchPhotos, photoQueries, declaredImageURL, imageDeclared } from '../photo-search.mjs';
+import { searchPhotos, photoQueries, declaredImageURL, imageDeclared, matchesIntent } from '../photo-search.mjs';
 import { nikeCatalogPhotos } from '../source-adapters.mjs';
 
 test('real private catalogue supplies Nike and footwear media; admin exclusions apply to subsequent searches', async t => {
@@ -25,6 +25,7 @@ test('real private catalogue supplies Nike and footwear media; admin exclusions 
 });
 
 test('brand-only query expands footwear terms while specific shoe/material intent stays intact', () => {
+  assert.equal(matchesIntent('nike', 'Nike footwear duffel bag in a history booth'), false);
   assert.deepEqual(photoQueries('nike', 2), ['nike shoes', 'nike sneakers', 'nike footwear', 'nike women shoes']);
   assert(photoQueries('女款绒面乐福鞋', 2).every(q => /suede.*loafers/.test(q) && !q.includes('sneakers')));
 });
