@@ -17,3 +17,6 @@ Honor recorded parentTaskId in graph, hierarchy, filter context and flat-row bre
 
 ## Screenshot rejection correction 2026-10-19
 The circled Unclassified topic must support Rename to create a real topic and assign the whole project group atomically, preserving parentTaskId. Keep duplicate validation and rollback. Node drag changes local browser layout, background drag pans, and Reset restores automatic layout. Clicking a parent reveals children; cross-ownership parent links remain drawn when endpoints are visible.
+
+## Complete-network selection correction 2026-10-19
+Selecting a project, topic or task scopes only the list and inspector. The graph keeps every expanded node and edge, including all task siblings beyond seven, and fits topology/container-size changes as a whole network without a zoom floor that crops distant parents. Ordinary selection preserves the exact user viewport, including manual zoom and pan. Expand/collapse remains explicit; browser-local drag positions remain unchanged by selection. The complete graph may require a smaller overview scale; zoom/pan remain available.
