@@ -1,5 +1,6 @@
 import { createFashionRouter } from './fashion/router.mjs'
 import { createServer, request as httpRequest } from 'node:http'
+import { timingSafeEqual } from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
 import { spawn } from 'node:child_process'
 import { createWorkspaceSubjectHeaders, mapAgentTarget } from './agent-bridge.mjs'
@@ -41,6 +42,7 @@ const TRUSTED_PROXY_IP = process.env.TRUSTED_PROXY_IP || ''
 if (!TRUSTED_PROXY_IP) throw new Error('TRUSTED_PROXY_IP must identify the private Caddy container address.')
 const ENVIRONMENT = process.env.ENVIRONMENT || 'development'
 const RECURRENCE_ENABLED = process.env.LIFEOS_RECURRENCE_ENABLED === 'true'
+const HAPPYSPA_BENCH_OUTBOX_TOKEN = process.env.HAPPYSPA_BENCH_OUTBOX_TOKEN || ''
 
 if (!AUTH_SECRET || !ENTRY_KEY) throw new Error('AUTH_SECRET and PERSONAL_WORKBENCH_ENTRY_KEY are required. Set them from the approved private-workbench secret source; no private endpoint starts without authentication.')
 
@@ -94,6 +96,20 @@ function mutationRequestAllowed(req) {
   return forwardedSecure(req) && sameOrigin(req)
     && /^application\/json(?:\s*;|$)/i.test(req.headers['content-type'] || '')
 }
+function matchesHappySpaBenchOutboxToken(req) {
+  const authorization = String(req.headers.authorization || '')
+  const prefix = 'Bearer '
+  if (!HAPPYSPA_BENCH_OUTBOX_TOKEN || !authorization.startsWith(prefix)) return false
+  const supplied = Buffer.from(authorization.slice(prefix.length), 'utf8')
+  const expected = Buffer.from(HAPPYSPA_BENCH_OUTBOX_TOKEN, 'utf8')
+  return supplied.length === expected.length && timingSafeEqual(supplied, expected)
+}
+function isHappySpaBenchOutboxRequest(pathname) {
+  return pathname === `${BASE_PATH}/api/happyspa-bench/outbox`
+}
+const HAPPYSPA_BENCH_WRITER = Object.freeze({
+  role: 'happyspa-bench-writer', scope: 'happyspa_bench.outbox:write', username: 'neo-happyspa-readonly',
+})
 // The legacy Life OS module only understands the legacy principal shape. It is
 // reachable solely for the legacy owner (account A), never for account B.
 function moduleAuthForPrincipal(principal) {
@@ -505,6 +521,21 @@ async function handleHttpRequest(req, res) {
   const researchPrefix = BASE_PATH + RESEARCH_API_SUFFIX
   if (pathname === researchPrefix || pathname.startsWith(researchPrefix + '/')) {
     return handleResearchRequest(req, res, requestUrl, principal)
+  }
+
+  // This is the only non-browser writer: it is a single POST path, requires
+  // the trusted HTTPS proxy and an explicitly provisioned, fail-closed token.
+  // It cannot reach any other private-workbench or advertising endpoint.
+  if (isHappySpaBenchOutboxRequest(pathname)) {
+    if (req.method !== 'POST' || !forwardedSecure(req)
+      || !/^application\/json(?:\s*;|$)/i.test(req.headers['content-type'] || '')
+      || !matchesHappySpaBenchOutboxToken(req)) return json(res, 404, { error: 'Not found' })
+    try { return await handlePrivateApi(req, res, '/api/personal-workbench/lifeos/happyspa-bench/outbox', requestUrl, HAPPYSPA_BENCH_WRITER) }
+    catch (error) {
+      if (error?.code === 'BODY_TOO_LARGE') return json(res, 413, { error: 'Request body too large' })
+      console.error('HappyspaBench outbox request failed', error?.message || 'unknown')
+      return json(res, 500, { error: 'Internal server error' })
+    }
   }
 
   const apiTarget = mapPrivateApiPath(pathname) || directAuthPath

@@ -50,6 +50,7 @@ const child = spawn(process.execPath, [join(root, 'server.mjs')], {
     ENVIRONMENT: 'production', LIFEOS_PUBLIC_ORIGIN: origin, TRUSTED_PROXY_IP: '127.0.0.1',
     PERSONAL_WORKBENCH_OWNER_SETUP_ENABLED: 'true', PERSONAL_WORKBENCH_OWNER_SETUP_GRANT: setupGrant,
     LIFEOS_RECURRENCE_ENABLED: 'false',
+    HAPPYSPA_BENCH_OUTBOX_TOKEN: 'test-only-happyspa-bench-token',
     AGENT_SERVICE_URL: `http://127.0.0.1:${agentPort}`, AGENT_SERVICE_TOKEN: 'test-service-token',
     WORKSPACE_SUBJECT_SIGNING_SECRET: 'test-signing-secret' },
   stdio: 'ignore',
@@ -112,6 +113,27 @@ try {
   const cookie = entry.headers.get('set-cookie')
   assert.match(cookie, /HttpOnly; Secure; SameSite=Strict/)
   const headers = { cookie: cookie.split(';', 1)[0], 'x-forwarded-proto': 'https' }
+  const outboxPath = `${base}/workbench/api/happyspa-bench/outbox`
+  const outboxEvent = {
+    contractVersion: '2026-10-20.v1', producer: 'neo-happyspa-readonly',
+    taskId: '499537ec-0aec-4a2e-8b1a-5526c9864d66', eventId: 'test-http-outbox-event',
+    kind: 'neo_heartbeat', observedAt: '2026-10-20T10:16:16+08:00',
+    payload: { serviceState: 'running', lastSuccessfulReadAt: '2026-10-20T10:16:16+08:00' },
+  }
+  assert.equal((await fetch(outboxPath, {
+    method: 'POST', headers: { 'x-forwarded-proto': 'https', 'content-type': 'application/json' }, body: JSON.stringify(outboxEvent),
+  })).status, 404, 'a token is required')
+  assert.equal((await fetch(outboxPath, {
+    method: 'POST', headers: { 'x-forwarded-proto': 'https', authorization: 'Bearer wrong-token', 'content-type': 'application/json' }, body: JSON.stringify(outboxEvent),
+  })).status, 404, 'a wrong token is rejected')
+  const outboxResponse = await fetch(outboxPath, {
+    method: 'POST', headers: { 'x-forwarded-proto': 'https', authorization: 'Bearer test-only-happyspa-bench-token', 'content-type': 'application/json' }, body: JSON.stringify(outboxEvent),
+  })
+  assert.equal(outboxResponse.status, 202, 'the bounded NEO writer is accepted')
+  assert.equal((await fetch(`${base}/workbench/api/happyspa-bench/snapshot`, { headers })).status, 200, 'the browser may read the accepted snapshot')
+  assert.equal((await fetch(`${base}/workbench/api/app-state`, {
+    method: 'POST', headers: { 'x-forwarded-proto': 'https', authorization: 'Bearer test-only-happyspa-bench-token', 'content-type': 'application/json' }, body: '{}',
+  })).status, 404, 'the outbox token cannot access other private APIs')
   const oversizedPrivateApi = await fetch(`${base}/workbench/api/app-state`, {
     method: 'PUT', headers: { ...headers, origin, 'content-type': 'application/json' }, body: 'x'.repeat(1024 * 1024 + 128),
   })
