@@ -17,6 +17,7 @@ export type ModuleId =
   | 'time'
   | 'settings'
   | 'accounts'
+  | 'happyspa-bench'
 
 interface AppState {
   // Navigation
@@ -154,7 +155,7 @@ export const useAppStore = create<AppState>()(
       currencyConverterEnabled: process.env.NEXT_PUBLIC_ENABLE_CURRENCY_CONVERTER !== 'false',
       setCurrencyConverterEnabled: (enabled) => set({ currencyConverterEnabled: enabled }),
 
-      enabledModules: ['dashboard', 'reminders', 'tasks', 'myos', 'projects', 'notes', 'habits', 'journal', 'finance', 'goals', 'learning', 'calendar', 'time', 'settings'],
+      enabledModules: ['dashboard', 'reminders', 'tasks', 'myos', 'projects', 'notes', 'habits', 'journal', 'finance', 'goals', 'learning', 'calendar', 'time', 'settings', 'happyspa-bench'],
       setEnabledModules: (modules) => set({ enabledModules: modules }),
     }),
     {
