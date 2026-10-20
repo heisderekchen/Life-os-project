@@ -35,6 +35,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useIsMobile } from '@/hooks/use-mobile'
 import { WorkspaceSwitcher, useGrantedWorkspaces } from '@/components/lifeos/myos/workspace-switcher'
 
+// These are core entry points, not optional setup-wizard apps. Keeping the
+// bench here makes a newly shipped read-only safety surface visible to people
+// whose persisted module list predates it, without changing that preference.
+const ALWAYS_VISIBLE_MODULE_IDS: ModuleId[] = ['accounts', 'dashboard', 'myos', 'reminders', 'projects', 'happyspa-bench']
+
 function WorkspaceLinks() {
   const { workspaces, status } = useGrantedWorkspaces()
   const { t } = useTranslation()
@@ -126,9 +131,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
 
   const filteredSections = visibleSections.map(section => ({
     ...section,
-    items: section.items.filter(item =>
-      ['accounts', 'dashboard', 'myos', 'reminders', 'projects'].includes(item.id) || enabledModules.includes(item.id)
-    )
+    items: section.items.filter(item => ALWAYS_VISIBLE_MODULE_IDS.includes(item.id) || enabledModules.includes(item.id))
   })).filter(section => section.items.length > 0)
 
   return (

@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { PlatformAccountsPage } from '@/components/lifeos/admin/platform-accounts-page'
 import { Sidebar } from '@/components/lifeos/sidebar'
+import { useAppStore } from '@/stores/app-store'
 
 vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => false }))
 
@@ -38,6 +39,15 @@ describe('PlatformAccountsPage', () => {
     render(<Sidebar />)
 
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Accounts & access' })).not.toBeInTheDocument())
+  })
+
+  it('keeps HappyspaBench visible when an existing preference predates the module', async () => {
+    useAppStore.setState({ enabledModules: ['dashboard', 'tasks', 'projects', 'notes'] })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ principal: { role: 'member' } })))
+
+    render(<Sidebar />)
+
+    expect(await screen.findByRole('button', { name: 'HappyspaBench' })).toBeInTheDocument()
   })
 
   it('does not request account data for a non-admin session', async () => {
