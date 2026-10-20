@@ -22,6 +22,12 @@ export function isPersonalWorkbenchPrincipal(auth, env) {
         && auth?.scope === 'personal-workbench');
 }
 
+function isHappySpaBenchWriter(auth) {
+    return auth?.role === 'happyspa-bench-writer'
+        && auth?.scope === 'happyspa_bench.outbox:write'
+        && auth?.username === 'neo-happyspa-readonly';
+}
+
 async function bodyOf(request) { try { return await request.json(); } catch { return {}; } }
 
 async function audit(env, actor, action, projectId = null, detail = {}) {
@@ -2373,14 +2379,17 @@ async function handleLifeOsTasks(request, env, url, actor) {
 }
 
 export async function handlePersonalWorkbench(request, env, url, auth) {
-    // Do not disclose this private surface by returning an authorization error.
-    if (!isPersonalWorkbenchPrincipal(auth, env)) return notFound();
-    const actor = text(auth.username, 120);
+    const isHappySpaBenchOutbox = url.pathname === '/api/personal-workbench/lifeos/happyspa-bench/outbox'
+        && request.method === 'POST';
+    // The machine identity is valid only for the one outbox POST. Snapshot
+    // reads and every other private route retain the browser-session boundary.
+    if (!isPersonalWorkbenchPrincipal(auth, env) && !(isHappySpaBenchOutbox && isHappySpaBenchWriter(auth))) return notFound();
     if (url.pathname === '/api/personal-workbench/lifeos/happyspa-bench/snapshot' && request.method === 'GET') return json(await happySpaBenchSnapshot(env));
-    if (url.pathname === '/api/personal-workbench/lifeos/happyspa-bench/outbox' && request.method === 'POST') {
+    if (isHappySpaBenchOutbox) {
         const result = await acceptOutboxRecord(request, env);
         return json(result.body, result.status);
     }
+    const actor = text(auth.username, 120);
     const appStateResponse = await handleLifeOsAppState(request, env, url, actor);
     if (appStateResponse) return appStateResponse;
     const dashboardResponse = await handleLifeOsDashboard(request, env, url);
