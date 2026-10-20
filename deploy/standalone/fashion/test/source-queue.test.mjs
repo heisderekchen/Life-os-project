@@ -55,6 +55,37 @@ test('reader upgrade reruns a done legacy-schema catalogue record and preserves 
  assert.equal(end.records[0].readerVersion,3);
  assert.equal(end.records[0].checkpoint.next,'https://api.nike.com/next?anchor=72');
 });
+test('Adidas reader v5 reruns a done v4 catalogue while preserving sibling checkpoints and resumes v5 work',async()=>{
+ const entries=[
+   {id:'adidas-catalog',domains:['adidas.com.cn'],readerVersion:5},
+   {id:'media-done',domains:['media.test'],readerVersion:2},
+   {id:'other-done',domains:['other.test'],readerVersion:3},
+ ];
+ const previous=[
+   {...entries[0],status:'done',readerVersion:4,checkpoint:{frontier:['https://www.adidas.com.cn/pdp?articleId=OLD']}},
+   {...entries[1],status:'done',readerVersion:2,checkpoint:{token:'media-checkpoint'}},
+   {...entries[2],status:'done',readerVersion:3,checkpoint:{token:'other-checkpoint'}},
+ ];
+ const calls=[];
+ const upgraded=await runSourceQueue({entries,previous,previousReaderVersion:4,retryFailed:true,runEntry:async(e,{checkpoint})=>{
+   calls.push(e.id);
+   assert.deepEqual(checkpoint,{frontier:['https://www.adidas.com.cn/pdp?articleId=OLD']});
+   return{checkpoint:{frontier:['https://www.adidas.com.cn/pdp?articleId=NEW'],visited:['https://www.adidas.com.cn/siteMap']},items:[]};
+ }});
+ assert.deepEqual(calls,['adidas-catalog']);
+ assert.deepEqual(upgraded.records.find(r=>r.id==='media-done').checkpoint,{token:'media-checkpoint'});
+ assert.deepEqual(upgraded.records.find(r=>r.id==='other-done').checkpoint,{token:'other-checkpoint'});
+ const interrupted=upgraded.records.map(r=>r.id==='adidas-catalog'?{...r,status:'error',error:'interrupted'}:{...r});
+ calls.length=0;
+ const resumed=await runSourceQueue({entries,previous:interrupted,previousReaderVersion:5,retryFailed:true,runEntry:async(e,{checkpoint})=>{
+   calls.push(e.id);
+   assert.equal(checkpoint.frontier[0],'https://www.adidas.com.cn/pdp?articleId=NEW');
+   return{checkpoint:{...checkpoint,complete:true},items:[]};
+ }});
+ assert.deepEqual(calls,['adidas-catalog']);
+ assert.equal(resumed.records.find(r=>r.id==='adidas-catalog').readerVersion,5);
+ assert.deepEqual(resumed.records.find(r=>r.id==='media-done').checkpoint,{token:'media-checkpoint'});
+});
 test('parent abort rejects immediately and late partial/final never write',async()=>{
  const ac=new AbortController();let writes=0;let release;const gate=new Promise(r=>release=r);
  const work=runSourceQueue({entries:[{domains:['a.test']}],signal:ac.signal,runEntry:async(e,{onPartial})=>{await gate;await onPartial({items:[{url:'https://a.test/shoe'}]});return{items:[]};},onResult:async()=>writes++});

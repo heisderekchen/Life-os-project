@@ -193,6 +193,15 @@ export function imageDeclared(html, image) {
   if (rawUrls.some(match => {
     try { return keyURL(match[0].startsWith('//') ? 'https:' + match[0] : match[0]) === key; } catch { return false; }
   })) return true;
+  const bare = new URL(image);
+  bare.search = '';
+  bare.hash = '';
+  if ([
+    bare.href.replaceAll('/', '\\u002F'),
+    bare.href.replaceAll('/', '\\u002f'),
+    bare.href.replaceAll('/', '\\\\u002F'),
+    bare.href.replaceAll('/', '\\\\u002f'),
+  ].some(value => html.includes(value))) return true;
   if (!html.includes('\\/')) return false;
   const normalized = decode(html).replace(/\\\//g, '/').replace(/\\u0026/g, '&');
   return normalized.includes(new URL(image).href) || [...normalized.matchAll(/(?:https?:)?\/\/[^\s"'<>\\]+/g)].some(m => {
@@ -406,17 +415,43 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
           let next = typeof resume?.next === 'string' ? resume.next : '';
           const pageLimit = Math.max(1, Number(entry.catalogPages) || 1);
           const productLimit = Math.max(1, Number(entry.catalogProductLimit) || found.length);
+          const knownProducts = new Set(found.map(product => product.url));
+          const addProducts = products => {
+            for (const product of products) {
+              if (!product?.url || knownProducts.has(product.url)) continue;
+              knownProducts.add(product.url);
+              found.push({ ...product, catalogue: adapter.name });
+            }
+          };
+          const addPages = (html, url) => {
+            if (!adapter.linkGraph || typeof adapter.links !== 'function') return;
+            for (const pageURL of adapter.links(html, url)) {
+              if (!visited.has(pageURL) && !frontier.includes(pageURL)) frontier.push(pageURL);
+            }
+          };
+          const visited = new Set(Array.isArray(resume?.visited) ? resume.visited : [entry.catalogURL]);
+          let frontier = adapter.linkGraph
+            ? (Array.isArray(resume?.frontier) ? [...resume.frontier] : found.map(product => product.url))
+            : [];
+          const discoveryFailures = Array.isArray(resume?.discoveryFailures) ? [...resume.discoveryFailures] : [];
           catalogCompleted = new Set(Array.isArray(resume?.completedImageKeys) ? resume.completedImageKeys : []);
           if (!resume) {
             const { html, url } = await abortable(() => readPage(entry.catalogURL, fetcher), signal);
-            found.push(...adapter.photos(html, url).map(product => ({ ...product, catalogue: adapter.name })));
+            addProducts(adapter.photos(html, url));
             next = adapter.next(html);
+            if (adapter.linkGraph) {
+              frontier.push(...found.map(product => product.url));
+              addPages(html, url);
+            }
           }
           catalogCheckpoint = {
             readerVersion,
             catalogURL: entry.catalogURL,
             products: found.slice(0, productLimit),
             next,
+            visited: [...visited],
+            frontier,
+            discoveryFailures,
             completedImageKeys: [...catalogCompleted],
             complete: false,
             updatedAt: new Date().toISOString(),
@@ -442,7 +477,7 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
                 throw Error(`Nike 官方目录分页暂不可用（${response.status}）`);
               const data = await abortable(() => response.json(), signal);
               const safeNext = adapter.next(data);
-              found.push(...adapter.photos(data, entry.catalogURL).map(product => ({ ...product, catalogue: adapter.name })));
+              addProducts(adapter.photos(data, entry.catalogURL));
               next = safeNext;
             } catch (error) {
               catalogDiscoveryError = error;
@@ -457,6 +492,41 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
               updatedAt: new Date().toISOString(),
             };
             await report('catalog-discover', found.length);
+          }
+          if (adapter.linkGraph) {
+            let graphPages = 1;
+            while (graphPages < pageLimit && frontier.length && found.length < productLimit) {
+              const pageURL = frontier.shift();
+              if (!pageURL || visited.has(pageURL)) continue;
+              visited.add(pageURL);
+              graphPages++;
+              try {
+                const { html, url } = await readCachedWithRetry(pageURL, 2);
+                const sourceURL = new URL(url);
+                if (!entry.domains.some(domain => sourceURL.hostname === domain || sourceURL.hostname.endsWith('.' + domain)) ||
+                    !isTargetPage(url)) throw Error('目录链接跳转到未确认页面');
+                addProducts(adapter.photos(html, url));
+                addPages(html, url);
+                for (const product of found) {
+                  if (!visited.has(product.url) && !frontier.includes(product.url)) frontier.push(product.url);
+                }
+              } catch (error) {
+                signal?.throwIfAborted();
+                discoveryFailures.push({ url: pageURL, error: error.message || String(error) });
+              }
+              catalogCheckpoint = {
+                ...catalogCheckpoint,
+                products: found.slice(0, productLimit),
+                next,
+                visited: [...visited],
+                frontier,
+                discoveryFailures,
+                completedImageKeys: [...catalogCompleted],
+                updatedAt: new Date().toISOString(),
+              };
+              if (visited.size % 5 === 0) await report('catalog-discover', found.length);
+            }
+            next = '';
           }
           if (!catalogDiscoveryError && found.length < productLimit && next && pagesThisRun >= pageLimit)
             catalogDiscoveryError = Error('Nike 官方目录分页达到本轮有界预算，可续跑');
@@ -528,6 +598,9 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
               const image = declaredImageURL(html, product.image);
               if (!imageDeclared(html, image)) continue;
               const asset = await abortable(() => readImage(image, fetcher), signal);
+              const aspect = asset.width && asset.height ? asset.width / asset.height : 0;
+              if (candidate.catalogue === 'adidas' && product.imageRole === 'hero' &&
+                  (asset.width < 350 || asset.height < 250 || aspect < 0.5 || aspect > 2)) continue;
               const sha256 = createHash('sha256').update(asset.bytes).digest('hex');
               if (hashes.has(sha256)) continue;
               hashes.add(sha256);
