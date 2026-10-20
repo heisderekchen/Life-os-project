@@ -1,4 +1,5 @@
 import { json } from './app/response.mjs';
+import { handleTaskNotes } from './task-notes.mjs';
 import { handleProjectTopics, taskTopicForProject } from './project-topics.mjs';
 import { buildRecurringTaskSeries } from './recurring-task-series.mjs';
 import { importLifeOsTasks, previewLifeOsTaskImport } from './lifeos-task-import.mjs';
@@ -1971,7 +1972,7 @@ const LIFEOS_DATA_TABLES = [
     ['profile', 'lifeos_user_profile'], ['settings', 'lifeos_settings'], ['workspace', 'lifeos_workspaces'],
     ['widgets', 'lifeos_dashboard_widgets'], ['dashboardLayout', 'lifeos_widgets'], ['tags', 'lifeos_tags'],
     ['projects', 'personal_workbench_lifeos_projects'], ['topics', 'lifeos_project_topics'], ['tasks', 'personal_workbench_lifeos_tasks'],
-    ['taskTags', 'lifeos_task_tags'], ['taskDependencies', 'lifeos_task_dependencies'],
+    ['taskNotes', 'lifeos_task_notes'], ['taskTags', 'lifeos_task_tags'], ['taskDependencies', 'lifeos_task_dependencies'],
     ['noteFolders', 'lifeos_note_folders'], ['notes', 'lifeos_notes'], ['noteTags', 'lifeos_note_tags'],
     ['noteLinks', 'lifeos_note_links'], ['bookmarks', 'lifeos_bookmarks'], ['bookmarkTags', 'lifeos_bookmark_tags'],
     ['habits', 'lifeos_habits'], ['habitTags', 'lifeos_habit_tags'], ['habitLogs', 'lifeos_habit_logs'],
@@ -2025,6 +2026,11 @@ async function handleLifeOsDataManagement(request, env, url, actor) {
         }
         // Topics are additive; backups made before this organizational layer remain importable.
         if (!Object.hasOwn(body.data, 'topics')) body.data.topics = [];
+        // Older additive backups must not erase notes created after that backup.
+        if (!Object.hasOwn(body.data, 'taskNotes')) {
+            const retained = await env.DB.prepare('SELECT * FROM lifeos_task_notes').all();
+            body.data.taskNotes = (retained.results || []).map(row => Object.fromEntries(Object.entries(row).map(([key, value]) => [toCamel(key), value])));
+        }
         const expectedKeys = new Set(LIFEOS_EXPORT_TABLES.map(([key]) => key));
         const suppliedKeys = Object.keys(body.data);
         const missingKeys = [...expectedKeys].filter(key => !Object.hasOwn(body.data, key));
@@ -2424,6 +2430,8 @@ export async function handlePersonalWorkbench(request, env, url, auth) {
     if (projectCompatibilityResponse) return projectCompatibilityResponse;
     const topicResponse = await handleProjectTopics(request, env, url, actor);
     if (topicResponse) return topicResponse;
+    const taskNotesResponse = await handleTaskNotes(request, env, url, actor);
+    if (taskNotesResponse) return taskNotesResponse;
     const lifeOsTaskResponse = await handleLifeOsTasks(request, env, url, actor);
     if (lifeOsTaskResponse) return lifeOsTaskResponse;
     const lifeOsEventsResponse = await handleLifeOsEvents(request, env, url, actor);
