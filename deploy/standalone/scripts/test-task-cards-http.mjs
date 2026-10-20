@@ -458,7 +458,7 @@ try {
   const exported = await bodyOf(await api('/api/personal-workbench/lifeos/data/export', { cookie: ownerCookie }))
   assert.equal(exported.version, '1.1.0')
   const exportKeys = Object.keys(exported.data)
-  assert.equal(exportKeys.length, 41)
+  assert.equal(exportKeys.length, 42)
   assert.deepEqual(exportKeys.filter(key => /card|routing|worker/i.test(key)), [])
   const unknownImport = await api('/api/personal-workbench/lifeos/data/import', {
     method: 'POST', cookie: ownerCookie, body: { version: '1.1.0', data: { taskCards: [] } },

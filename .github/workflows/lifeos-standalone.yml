@@ -82,6 +82,7 @@ jobs:
       - run: node --check deploy/standalone/src/research.mjs
       - run: node deploy/standalone/scripts/test-runtime.mjs
       - run: node deploy/standalone/scripts/test-project-topics.mjs
+      - run: node deploy/standalone/scripts/test-task-notes.mjs
       - run: node deploy/standalone/scripts/test-platform-migration.mjs
       - run: node deploy/standalone/scripts/test-happyspa-bench.mjs
       - run: node deploy/standalone/scripts/test-http.mjs
