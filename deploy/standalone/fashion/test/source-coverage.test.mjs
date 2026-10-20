@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sourceSearchPlan } from '../source-planner.mjs';
 import { createSourceStore } from '../admin/store.mjs';
-import { searchPhotos, photoQueries, declaredImageURL, imageDeclared, matchesIntent, createPageLRU, createPageReadLimiter, PAGE_CACHE_LIMIT, PAGE_CACHE_BYTE_LIMIT, sourcePublishedAt, countResultSources } from '../photo-search.mjs';
-import { nikeCatalogNext, nikeCatalogPhotos, nikeProductPhotos } from '../source-adapters.mjs';
+import { searchPhotos, photoQueries, declaredImageURL, imageDeclared, matchesIntent, matchesProductIntent, createPageLRU, createPageReadLimiter, PAGE_CACHE_LIMIT, PAGE_CACHE_BYTE_LIMIT, sourcePublishedAt, countResultSources } from '../photo-search.mjs';
+import { nikeCatalogNext, nikeCatalogPhotos, nikeProductPhotos, adidasCatalogPhotos, adidasProductPhotos } from '../source-adapters.mjs';
 
 test('real private catalogue supplies Nike and footwear media; admin exclusions apply to subsequent searches', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'fashion-catalogue-')); t.after(() => rm(dir, { recursive: true, force: true }));
@@ -100,6 +100,153 @@ test('Chinese brand plus generic shoe compounds match footwear while retaining t
   assert.equal(matchesIntent('耐克乐福鞋', "Nike Air Force 1 Men's Shoes"), false);
   assert.equal(matchesIntent('耐克鞋', 'Nike footwear duffel bag in a history booth'), false);
   assert.equal(matchesIntent('耐克鞋', "Nike Air Force 1 Men's Clothing"), false);
+});
+
+test('Adidas catalog plans use the public China storefront without changing the 1000-source queue', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'fashion-adidas-catalogue-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const store = createSourceStore({ registryFile: new URL('../data/source-registry.json', import.meta.url), settingsFile: join(dir, 'settings.json') });
+  const sources = (await store.read()).sources;
+  for (const subject of ['阿迪达斯', 'Adidas', '阿迪达斯鞋', 'Adidas shoes']) {
+    const plan = sourceSearchPlan({ subject, days: 0, domains: [], sourceScope: 2, sources: ['official', 'media', 'retail'] }, sources);
+    const catalog = plan.find(item => item.catalogue === 'adidas');
+    assert.equal(catalog.catalogURL, 'https://www.adidas.com.cn/siteMap');
+    assert.deepEqual(catalog.domains, ['adidas.com.cn']);
+    assert.equal(new Set(plan.flatMap(item => item.domains)).size, 1000);
+    assert(plan.some(item => item.domains.includes('adidas.com.cn') && item.sources?.length));
+  }
+  const strict = sourceSearchPlan({ subject: '阿迪达斯', days: 7, domains: [], sourceScope: 2, sources: ['official', 'media', 'retail'] }, sources);
+  assert(!strict.some(item => item.catalogURL));
+  const adidas = sources.find(source => source.domain === 'adidas.com');
+  await store.update(adidas.id, { review: 'exclude' }, (await store.read()).revision);
+  assert(!sourceSearchPlan({ subject: '阿迪达斯', days: 0, domains: [], sourceScope: 2, sources: ['official', 'media', 'retail'] }, (await store.read()).sources)
+    .some(item => item.catalogURL));
+});
+
+test('Adidas discovery rejects catalogue-only, bags and apparel while binding only official footwear PDP assets', () => {
+  const catalog = `
+    <a href="/pdp?articleId=JH6149">SAMBA GOLF 「T头鞋」高尔夫运动鞋小白鞋</a>
+    <a href="/pdp?articleId=AB1234">Adidas shoulder bag</a>
+    <a href="/pdp?articleId=CD5678">Adidas cotton T-shirt</a>
+    <a href="/plp/brand_ORIGINALS_ftw_male?page=1">Adidas footwear catalogue</a>`;
+  const found = adidasCatalogPhotos(catalog, 'https://www.adidas.com.cn/siteMap');
+  assert.equal(found.length, 1);
+  assert.equal(found[0].productCode, 'JH6149');
+  const image = 'https://static1.adidas.com.cn/t395/declared-gallery.jpeg?im=Resize=(1000,1000)';
+  const secondImage = 'https://static1.adidas.com.cn/t395/declared-gallery-2.jpeg?im=Resize=(1000,1000)';
+  const pdp = `<title>阿迪达斯-SAMBA GOLF 「T头鞋」高尔夫运动鞋小白鞋 | adidas 阿迪达斯官方旗舰店</title>
+    <ul class="pdp-color-image-list"><li><a href="/pdp?articleId=KJ5431"><img src="https://static1.adidas.com.cn/t395/other-color.jpg" alt="SAMBA GOLF 低帮运动板鞋"></a></li></ul>
+    <div data-anchor="pdp-product-detail">
+      <div class="lib-detail-image"><img src="${image}" alt="SAMBA GOLF 「T头鞋」高尔夫运动鞋小白鞋"></div>
+      <div class="lib-detail-image"><img src="${secondImage}" alt=""></div>
+      <div class="lib-detail-image"><img src="https://static1.adidas.com.cn/t395/mismatched-alt.jpg" alt="Adidas Puma training shoes"></div>
+    </div>
+    <div data-anchor="pdp-product-recommend">
+      <img src="https://static1.adidas.com.cn/t395/recommended-adidas.jpg" alt="Adidas Superstar Shoes">
+      <img src="https://static1.adidas.com.cn/t395/recommended-puma.jpg" alt="Puma Speedcat running shoes">
+    </div>`;
+  const images = adidasProductPhotos(pdp, found[0].url);
+  assert.equal(images.length, 2);
+  assert.deepEqual(images.map(item => new URL(item.image).pathname), [
+    new URL(image).pathname,
+    new URL(secondImage).pathname,
+  ]);
+  assert(images.every(item => new URL(item.image).searchParams.get('im') === 'Resize=(1200,1200)'));
+  assert(!images.some(item => /recommended|other-color|mismatched/.test(item.image)));
+  assert(imageDeclared(pdp, images[0].image));
+  assert(images.every(item => item.productCode === 'JH6149'));
+});
+
+test('Adidas catalogue verification returns the declared original page and image identity', async () => {
+  const productURL = 'https://www.adidas.com.cn/pdp?articleId=JH6149';
+  const image = 'https://static1.adidas.com.cn/t395/declared-gallery.jpeg?im=Resize=(200,200)';
+  const fetcher = async value => {
+    const url = new URL(String(value));
+    if (url.hostname === 'www.adidas.com.cn' && url.pathname === '/siteMap')
+      return new Response('<a href="/pdp?articleId=JH6149">SAMBA GOLF 高尔夫运动鞋</a>');
+    if (url.href === productURL)
+      return new Response(`<title>阿迪达斯-SAMBA GOLF 高尔夫运动鞋 | adidas</title><div data-anchor="pdp-product-detail"><div class="lib-detail-image"><img src="${image}" alt="SAMBA GOLF 高尔夫运动鞋"></div></div><div data-anchor="pdp-product-recommend"><img src="https://static1.adidas.com.cn/t395/puma.jpg" alt="Puma running shoes"></div>`);
+    throw Error('unexpected fixture URL ' + url.href);
+  };
+  const plan = {
+    label: 'Adidas官方鞋履目录', domains: ['adidas.com.cn'], catalogue: 'adidas',
+    catalogURL: 'https://www.adidas.com.cn/siteMap', catalogPages: 1,
+    catalogProductLimit: 10, catalogImageLimit: 2, catalogResultLimit: 10,
+    readerVersion: 4,
+  };
+  const plans = [plan];
+  plans.excludedDomains = [];
+  const saved = [];
+  const result = await searchPhotos({ subject: '阿迪达斯', days: 0, domains: [], sourceScope: 0 }, {
+    plans,
+    fetcher,
+    readPage: async (url, request = fetcher) => {
+      const response = await request(url);
+      return { url: String(url), html: await response.text() };
+    },
+    readImage: async () => ({ bytes: Buffer.from('verified-adidas-image'), mime: 'image/jpeg' }),
+    saveAsset: async (sha, asset) => saved.push({ sha, asset }),
+  });
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0].url, productURL);
+  assert.equal(new URL(result.items[0].image).searchParams.get('im'), 'Resize=(1200,1200)');
+  assert.equal(result.items[0].sourceCheckedAt !== undefined, true);
+  assert.equal(result.items[0].sourceImageMatched, true);
+  assert.equal(result.items[0].imageSha256, saved[0].sha);
+});
+
+test('brand-scoped structured product evidence supports non-Nike models without a model whitelist', () => {
+  assert(matchesProductIntent('新百伦', 'Classic 574', true, 'New Balance'));
+  assert(matchesProductIntent('Puma', 'Speedcat', true, 'PUMA'));
+  assert(matchesProductIntent('Adidas', 'Samba', true, 'Adidas'));
+  assert(!matchesProductIntent('Adidas', 'Samba', true));
+  assert(!matchesProductIntent('阿迪达斯', 'Puma Speedcat running shoes', true, 'PUMA'));
+  assert(!matchesProductIntent('Nike', 'Adidas Samba running shoes', true, 'Adidas'));
+  assert(!matchesProductIntent('New Balance', 'Nike Air Max sneakers', true, 'Nike'));
+  assert(!matchesProductIntent('Adidas 麂皮女鞋', 'Adidas leather men loafers', true, 'Adidas'));
+  assert(!matchesProductIntent('Adidas loafers', 'Adidas running sneakers', true, 'Adidas'));
+  assert(!matchesProductIntent('新百伦', 'New Balance 574 T-shirt', true, 'New Balance'));
+});
+
+test('brand matrix keeps requested brand, footwear type, gender and material constraints', () => {
+  const brandModels = [
+    ['Nike', 'Air Max', 'Nike'],
+    ['耐克', 'Air Jordan', 'Nike'],
+    ['Adidas', 'Samba', 'Adidas'],
+    ['阿迪达斯', 'Samba', 'Adidas'],
+    ['New Balance', 'Classic 574', 'New Balance'],
+    ['新百伦', 'Classic 574', 'New Balance'],
+    ['Puma', 'Speedcat', 'Puma'],
+    ['彪马', 'Speedcat', 'Puma'],
+  ];
+  for (const [subject, title, brand] of brandModels)
+    assert(matchesProductIntent(subject, title, true, brand), `${subject} -> ${title}`);
+  assert(matchesProductIntent('Nike shoes', 'Nike Air Max running shoes', false, ''));
+  assert(matchesProductIntent('Adidas sneakers', 'Adidas Samba sneakers', false, ''));
+  assert(matchesProductIntent('New Balance shoes', 'New Balance 574 sneakers', false, ''));
+  assert(matchesProductIntent('Puma shoes', 'Puma Speedcat sneakers', false, ''));
+  const crossBrands = [
+    ['Adidas', 'Puma running shoes', 'PUMA'],
+    ['阿迪达斯', 'Nike Air Max sneakers', 'Nike'],
+    ['Nike', 'New Balance 574 sneakers', 'New Balance'],
+    ['新百伦', 'Puma Speedcat sneakers', 'Puma'],
+    ['Puma', 'Adidas Samba sneakers', 'Adidas'],
+  ];
+  for (const [subject, title, brand] of crossBrands)
+    assert(!matchesProductIntent(subject, title, true, brand), `${subject} -> ${title}`);
+  assert(!matchesProductIntent('Adidas shoes', 'Adidas running shoe bag', true, 'Adidas'));
+  assert(!matchesProductIntent('Adidas shoes', 'Adidas performance shirt', true, 'Adidas'));
+  assert(!matchesProductIntent('Adidas suede women shoes', 'Adidas leather men sneakers', true, 'Adidas'));
+});
+
+test('schema brand evidence supports arbitrary named brands while rejecting conflicting evidence', () => {
+  assert(matchesProductIntent('Gucci', 'Horsebit loafer', true, 'Gucci'));
+  assert(matchesProductIntent('Gucci suede women loafers', 'Horsebit suede women loafers', true, 'Gucci'));
+  assert(matchesProductIntent('Miu Miu', 'Arcadie mule', true, 'Miu Miu'));
+  assert(!matchesProductIntent('Gucci', 'Horsebit loafer', true, 'Miu Miu'));
+  assert(!matchesProductIntent('Miu Miu', 'Arcadie mule', true, 'Gucci'));
+  assert(!matchesProductIntent('Gucci suede women loafers', 'Horsebit leather men loafers', true, 'Gucci'));
+  assert(!matchesProductIntent('Gucci', 'Gucci Horsebit loafer bag', true, 'Gucci'));
 });
 
 test('PDP page cache is a bounded LRU and touches recently reused pages', () => {
