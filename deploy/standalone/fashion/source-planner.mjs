@@ -96,7 +96,7 @@ export function sourceSearchPlan(input, sources) {
       const domains = domainsList.slice(i, i + 5).map(effectiveDomain);
       if (!domains.length) continue;
       const catalogue = catalogueOf(domains);
-      plans.push({ label: '来源检索', domains, catalogue, readerVersion: 2,
+      plans.push({ label: '来源检索', domains, catalogue, readerVersion: 3,
         sources: pool.slice(i, i + 5).map(p => effectiveSource(p.source)) });
     }
   } else {
@@ -117,7 +117,7 @@ export function sourceSearchPlan(input, sources) {
       const chosen = [...pool].sort((a, b) => rank(b) - rank(a) || a.domain.localeCompare(b.domain)).slice(0, take);
       for (let i = 0; i < chosen.length; i += 3) {
         const domains = chosen.slice(i, i + 3).map(s => effectiveDomain(s.domain));
-        plans.push({ label: { official: '品牌官方', media: '专业媒体', retail: '零售平台' }[id], domains, catalogue: catalogueOf(domains), readerVersion: 2,
+        plans.push({ label: { official: '品牌官方', media: '专业媒体', retail: '零售平台' }[id], domains, catalogue: catalogueOf(domains), readerVersion: 3,
           sources: chosen.slice(i, i + 3).map(effectiveSource) });
       }
     }
@@ -128,7 +128,7 @@ export function sourceSearchPlan(input, sources) {
     if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(lower) || plans.some(p => p.domains.includes(lower))) continue;
     const excluded = sources.some(s => s.review === 'exclude' && String(s.domain).toLowerCase().replace(/^www\./, '') === lower);
     if (excluded) continue;
-    plans.push({ label: '补充来源', domains: [lower], catalogue: catalogueOf([lower]), readerVersion: 2, sources:[{domain:lower,url:'https://'+lower+'/',feedUrls:[]}] });
+    plans.push({ label: '补充来源', domains: [lower], catalogue: catalogueOf([lower]), readerVersion: 3, sources:[{domain:lower,url:'https://'+lower+'/',feedUrls:[]}] });
   }
 
   const excludedDomains = sources
@@ -138,3 +138,4 @@ export function sourceSearchPlan(input, sources) {
   plans.excludedDomains = [...new Set(excludedDomains)];
   return plans;
 }
+

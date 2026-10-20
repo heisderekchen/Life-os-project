@@ -1,5 +1,5 @@
-import { articleProductPhotos } from './article-products.mjs';
-export async function readSourcePhotos({sources,readDocument,readPage,isRelevant,isDiscoveryRelevant=isRelevant,signal}) {
+import { articleProductPhotos, structuredProductPhotos } from './article-products.mjs';
+export async function readSourcePhotos({sources,readDocument,readPage,isRelevant,isDiscoveryRelevant=isRelevant,isPriorityRelevant=isRelevant,isProductRelevant=isRelevant,signal}) {
   const results = [];
   const checks = [];
   if (signal && signal.aborted) throw signal.reason;
@@ -95,7 +95,6 @@ export async function readSourcePhotos({sources,readDocument,readPage,isRelevant
     const out = [];
     const seen = new Set();
     const push = (title, url, publishedAt) => {
-      if (out.length >= 12) return;
       if (!title || !url) return;
       if (!/^https?:\/\//i.test(url)) return;
       if (!sameDomain(url, domain)) return;
@@ -126,7 +125,11 @@ export async function readSourcePhotos({sources,readDocument,readPage,isRelevant
           if (headline && url) {
             let abs;
             try { abs = new URL(url, pageURL).href; } catch { abs = null; }
-            if (abs) push(stripTags(String(headline)), abs);
+            if (abs) {
+              const brand = typeof node.brand === 'string' ? node.brand : node.brand?.name || '';
+              const discoveryTitle = stripTags([headline, node.category || '', brand].join(' '));
+              push(discoveryTitle, abs);
+            }
           }
         }
         if (node['@graph']) walk(node['@graph']);
@@ -202,7 +205,7 @@ export async function readSourcePhotos({sources,readDocument,readPage,isRelevant
         }
         const distinct = [];
         const seen = new Set();
-        for (const it of items) {
+        for (const it of items.sort((a, b) => Number(isPriorityRelevant(b.title)) - Number(isPriorityRelevant(a.title)))) {
           if (seen.has(it.url)) continue;
           seen.add(it.url);
           distinct.push(it);
@@ -223,7 +226,7 @@ export async function readSourcePhotos({sources,readDocument,readPage,isRelevant
           let items = html ? parseHtml(html, homeURL, homeURL, domain) : [];
           const distinct = [];
           const seen = new Set();
-          for (const it of items) {
+          for (const it of items.sort((a, b) => Number(isPriorityRelevant(b.title)) - Number(isPriorityRelevant(a.title)))) {
             if (seen.has(it.url)) continue;
             seen.add(it.url);
             distinct.push(it);
@@ -245,7 +248,7 @@ export async function readSourcePhotos({sources,readDocument,readPage,isRelevant
           let items = html ? parseHtml(html, homeURL, homeURL, domain) : [];
           const distinct = [];
           const seen = new Set();
-          for (const it of items) {
+          for (const it of items.sort((a, b) => Number(isPriorityRelevant(b.title)) - Number(isPriorityRelevant(a.title)))) {
             if (seen.has(it.url)) continue;
             seen.add(it.url);
             distinct.push(it);
@@ -290,14 +293,15 @@ export async function readSourcePhotos({sources,readDocument,readPage,isRelevant
       if (!html) return null;
       if (!sameDomain(finalURL, s.domain)) return null;
       const {actualTitle, image} = extractPage(html, finalURL);
-      const product = articleProductPhotos(html,finalURL,isRelevant)[0];
-      if (!product && (!actualTitle || !image || !isRelevant(actualTitle))) return null;
-      const item = {title: product?.title || actualTitle, url: finalURL, image:product?.image || image, sourceDocument: srcResult.documentURL || c.sourceDocument};
-      if (c.publishedAt) item.publishedAt = c.publishedAt;
-      if (!item.image) delete item.image;
-      return item;
+      const products = structuredProductPhotos(html,finalURL,isProductRelevant)
+        .concat(articleProductPhotos(html,finalURL,isRelevant));
+      if (!products.length && (!actualTitle || !image || !isRelevant(actualTitle))) return null;
+      return (products.length ? products : [{ title: actualTitle, image }]).map(product => ({
+        ...product, url: finalURL, sourceDocument: srcResult.documentURL || c.sourceDocument,
+        ...(c.publishedAt ? { publishedAt: c.publishedAt } : {}),
+      }));
     });
-    for (const r of perCand) if (r) results.push(r);
+    for (const r of perCand) if (r) results.push(...r);
   })()));
 
   for (let i = 0; i < settled.length; i++) {
@@ -313,3 +317,4 @@ export async function readSourcePhotos({sources,readDocument,readPage,isRelevant
 
   return {results, checks};
 }
+
