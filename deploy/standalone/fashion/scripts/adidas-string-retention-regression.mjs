@@ -21,6 +21,7 @@ const sample = () => {
 
 const retained = [];
 const started = performance.now();
+const stateURL = value => JSON.stringify(value).replaceAll('/', '\\u002F');
 for (let index = 0; index < iterations; index++) {
   const code = `AB${String(1000 + index)}`;
   const title = `Memory Product ${index} Shoes`;
@@ -29,8 +30,7 @@ for (let index = 0; index < iterations; index++) {
   let catalog = `<a href="/pdp?articleId=${code}">${title}</a>`;
   catalog += `<i>${'x'.repeat(Math.max(0, pageBytes - catalog.length - 16))}</i>`;
   let pdp = `<title>阿迪达斯-${title} | adidas</title>
-    <div data-anchor="pdp-product-detail"><div class="lib-detail-image"><img src="${image}" alt="${title}"></div></div>
-    <div data-anchor="pdp-product-recommend"><img src="https://static1.adidas.com.cn/t395/other.jpeg" alt="Adidas Other Shoes"></div>`;
+    <script>window.__NUXT__=(function(a,b,d){d[0]=${stateURL(image)};return {data:[{productSSRData:{articleId:a,articleName:b,imageUrlList:d}}]}}(${stateURL(code)},${stateURL(title)},Array(1)));</script>`;
   pdp += `<i>${'x'.repeat(Math.max(0, pageBytes - pdp.length - 16))}</i>`;
   retained.push(
     adidasCatalogPhotos(catalog, 'https://www.adidas.com.cn/siteMap')[0],

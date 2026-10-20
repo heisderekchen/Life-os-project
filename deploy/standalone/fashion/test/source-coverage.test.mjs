@@ -6,7 +6,23 @@ import { join } from 'node:path';
 import { sourceSearchPlan } from '../source-planner.mjs';
 import { createSourceStore } from '../admin/store.mjs';
 import { searchPhotos, photoQueries, declaredImageURL, imageDeclared, matchesIntent, matchesProductIntent, createPageLRU, createPageReadLimiter, PAGE_CACHE_LIMIT, PAGE_CACHE_BYTE_LIMIT, sourcePublishedAt, countResultSources } from '../photo-search.mjs';
-import { nikeCatalogNext, nikeCatalogPhotos, nikeProductPhotos, adidasCatalogPhotos, adidasProductPhotos } from '../source-adapters.mjs';
+import { nikeCatalogNext, nikeCatalogPhotos, nikeProductPhotos, adidasCatalogPhotos, adidasCatalogPages, adidasProductPhotos } from '../source-adapters.mjs';
+
+const stateURL = value => JSON.stringify(value).replaceAll('/', '\\u002F');
+function adidasPDP({ id, title, images, plpImage, other, variants = [], recommendations = [] }) {
+  const assignments = images.map((image, index) => `d[${index}]=${stateURL(image)};`).join('');
+  const plp = plpImage || `https://static1.adidas.com.cn/ecp-product/cdn-image/article/${id}/product/plp/0/${id}.jpg`;
+  const otherBlock = other
+    ? `{productSSRData:{articleId:${stateURL(other.id)},articleName:${stateURL(other.title)},imageUrlList:[${stateURL(other.image)}],plpImageUrl:${stateURL(`https://static1.adidas.com.cn/ecp-product/cdn-image/article/${other.id}/product/plp/0/${other.id}.jpg`)}}},`
+    : '';
+  const aggregate = variants.length
+    ? `,aggregateArticleList:[${variants.map(item => `{articleId:${stateURL(item.id)},articleName:${stateURL(item.title)}}`).join(',')}]`
+    : '';
+  const hyper = recommendations.length
+    ? `hyperBoostArticleList:[${recommendations.map(item => `{"@type":"Product",name:${stateURL(item.title)},productID:${stateURL(item.id)}}`).join(',')}],`
+    : '';
+  return `<title>阿迪达斯-${title} | adidas</title><script>window.__NUXT__=(function(a,b,d,e){${assignments}return {${hyper}data:[${otherBlock}{productSSRData:{articleId:a,articleName:b,imageUrlList:d,plpImageUrl:e${aggregate}}}]}}(${JSON.stringify(id)},${JSON.stringify(title)},Array(${images.length}),${stateURL(plp)}));</script>`;
+}
 
 test('real private catalogue supplies Nike and footwear media; admin exclusions apply to subsequent searches', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'fashion-catalogue-')); t.after(() => rm(dir, { recursive: true, force: true }));
@@ -112,11 +128,16 @@ test('Adidas catalog plans use the public China storefront without changing the 
     const catalog = plan.find(item => item.catalogue === 'adidas');
     assert.equal(catalog.catalogURL, 'https://www.adidas.com.cn/siteMap');
     assert.deepEqual(catalog.domains, ['adidas.com.cn']);
+    assert.equal(catalog.catalogPages, 60);
+    assert.equal(catalog.catalogProductLimit, 600);
+    assert.equal(catalog.readerVersion, 5);
     assert.equal(new Set(plan.flatMap(item => item.domains)).size, 1000);
     assert(plan.some(item => item.domains.includes('adidas.com.cn') && item.sources?.length));
   }
   const strict = sourceSearchPlan({ subject: '阿迪达斯', days: 7, domains: [], sourceScope: 2, sources: ['official', 'media', 'retail'] }, sources);
   assert(!strict.some(item => item.catalogURL));
+  const focused = sourceSearchPlan({ subject: '阿迪达斯', days: 0, domains: [], sourceScope: 0, sources: ['official'] }, sources);
+  assert.equal(focused.find(item => item.catalogue === 'adidas').catalogPages, 2);
   const adidas = sources.find(source => source.domain === 'adidas.com');
   await store.update(adidas.id, { review: 'exclude' }, (await store.read()).revision);
   assert(!sourceSearchPlan({ subject: '阿迪达斯', days: 0, domains: [], sourceScope: 2, sources: ['official', 'media', 'retail'] }, (await store.read()).sources)
@@ -134,45 +155,95 @@ test('Adidas discovery rejects catalogue-only, bags and apparel while binding on
   assert.equal(found[0].productCode, 'JH6149');
   const image = 'https://static1.adidas.com.cn/t395/declared-gallery.jpeg?im=Resize=(1000,1000)';
   const secondImage = 'https://static1.adidas.com.cn/t395/declared-gallery-2.jpeg?im=Resize=(1000,1000)';
-  const pdp = `<title>阿迪达斯-SAMBA GOLF 「T头鞋」高尔夫运动鞋小白鞋 | adidas 阿迪达斯官方旗舰店</title>
+  const pdp = adidasPDP({ id: 'JH6149', title: 'SAMBA GOLF 「T头鞋」高尔夫运动鞋小白鞋', other: {
+    id: 'KJ5431',
+    title: 'SAMBA GOLF 低帮运动板鞋',
+    image: 'https://static1.adidas.com.cn/t395/color-alias.jpg',
+  }, images: [
+    image,
+    secondImage,
+    'https://static1.adidas.com.cn/ecp-product/cdn-image/article/JH6149/product/plp/0/JH6149_current.jpg',
+    'https://static1.adidas.com.cn/ecp-product/cdn-image/article/KJ5431/product/plp/0/KJ5431_other.jpg',
+    'https://static1.adidas.com.cn/ecp-review/review.jpg',
+    'https://evil.example/t395/tracker.jpg',
+  ] }) + `
     <ul class="pdp-color-image-list"><li><a href="/pdp?articleId=KJ5431"><img src="https://static1.adidas.com.cn/t395/other-color.jpg" alt="SAMBA GOLF 低帮运动板鞋"></a></li></ul>
-    <div data-anchor="pdp-product-detail">
-      <div class="lib-detail-image"><img src="${image}" alt="SAMBA GOLF 「T头鞋」高尔夫运动鞋小白鞋"></div>
-      <div class="lib-detail-image"><img src="${secondImage}" alt=""></div>
-      <div class="lib-detail-image"><img src="https://static1.adidas.com.cn/t395/mismatched-alt.jpg" alt="Adidas Puma training shoes"></div>
-    </div>
     <div data-anchor="pdp-product-recommend">
       <img src="https://static1.adidas.com.cn/t395/recommended-adidas.jpg" alt="Adidas Superstar Shoes">
       <img src="https://static1.adidas.com.cn/t395/recommended-puma.jpg" alt="Puma Speedcat running shoes">
     </div>`;
   const images = adidasProductPhotos(pdp, found[0].url);
-  assert.equal(images.length, 2);
+  assert.equal(images.length, 3);
   assert.deepEqual(images.map(item => new URL(item.image).pathname), [
     new URL(image).pathname,
     new URL(secondImage).pathname,
+    '/ecp-product/cdn-image/article/JH6149/product/plp/0/JH6149_current.jpg',
   ]);
-  assert(images.every(item => new URL(item.image).searchParams.get('im') === 'Resize=(1200,1200)'));
-  assert(!images.some(item => /recommended|other-color|mismatched/.test(item.image)));
+  assert(images.slice(0, 2).every(item => new URL(item.image).searchParams.get('im') === 'Resize=(1200,1200)'));
+  assert(!images.some(item => /recommended|other-color|color-alias|mismatched/.test(item.image)));
   assert(imageDeclared(pdp, images[0].image));
   assert(images.every(item => item.productCode === 'JH6149'));
+});
+
+test('Adidas PDP graph discovers explicit variants and footwear recommendations with SKU dedupe', () => {
+  const url = 'https://www.adidas.com.cn/pdp?articleId=JH6149';
+  const pdp = adidasPDP({
+    id: 'JH6149',
+    title: 'SAMBA GOLF 高尔夫运动鞋',
+    images: ['https://static1.adidas.com.cn/t395/current.jpg'],
+    variants: [
+      { id: 'KJ5431', title: 'SAMBA GOLF 低帮运动板鞋' },
+      { id: 'KJ5431', title: 'SAMBA GOLF 低帮运动板鞋' },
+    ],
+    recommendations: [
+      { id: 'KI4406', title: 'Adidas HYPERBOOST EDGE 跑鞋' },
+      { id: 'KI0001', title: 'Adidas Logo Tee' },
+      { id: 'KI4406', title: 'Adidas HYPERBOOST EDGE 跑鞋' },
+    ],
+  });
+  const found = adidasCatalogPhotos(pdp, url);
+  assert.deepEqual(found.map(item => item.productCode), ['JH6149', 'KJ5431', 'KI4406']);
+  assert.equal(new Set(found.map(item => item.productCode)).size, found.length);
+  assert.deepEqual(adidasProductPhotos(pdp, 'https://www.adidas.com.cn/pdp?articleId=KI4406'), []);
+});
+
+test('Adidas public PLP pagination exposes footwear products and suppresses apparel pages', () => {
+  const siteMap = `<a href="/plp/brand_ORIGINALS_ftw_male?page=1">鞋履</a>
+    <a href="/plp/brand_ORIGINALS_app_male?page=1">服装</a>
+    <a href="https://evil.example/plp/brand_ORIGINALS_ftw_male?page=1">外部</a>`;
+  assert.deepEqual(adidasCatalogPages(siteMap, 'https://www.adidas.com.cn/siteMap'), [
+    'https://www.adidas.com.cn/plp/brand_ORIGINALS_ftw_male?page=1',
+  ]);
+  const products = [
+    { articleId: 'PL1001', articleName: 'Adidas Samba Shoes' },
+    { articleId: 'PL1002', articleName: 'Adidas Logo Tee' },
+    { articleId: 'PL1001', articleName: 'Adidas Samba Shoes' },
+  ];
+  const plp = `<script>window.__NUXT__=(function(a,b,c,d){return {listData:{productList:{totalPages:a,totalElements:b,content:[c,d,c]}}}}(2,12,{articleId:"PL1001",articleName:"Adidas Samba Shoes"},{articleId:"PL1002",articleName:"Adidas Logo Tee"}));</script>`;
+  const found = adidasCatalogPhotos(plp, 'https://www.adidas.com.cn/plp/brand_ORIGINALS_ftw_male?page=1');
+  assert.deepEqual(found.map(item => item.productCode), ['PL1001']);
+  assert.deepEqual(adidasCatalogPages(plp, 'https://www.adidas.com.cn/plp/brand_ORIGINALS_ftw_male?page=1'), [
+    'https://www.adidas.com.cn/plp/brand_ORIGINALS_ftw_male?page=2',
+  ]);
 });
 
 test('Adidas catalogue verification returns the declared original page and image identity', async () => {
   const productURL = 'https://www.adidas.com.cn/pdp?articleId=JH6149';
   const image = 'https://static1.adidas.com.cn/t395/declared-gallery.jpeg?im=Resize=(200,200)';
+  const tallImage = 'https://static1.adidas.com.cn/t395/long-storyboard.jpeg';
   const fetcher = async value => {
     const url = new URL(String(value));
     if (url.hostname === 'www.adidas.com.cn' && url.pathname === '/siteMap')
       return new Response('<a href="/pdp?articleId=JH6149">SAMBA GOLF 高尔夫运动鞋</a>');
     if (url.href === productURL)
-      return new Response(`<title>阿迪达斯-SAMBA GOLF 高尔夫运动鞋 | adidas</title><div data-anchor="pdp-product-detail"><div class="lib-detail-image"><img src="${image}" alt="SAMBA GOLF 高尔夫运动鞋"></div></div><div data-anchor="pdp-product-recommend"><img src="https://static1.adidas.com.cn/t395/puma.jpg" alt="Puma running shoes"></div>`);
+      return new Response(adidasPDP({ id: 'JH6149', title: 'SAMBA GOLF 高尔夫运动鞋', images: [image, tallImage] }));
     throw Error('unexpected fixture URL ' + url.href);
   };
   const plan = {
     label: 'Adidas官方鞋履目录', domains: ['adidas.com.cn'], catalogue: 'adidas',
     catalogURL: 'https://www.adidas.com.cn/siteMap', catalogPages: 1,
     catalogProductLimit: 10, catalogImageLimit: 2, catalogResultLimit: 10,
-    readerVersion: 4,
+    readerVersion: 5,
   };
   const plans = [plan];
   plans.excludedDomains = [];
@@ -184,7 +255,9 @@ test('Adidas catalogue verification returns the declared original page and image
       const response = await request(url);
       return { url: String(url), html: await response.text() };
     },
-    readImage: async () => ({ bytes: Buffer.from('verified-adidas-image'), mime: 'image/jpeg' }),
+    readImage: async url => url.includes('long-storyboard')
+      ? ({ bytes: Buffer.from('long-storyboard'), mime: 'image/jpeg', width: 400, height: 1200 })
+      : ({ bytes: Buffer.from('verified-adidas-image'), mime: 'image/jpeg', width: 800, height: 600 }),
     saveAsset: async (sha, asset) => saved.push({ sha, asset }),
   });
   assert.equal(result.items.length, 1);
@@ -193,6 +266,64 @@ test('Adidas catalogue verification returns the declared original page and image
   assert.equal(result.items[0].sourceCheckedAt !== undefined, true);
   assert.equal(result.items[0].sourceImageMatched, true);
   assert.equal(result.items[0].imageSha256, saved[0].sha);
+});
+
+test('bounded Adidas link-graph discovery resumes from checkpoint without duplicate SKUs', async () => {
+  const pages = {
+    JH6149: adidasPDP({ id: 'JH6149', title: 'SAMBA GOLF 运动鞋', images: ['https://static1.adidas.com.cn/t395/jh.jpg'], variants: [
+      { id: 'AA1001', title: 'SAMBA 运动鞋 A' },
+      { id: 'AA1002', title: 'SAMBA 运动鞋 B' },
+    ] }),
+    AA1001: adidasPDP({ id: 'AA1001', title: 'SAMBA 运动鞋 A', images: ['https://static1.adidas.com.cn/t395/a.jpg'], variants: [
+      { id: 'AA1003', title: 'SAMBA 运动鞋 C' },
+    ] }),
+    AA1002: adidasPDP({ id: 'AA1002', title: 'SAMBA 运动鞋 B', images: ['https://static1.adidas.com.cn/t395/b.jpg'], variants: [
+      { id: 'AA1004', title: 'SAMBA 运动鞋 D' },
+    ] }),
+    AA1003: adidasPDP({ id: 'AA1003', title: 'SAMBA 运动鞋 C', images: ['https://static1.adidas.com.cn/t395/c.jpg'] }),
+    AA1004: adidasPDP({ id: 'AA1004', title: 'SAMBA 运动鞋 D', images: ['https://static1.adidas.com.cn/t395/d.jpg'] }),
+  };
+  const readPage = async url => {
+    const parsed = new URL(url);
+    if (parsed.pathname === '/siteMap')
+      return { url, html: '<a href="/pdp?articleId=JH6149">SAMBA GOLF 运动鞋</a>' };
+    const id = parsed.searchParams.get('articleId');
+    if (!pages[id]) throw Error('unexpected page');
+    return { url, html: pages[id] };
+  };
+  const plan = {
+    label: 'Adidas官方鞋履目录', domains: ['adidas.com.cn'], catalogue: 'adidas',
+    catalogURL: 'https://www.adidas.com.cn/siteMap', catalogPages: 2,
+    catalogProductLimit: 20, catalogImageLimit: 2, catalogResultLimit: 20, readerVersion: 5,
+  };
+  const run = checkpoint => {
+    const plans = [plan];
+    plans.excludedDomains = [];
+    return searchPhotos({ subject: '阿迪达斯', days: 0, domains: [], sourceScope: 0 }, {
+      plans, fetcher: async () => { throw Error('network not used'); }, readPage,
+      readImage: async url => ({ bytes: Buffer.from(url), mime: 'image/jpeg', width: 800, height: 600 }),
+      saveAsset: async () => {}, checkpoint,
+    });
+  };
+  const first = await run(null);
+  assert.deepEqual(new Set(first.items.map(item => item.productCode)), new Set(['JH6149', 'AA1001', 'AA1002']));
+  assert.equal(first.checkpoint.visited.length, 2);
+  assert(first.checkpoint.frontier.length > 0);
+  const resumed = await run(first.checkpoint);
+  const again = await run(resumed.checkpoint);
+  const ids = again.items.map(item => item.productCode);
+  assert.equal(new Set(ids).size, ids.length);
+  assert(ids.includes('AA1003'));
+  assert(ids.includes('AA1004'));
+});
+
+test('Adidas serialized hero state is refused when malformed or expression-driven', () => {
+  const url = 'https://www.adidas.com.cn/pdp?articleId=JH6149';
+  const malformed = '<title>阿迪达斯-SAMBA GOLF 高尔夫运动鞋 | adidas</title><script>window.__NUXT__=(function(a){return {productSSRData:{articleId:a}}}(</script>';
+  const sideEffect = '<title>阿迪达斯-SAMBA GOLF 高尔夫运动鞋 | adidas</title><script>window.__NUXT__=(function(a){return {data:[{productSSRData:{articleId:a,articleName:"SAMBA GOLF 高尔夫运动鞋",imageUrlList:["https:\\\\u002F\\\\u002Fstatic1.adidas.com.cn\\\\u002Ft395\\\\u002Fwrong.jpg"],plpImageUrl:"https:\\\\u002F\\\\u002Fstatic1.adidas.com.cn\\\\u002Fecp-product\\\\u002Fcdn-image\\\\u002Farticle\\\\u002FJH6149\\\\u002Fproduct\\\\u002Fplp\\\\u002F0\\\\u002FJH6149.jpg"}}]}}(globalThis.__adidasStateRan=true))</script>';
+  assert.deepEqual(adidasProductPhotos(malformed, url), []);
+  assert.deepEqual(adidasProductPhotos(sideEffect, url), []);
+  assert.equal(globalThis.__adidasStateRan, undefined);
 });
 
 test('brand-scoped structured product evidence supports non-Nike models without a model whitelist', () => {

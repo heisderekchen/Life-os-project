@@ -38,7 +38,7 @@ export function sourceSearchPlan(input, sources) {
       catalogue: key,
       catalogURL: item.url,
       ...limits,
-      readerVersion: key === 'adidas' ? 4 : 3,
+      readerVersion: key === 'adidas' ? 5 : 3,
     };
   };
   const brandPlan = (limits) => chosenCatalogue ? cataloguePlan(chosenCatalogue[0], chosenCatalogue[1], limits) : null;
@@ -76,7 +76,7 @@ export function sourceSearchPlan(input, sources) {
     const domainsList = pool.map(p => p.source.domain);
     if (!input.days && catalogueOf(domainsList)) {
       plans.push(brandPlan({
-        catalogPages: 30,
+        catalogPages: chosenCatalogue[0] === 'adidas' ? 60 : 30,
         catalogProductLimit: 600,
         catalogImageLimit: 2,
         catalogResultLimit: 1200,
