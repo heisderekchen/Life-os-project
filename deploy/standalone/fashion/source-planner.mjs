@@ -71,6 +71,22 @@ export function sourceSearchPlan(input, sources) {
         sources: pool.slice(i, i + 5).map(p => ({domain:p.source.domain,url:p.source.url,feedUrls:p.source.feedUrls || []})) });
     }
   } else {
+    const officialCatalog = !input.domains.length && input.days === 0 &&
+      input.sources.includes('official') && catalogueOf(['nike.com']) === 'nike';
+    if (officialCatalog) {
+      plans.push({
+        label: 'Nike官方鞋履目录',
+        domains: ['nike.com'],
+        catalogue: 'nike',
+        catalogURL: 'https://www.nike.com/w/shoes-y7ok',
+        catalogPages: 2,
+        catalogProductLimit: input.sourceScope === 0 ? 24 : 30,
+        catalogImageLimit: 2,
+        catalogResultLimit: input.sourceScope === 0 ? 16 : 24,
+        timeoutMs: 90000,
+        readerVersion: 3,
+      });
+    }
     const take = input.sourceScope === 1 ? 6 : 3;
     for (const id of input.sources || []) {
       const pool = id === 'official' && brandMatches.length ? brandMatches : eligible.filter(s => s.category === categories[id]);

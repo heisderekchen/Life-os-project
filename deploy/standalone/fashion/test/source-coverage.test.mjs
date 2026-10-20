@@ -26,9 +26,34 @@ test('real private catalogue supplies Nike and footwear media; admin exclusions 
   assert(plan.some(p => p.domains.includes('nike.com') && p.sources?.length));
   const nike = data.sources.find(s => s.domain === 'nike.com');
   await store.update(nike.id, { review: 'exclude' }, data.revision);
-  const changed = sourceSearchPlan(input, (await store.read()).sources);
+  const updatedSources = (await store.read()).sources;
+  const changed = sourceSearchPlan(input, updatedSources);
   assert(!changed.some(p => p.domains.includes('nike.com')));
   assert(changed.excludedDomains.includes('nike.com'));
+  const catalogInput = { ...input, subject: '耐克鞋', days: 0 };
+  const balanced = sourceSearchPlan({ ...catalogInput, sourceScope: 1 }, data.sources);
+  const focused = sourceSearchPlan({ ...catalogInput, sourceScope: 0 }, data.sources);
+  const balancedCatalog = balanced.find(plan => plan.catalogURL);
+  const focusedCatalog = focused.find(plan => plan.catalogURL);
+  assert.equal(balancedCatalog.catalogURL, 'https://www.nike.com/w/shoes-y7ok');
+  assert.deepEqual(balancedCatalog.domains, ['nike.com']);
+  assert.equal(balancedCatalog.catalogProductLimit, 30);
+  assert.equal(balancedCatalog.catalogResultLimit, 24);
+  assert.equal(focusedCatalog.catalogProductLimit, 24);
+  assert.equal(focusedCatalog.catalogResultLimit, 16);
+  assert.equal(balancedCatalog.readerVersion, 3);
+  assert(balanced.find(plan => plan.label === '品牌官方').domains.includes('nike.com'));
+  assert(balanced.some(plan => plan.label === '专业媒体' && plan.domains.length));
+  assert(balanced.some(plan => plan.label === '零售平台' && plan.domains.length));
+  assert(focused.find(plan => plan.label === '品牌官方').domains.includes('nike.com'));
+  assert(!sourceSearchPlan({ ...catalogInput, sourceScope: 1, sources: ['media', 'retail'] }, data.sources)
+    .some(plan => plan.catalogURL));
+  assert(!sourceSearchPlan({ ...catalogInput, sourceScope: 1, days: 7 }, data.sources)
+    .some(plan => plan.catalogURL));
+  assert(!sourceSearchPlan({ ...catalogInput, sourceScope: 1, domains: ['example.com'] }, data.sources)
+    .some(plan => plan.catalogURL));
+  assert(!sourceSearchPlan({ ...catalogInput, sourceScope: 1 }, updatedSources)
+    .some(plan => plan.catalogURL));
 });
 
 test('scope 2 opens unrestricted web discovery only for the full official/media/retail selection', async t => {
@@ -57,6 +82,24 @@ test('brand-only query expands footwear terms while specific shoe/material inten
   assert.equal(matchesIntent('nike', 'Nike footwear duffel bag in a history booth'), false);
   assert.deepEqual(photoQueries('nike', 2), ['nike shoes', 'nike sneakers', 'nike footwear', 'nike women shoes']);
   assert(photoQueries('女款绒面乐福鞋', 2).every(q => /suede.*loafers/.test(q) && !q.includes('sneakers')));
+});
+
+test('Chinese brand plus generic shoe compounds match footwear while retaining type, material, and gender intent', () => {
+  const cases = [
+    ['nike', "Nike Air Force 1 Men's Shoes"],
+    ['耐克鞋', "Nike Air Force 1 Men's Shoes"],
+    ['耐克鞋子', "Nike Air Force 1 Men's Shoes"],
+    ['耐克女鞋', "Nike Women's Air Force 1 Shoes"],
+    ['阿迪达斯鞋', 'Adidas Samba Shoes'],
+    ['阿迪达斯麂皮鞋', 'Adidas suede Samba Shoes'],
+    ['新百伦运动鞋', 'New Balance 574 Sneakers'],
+  ];
+  for (const [subject, title] of cases) assert.equal(matchesIntent(subject, title), true, `${subject} -> ${title}`);
+  assert.equal(matchesIntent('耐克女鞋', "Nike Men's Air Force 1 Shoes"), false);
+  assert.equal(matchesIntent('阿迪达斯麂皮鞋', 'Adidas leather Samba Shoes'), false);
+  assert.equal(matchesIntent('耐克乐福鞋', "Nike Air Force 1 Men's Shoes"), false);
+  assert.equal(matchesIntent('耐克鞋', 'Nike footwear duffel bag in a history booth'), false);
+  assert.equal(matchesIntent('耐克鞋', "Nike Air Force 1 Men's Clothing"), false);
 });
 
 test('PDP page cache is a bounded LRU and touches recently reused pages', () => {
