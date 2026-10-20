@@ -20,7 +20,7 @@ DeepSeek implementation evidence is retained in `output/deepseek/task-notes-back
 
 Local verification reported by the integrating agent:
 
-- 215 core tests passed before the final delete-conflict recovery correction; the final nine task-notes component tests passed after that correction.
+- 215 core tests passed before the final delete-conflict recovery correction; the final nine task-notes component tests passed after that correction. The first remote run subsequently passed all 216 unit/component tests, the build and browser checks, then found the old backup dataset count fixed at 41. The contract now includes 42 datasets, and the strict empty-target CLI importer includes task notes with backward compatibility for older exports. A runtime fixture verifies restored note text and image payloads; platform, task-card, task-card HTTP and research boundary checks also passed locally after this correction.
 - `/tmp/lifeos-notes-server-tests.log` covers reconnect, revision races, rollback, pagination, backup and cascade behavior against the isolated Node/SQLite request handler.
 - `/tmp/lifeos-notes-build.log` records the latest production build/type checks; lint passed.
 - A prior browser run exercised actual upload, clipboard images, private-image 404, real edit conflict and manual merge, failed-save 503/retry, inline deletion and reload persistence of two notes. The final browser rerun in `/tmp/lifeos-notes-browser.log` passed after the correction, including `realDeleteConflictRecovery: true`, upload, clipboard, reload, edit conflict, failed-save recovery, confirmed deletion and unauthenticated image 404. The stored screenshot compressed to 11,966 bytes.

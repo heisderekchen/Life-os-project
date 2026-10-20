@@ -9,7 +9,7 @@ TABLES = {
     "profile":"lifeos_user_profile", "settings":"lifeos_settings", "workspace":"lifeos_workspaces",
     "widgets":"lifeos_dashboard_widgets", "dashboardLayout":"lifeos_widgets", "tags":"lifeos_tags",
     "projects":"personal_workbench_lifeos_projects", "topics":"lifeos_project_topics", "tasks":"personal_workbench_lifeos_tasks",
-    "taskTags":"lifeos_task_tags", "taskDependencies":"lifeos_task_dependencies",
+    "taskNotes":"lifeos_task_notes", "taskTags":"lifeos_task_tags", "taskDependencies":"lifeos_task_dependencies",
     "noteFolders":"lifeos_note_folders", "notes":"lifeos_notes", "noteTags":"lifeos_note_tags",
     "noteLinks":"lifeos_note_links", "bookmarks":"lifeos_bookmarks", "bookmarkTags":"lifeos_bookmark_tags",
     "habits":"lifeos_habits", "habitTags":"lifeos_habit_tags", "habitLogs":"lifeos_habit_logs",
@@ -39,6 +39,7 @@ def main():
         raise ValueError("Expected authenticated current Life OS export version 1.1.0")
     data = payload["data"]
     data.setdefault("topics", [])  # Backward compatible with pre-topic backups.
+    data.setdefault("taskNotes", [])  # The strict CLI only imports into an empty target.
     if set(data) != set(TABLES):
         raise ValueError(f"Export contract mismatch; missing={sorted(set(TABLES)-set(data))}, extra={sorted(set(data)-set(TABLES))}")
     for key, rows in data.items():
