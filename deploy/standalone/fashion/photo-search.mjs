@@ -255,7 +255,7 @@ function eligible(candidate, subject, domains) {
       !/\/(search|collections|category|categories)(\/|$)|[?&]q=/i.test(u.pathname + u.search) &&
       (!domains.length || domains.some(d => u.hostname === d || u.hostname.endsWith('.' + d))) &&
       !/(?:演示数据|示例商品|demo product|sample product|placeholder)/i.test(candidate.title || '') &&
-      (candidate.productTypeEvidence ? matchesProductIntent(subject, candidate.title || '', true, candidate.catalogue) : discoveryIntent(subject, candidate.title || '')) &&
+      (candidate.productTypeEvidence ? matchesProductIntent(subject, candidate.title || '', true, candidate.brandEvidence || candidate.catalogue) : discoveryIntent(subject, candidate.title || '')) &&
       (candidate.width === undefined || Number(candidate.width) >= 350) &&
       (candidate.height === undefined || Number(candidate.height) >= 250);
   } catch { return false; }
@@ -401,7 +401,9 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
           attempts = await discoverOpenSources(entry, fetcher, readDocument, input, signal, excluded);
         } else if (entry.sourceReader) {
           const read = await readSourcePhotos({sources:entry.sources, readDocument:url=>abortable(()=>readDocument(url,fetcher),signal),
-            readPage:url=>readCached(url), isRelevant:title=>matchesIntent(input.subject,title), isDiscoveryRelevant:title=>discoveryIntent(input.subject,title), signal});
+            readPage:url=>readCached(url), isRelevant:title=>matchesIntent(input.subject,title), isDiscoveryRelevant:title=>discoveryIntent(input.subject,title),
+            isPriorityRelevant:title=>matchesIntent(input.subject,title,true),
+            isProductRelevant:(title,brand)=>matchesProductIntent(input.subject,title,true,brand), signal});
           sourceChecks.push(...read.checks);
           attempts = [{provider:'来源自身页面',results:read.results,...(read.checks.every(c=>c.status==='error')?{error:'来源文档均不可读取'}:{})}];
         } else if (entry.catalogURL) {
@@ -706,3 +708,4 @@ const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;
 export function exportHTML(task, assets) {
   return `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>${esc(task.input.subject)} · 图片与来源</title><style>body{font:16px/1.6 system-ui;max-width:1000px;margin:40px auto;padding:20px;color:#11141a}article{border-top:1px solid #ccd3dc;padding:24px 0;break-inside:avoid}img{width:100%;max-height:520px;object-fit:contain}a,code{overflow-wrap:anywhere}p{margin:8px 0}a{color:#154bea}</style><h1>${esc(task.input.subject)}</h1><p>交付时间 ${esc(task.delivery.createdAt)} · ${task.delivery.items.length} 张图片</p><p>图片已嵌入本文件，可离线查看。原始来源与图片地址逐张保留。来源可追溯不代表获得商用授权。</p>${task.delivery.items.map((i, n) => `<article data-image-id="${esc(i.id)}"><h2>${n + 1}. ${esc(i.title)}</h2><img src="data:${i.imageMime};base64,${assets[n].toString('base64')}" alt="${esc(i.title)}"><p>图片编号：${esc(i.id)}</p><p><a href="${esc(i.url)}">打开原始来源：${esc(i.url)}</a></p><p><a href="${esc(i.image)}">原始图片：${esc(i.image)}</a></p><p>核查依据：${esc(i.note)}</p><p>来源核对时间：${esc(i.sourceCheckedAt)} · 发布日期：${esc(i.publishedAt || '未确认')}</p><p>SHA-256：<code>${esc(i.imageSha256)}</code></p></article>`).join('')}</html>`;
 }
+
