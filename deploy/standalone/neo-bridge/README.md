@@ -7,8 +7,11 @@ It accepts only the collector's verified `parse_complete_snapshot` shape:
 `expected_plan_count`, `store_identity_verified`, and `plans`.
 
 The sidecar stages deterministic-event-ID records in a local JSON outbox,
-retries with capped exponential backoff, and expires records older than 24h
-without sending them. The endpoint is immutable. Its only secret input is the
+retries with capped exponential backoff, and expires records older than 10
+minutes (the receiver freshness window) without sending them. It stages only
+`official_snapshot` and `neo_heartbeat`: `plan_confirmation` remains absent
+until a separate validated plan source exists, rather than being inferred.
+The endpoint is immutable. Its only secret input is the
 runtime environment variable `HAPPYSPA_BENCH_OUTBOX_TOKEN`; configuration,
 output, and logs never contain the value.
 

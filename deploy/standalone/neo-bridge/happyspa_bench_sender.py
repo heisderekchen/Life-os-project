@@ -13,7 +13,8 @@ VERSION = "2026-10-20.v1"
 TASK_ID = "499537ec-0aec-4a2e-8b1a-5526c9864d66"
 PRODUCER = "neo-happyspa-readonly"
 ENDPOINT = "https://happyspa.studio/workbench/api/happyspa-bench/outbox"
-MAX_EVENT_AGE_SECONDS = 24 * 60 * 60
+# Match the receiver's 10-minute freshness window; do not deliver stale facts.
+MAX_EVENT_AGE_SECONDS = 10 * 60
 
 def now(): return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 def parse_time(value):
@@ -47,8 +48,10 @@ def official_event(snapshot, source_name):
     matches = [p for p in plans if p.get("name") == "极速推广20260512557" and p.get("type") == "极速推"]
     if len(matches) != 1: raise ValueError("target plan is not uniquely present")
     observed = snapshot.get("observed_at"); parse_time(observed)
+    source_as_of = snapshot.get("data_as_of") if snapshot.get("data_as_of") else None
+    if source_as_of is not None: parse_time(source_as_of)
     payload = {"planId": "极速推广20260512557", "planType": "极速推", "todaySpendFen": fen(snapshot.get("today_spend")),
-               "sourceAsOf": snapshot.get("data_as_of") if snapshot.get("data_as_of") else None,
+               "sourceAsOf": source_as_of,
                "officialPlanCount": len(plans), "targetStatus": matches[0].get("status"),
                "evidence": [{"kind": "collector_file", "reference": Path(source_name).name}]}
     if payload["targetStatus"] not in ("running", "paused"): raise ValueError("target status is unknown")

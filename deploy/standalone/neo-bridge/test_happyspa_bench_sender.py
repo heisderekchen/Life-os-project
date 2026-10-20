@@ -1,6 +1,6 @@
 import json, os, tempfile, unittest
 from pathlib import Path
-from happyspa_bench_sender import ENDPOINT, deliver, official_event, stage
+from happyspa_bench_sender import ENDPOINT, MAX_EVENT_AGE_SECONDS, deliver, official_event, parse_time, stage
 
 class Response:
     status = 202
@@ -12,10 +12,12 @@ class SenderTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d); config={"endpoint":ENDPOINT,"outbox":str(root/'outbox.json'),"expired_ledger":str(root/'expired.json')}
             record=official_event(snapshot,"/private/official-snapshot.json"); self.assertEqual(record["payload"]["todaySpendFen"],752)
+            self.assertEqual(MAX_EVENT_AGE_SECONDS, 600)
             self.assertEqual(stage(config["outbox"],record),stage(config["outbox"],record))
             os.environ["HAPPYSPA_BENCH_OUTBOX_TOKEN"]="test-only-token"; seen=[]
             def fake(request, timeout): seen.append(json.loads(request.data)); return Response()
-            self.assertEqual(deliver(config,opener=fake,clock=lambda:1729389600)["delivered"],1); self.assertEqual(seen[0]["eventId"],record["eventId"])
+            clock = parse_time(record["observedAt"]).timestamp() + 599
+            self.assertEqual(deliver(config,opener=fake,clock=lambda:clock)["delivered"],1); self.assertEqual(seen[0]["eventId"],record["eventId"])
     def test_failed_or_expired_records_are_not_sent(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d); config={"endpoint":ENDPOINT,"outbox":str(root/'outbox.json'),"expired_ledger":str(root/'expired.json')}; old={"contractVersion":"2026-10-20.v1","producer":"neo-happyspa-readonly","taskId":"499537ec-0aec-4a2e-8b1a-5526c9864d66","eventId":"old","kind":"neo_heartbeat","observedAt":"2020-01-01T00:00:00Z","payload":{}}
