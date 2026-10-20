@@ -16,24 +16,30 @@ const translations = [
   ['漆皮', 'patent leather'], ['绒面', 'suede'], ['麂皮', 'suede'], ['真皮', 'leather'],
   ['皮革', 'leather'], ['网眼', 'mesh'], ['缎面', 'satin'], ['金属', 'metallic'],
   ['极简', 'minimalist'], ['复古', 'retro'], ['黑色', 'black'], ['棕色', 'brown'],
+  // Generic shoe words follow type compounds so "乐福鞋" remains "loafers".
+  ['鞋履', 'footwear'], ['鞋子', 'shoes'], ['鞋款', 'shoes'], ['鞋', 'shoes'],
 ];
 export function photoQuery(subject) {
   let value = subject;
   for (const [cn, en] of translations) value = value.replaceAll(cn, ` ${en} `);
   return value.replace(/[,，。；;]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
-const stop = new Set(['women', 'womens', 'woman', 'ladies', 'female', 'shoe', 'shoes', 'footwear', 'for', 'and', 'the', 'with', 'of', 'in', 'a', 's']);
+const stop = new Set(['shoe', 'shoes', 'footwear', 'for', 'and', 'the', 'with', 'of', 'in', 'a', 's']);
+const footwear = /\b(?:loafer|ballet|flat|sandal|boot|shoe|heel|mule|sneaker|pump|slipper)s?\b|\bmary.jane\b|鞋|靴/i;
+const apparel = /\b(?:apparel|clothing|jacket|hoodie|sweatshirt|sweater|pants|trousers|shorts|skirt|dress|shirt|tee|t-shirt|socks?|hat|cap|coat)\b|服装|衣|裤|裙/i;
 export function matchesIntent(subject, value) {
   const terms = photoQuery(subject).toLowerCase().replace(/['’]/g, '').match(/[\p{L}\p{N}]+/gu) || [];
-  const hay = photoQuery(value).toLowerCase().replace(/['’]/g, '');
+  const hay = photoQuery(value).toLowerCase().replace(/['’]/g, '')
+    .replace(/\b(?:womens?|woman|ladies|female)\b/g, 'women');
   if (/\b(?:duffel|handbag|backpack|shoebox|shoe bag|shoe box|storefront|logo)\b|鞋盒|手提包|鞋袋/i.test(value)) return false;
+  if (apparel.test(value) && !footwear.test(value)) return false;
   if (terms.includes('leather') && /\bfaux\b|\bsynthetic\b|leather[- ]look|仿皮|人造革/i.test(value)) return false;
   const knownNikeModel = /\b(?:Nike\s+(?:Dunk|Mind\s+00[12]|Air|Shox|Vomero|Pegasus|Sabrina\s+\d+)|Air\s+(?:Jordan|Max|Force))\b/i.test(value);
   return terms.filter(t => !stop.has(t)).every(t => {
     if(t==='nike' && /\bAir\s+Jordan\b/i.test(value)) return true;
     const stem = t.length > 4 && t.endsWith('s') ? t.slice(0, -1) : t;
     return hay.includes(stem);
-  }) && (knownNikeModel || /\b(?:loafer|ballet|flat|sandal|boot|shoe|heel|mule|sneaker|pump|slipper)s?\b|\bmary.jane\b|鞋|靴/i.test(value));
+  }) && (knownNikeModel || footwear.test(value));
 }
 export function discoveryIntent(subject, title) {
   return matchesIntent(subject,title) || /\b(?:shoe|footwear|flat|loafer|sneaker|boot)s?\b|鞋|靴/i.test(title);
