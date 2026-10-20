@@ -96,3 +96,123 @@ export function nikeProductPhotos(value, pageURL = '', isRelevant = () => true) 
   }
   return images;
 }
+
+const adidasTitle = html => {
+  const raw = String(html).match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '';
+  return copyString(raw
+    .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/^阿迪达斯\s*[-–—]\s*/i, '')
+    .replace(/\s*\|\s*adidas.*$/i, '')
+    .trim());
+};
+const copyString = value => typeof value === 'string' ? Buffer.from(value, 'utf8').toString('utf8') : value;
+
+function adidasFootwear(title) {
+  return /\b(?:footwear|shoes?|sneakers?|trainers?|boots?|sandals?|slides?|loafers?)\b|鞋|靴/i.test(title);
+}
+
+function adidasArticleURL(value) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || url.hostname !== 'www.adidas.com.cn' || url.username || url.password || url.port || url.hash) return null;
+    if (url.pathname !== '/pdp' || !/^[a-z0-9-]{4,24}$/i.test(url.searchParams.get('articleId') || '')) return null;
+    return url;
+  } catch { return null; }
+}
+
+export function adidasCatalogPhotos(value, sourceURL) {
+  const out = [], seen = new Set();
+  for (const match of String(value || '').matchAll(/<a\b[^>]*href=["']([^"']*\/pdp\?articleId=[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
+    const url = adidasArticleURL(new URL(match[1], sourceURL).href);
+    const title = copyString(match[2].replace(/<[^>]*>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim());
+    if (!url || !title || !adidasFootwear(title) || seen.has(url.href)) continue;
+    seen.add(url.href);
+    out.push({
+      title,
+      url: copyString(url.href),
+      canonicalURL: copyString(url.href),
+      catalogURL: copyString(sourceURL),
+      productCode: copyString(url.searchParams.get('articleId')),
+      productTypeEvidence: 'footwear',
+    });
+  }
+  return out;
+}
+
+function adidasImageURL(value) {
+  const url = new URL(value);
+  if (url.hostname !== 'static1.adidas.com.cn' || !url.pathname.startsWith('/t395/')) return '';
+  if (url.searchParams.has('im')) url.searchParams.set('im', 'Resize=(1200,1200)');
+  return url.href;
+}
+
+export function adidasProductPhotos(value, pageURL = '') {
+  const html = String(value || '');
+  if (!adidasArticleURL(pageURL)) return [];
+  const title = adidasTitle(html);
+  if (!title || !adidasFootwear(title)) return [];
+  const articleId = new URL(pageURL).searchParams.get('articleId');
+  const detailStart = html.search(/data-anchor=["']pdp-product-detail["']/i);
+  if (detailStart < 0) return [];
+  const remainder = html.slice(detailStart);
+  const detailEnd = remainder.search(/data-anchor=["']pdp-product-(?:tryon|recommend|comments)["']/i);
+  const detail = detailEnd > 0 ? remainder.slice(0, detailEnd) : remainder;
+  const normalizedTitle = title.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+  const altMatches = alt => {
+    const normalized = alt.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+    return normalized && (normalized === normalizedTitle ||
+      normalized.includes(normalizedTitle) || normalizedTitle.includes(normalized));
+  };
+  const images = [], seen = new Set();
+  for (const match of detail.matchAll(/<div\b[^>]*class=["'][^"']*\blib-detail-image\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi)) {
+    const imageTag = match[1].match(/<img\b([^>]*)>/i)?.[1] || '';
+    const src = imageTag.match(/\bsrc=["']([^"']+)["']/i)?.[1] || '';
+    const alt = imageTag.match(/\balt=["']([^"']*)["']/i)?.[1]?.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim() || '';
+    if (alt && !altMatches(alt)) continue;
+    let image;
+    try { image = adidasImageURL(new URL(src, pageURL).href); } catch { continue; }
+    if (!image || seen.has(image)) continue;
+    seen.add(image);
+    images.push({
+      title: copyString(title),
+      image: copyString(image),
+      url: copyString(pageURL),
+      canonicalURL: copyString(pageURL),
+      productCode: copyString(articleId),
+      productTypeEvidence: 'footwear',
+      imageId: copyString(new URL(image).pathname),
+    });
+  }
+  return images;
+}
+
+const catalogAdapters = {
+  nike: {
+    name: 'nike',
+    photos: nikeCatalogPhotos,
+    next: nikeCatalogNext,
+  },
+  adidas: {
+    name: 'adidas',
+    photos: adidasCatalogPhotos,
+    next: () => '',
+  },
+};
+
+export function catalogAdapter(value) {
+  let name = String(value || '').toLowerCase();
+  if (!catalogAdapters[name] && /^https?:/i.test(name)) {
+    try {
+      const host = new URL(name).hostname.replace(/^www\./, '');
+      name = host === 'nike.com' || host.endsWith('.nike.com') ? 'nike'
+        : host === 'adidas.com.cn' || host.endsWith('.adidas.com.cn') ? 'adidas' : '';
+    } catch { name = ''; }
+  }
+  return catalogAdapters[name] || null;
+}
+
+export function catalogueProductPhotos(name, value, pageURL, isRelevant = () => true) {
+  if (name === 'nike') return nikeProductPhotos(value, pageURL, isRelevant);
+  if (name === 'adidas') return adidasProductPhotos(value, pageURL);
+  return [];
+}

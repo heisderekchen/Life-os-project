@@ -3,6 +3,15 @@ import { photoQuery } from './photo-search.mjs';
 const categories = { official: 'brand', media: 'media', retail: 'retail' };
 const scopeGroups = { official: ['brand'], media: ['media', 'industry', 'trend'], retail: ['retail'] };
 const compact = value => String(value || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+const catalogues = {
+  nike: { name: 'Nike', domain: 'nike.com', url: 'https://www.nike.com/w/shoes-y7ok' },
+  adidas: {
+    name: 'Adidas',
+    domain: 'adidas.com',
+    fallbackDomain: 'adidas.com.cn',
+    url: 'https://www.adidas.com.cn/siteMap',
+  },
+};
 
 export function sourceSearchPlan(input, sources) {
   if (input.sourceScope === undefined) return null;
@@ -17,13 +26,38 @@ export function sourceSearchPlan(input, sources) {
   const brandMatches = eligible.filter(s => s.category === 'brand' && [s.name, s.domain.split('.')[0]].some(name => {
     const term = compact(name); return term.length >= 3 && subject.includes(term);
   }));
+  const chosenCatalogue = Object.entries(catalogues).find(([key, item]) =>
+    brandMatches.some(source => source.domain === item.domain || source.domain === item.fallbackDomain) &&
+    subject.includes(compact(item.name))) || null;
+  const cataloguePlan = (key, item, limits) => {
+    let domain = item.domain;
+    if (item.fallbackDomain && !excluded.has(item.fallbackDomain)) domain = item.fallbackDomain;
+    return {
+      label: `${item.name}官方鞋履目录`,
+      domains: [domain],
+      catalogue: key,
+      catalogURL: item.url,
+      ...limits,
+      readerVersion: key === 'adidas' ? 4 : 3,
+    };
+  };
+  const brandPlan = (limits) => chosenCatalogue ? cataloguePlan(chosenCatalogue[0], chosenCatalogue[1], limits) : null;
   const sports = /nike|adidas|puma|jordan|newbalance|asics|sneaker|运动|球鞋/.test(subject);
   const rank = source => (source.priority === 'high' ? 100 : source.priority === 'reserve' ? -20 : 0) +
     (source.review === 'retain' ? 40 : 0) + (source.shoeRelevance === '鞋履直接相关' ? 12 : 0) + (source.footwearSignal ? 8 : 0) +
     (source.accessStatus === 'accessible' ? 4 : 0) +
     (sports && /sneaker|kicks|sole|footwear|hypebeast|highsnobiety|footlocker|jdsports|finishline|endclothing|farfetch|ssense|mrporter|size\?|运动|球鞋/i.test(source.name + ' ' + source.domain) ? 30 : 0);
   const isBrandMatch = s => brandMatches.some(b => b.domain === s.domain);
-  const catalogueOf = domains => domains.includes('nike.com') && brandMatches.some(s => s.domain === 'nike.com') ? 'nike' : null;
+  const catalogueOf = domains => chosenCatalogue && (
+    domains.includes(chosenCatalogue[1].domain) || domains.includes(chosenCatalogue[1].fallbackDomain)
+  ) ? chosenCatalogue[0] : null;
+  const effectiveDomain = domain => domain === chosenCatalogue?.[1].domain && chosenCatalogue[1].fallbackDomain &&
+    !excluded.has(chosenCatalogue[1].fallbackDomain)
+    ? chosenCatalogue[1].fallbackDomain : domain;
+  const effectiveSource = source => {
+    const domain = effectiveDomain(source.domain);
+    return domain === source.domain ? source : { ...source, domain, url: `https://${domain}/`, feedUrls: [] };
+  };
 
   const plans = [];
 
@@ -40,19 +74,14 @@ export function sourceSearchPlan(input, sources) {
     }));
     pool.sort((a, b) => b.score - a.score || a.source.domain.localeCompare(b.source.domain));
     const domainsList = pool.map(p => p.source.domain);
-    if (catalogueOf(domainsList) === 'nike') {
-      plans.push({
-        label: 'Nike官方鞋履目录',
-        domains: ['nike.com'],
-        catalogue: 'nike',
-        catalogURL: 'https://www.nike.com/w/shoes-y7ok',
+    if (!input.days && catalogueOf(domainsList)) {
+      plans.push(brandPlan({
         catalogPages: 30,
         catalogProductLimit: 600,
         catalogImageLimit: 2,
         catalogResultLimit: 1200,
         timeoutMs: 720000,
-        readerVersion: 3,
-      });
+      }));
     }
     if (allSourceClassesSelected) {
       plans.push({
@@ -64,37 +93,32 @@ export function sourceSearchPlan(input, sources) {
       });
     }
     for (let i = 0; i < domainsList.length; i += 5) {
-      const domains = domainsList.slice(i, i + 5);
+      const domains = domainsList.slice(i, i + 5).map(effectiveDomain);
       if (!domains.length) continue;
       const catalogue = catalogueOf(domains);
       plans.push({ label: '来源检索', domains, catalogue, readerVersion: 2,
-        sources: pool.slice(i, i + 5).map(p => ({domain:p.source.domain,url:p.source.url,feedUrls:p.source.feedUrls || []})) });
+        sources: pool.slice(i, i + 5).map(p => effectiveSource(p.source)) });
     }
   } else {
     const officialCatalog = !input.domains.length && input.days === 0 &&
-      input.sources.includes('official') && catalogueOf(['nike.com']) === 'nike';
+      input.sources.includes('official') && chosenCatalogue;
     if (officialCatalog) {
-      plans.push({
-        label: 'Nike官方鞋履目录',
-        domains: ['nike.com'],
-        catalogue: 'nike',
-        catalogURL: 'https://www.nike.com/w/shoes-y7ok',
+      plans.push(brandPlan({
         catalogPages: 2,
         catalogProductLimit: input.sourceScope === 0 ? 24 : 30,
         catalogImageLimit: 2,
         catalogResultLimit: input.sourceScope === 0 ? 16 : 24,
         timeoutMs: 90000,
-        readerVersion: 3,
-      });
+      }));
     }
     const take = input.sourceScope === 1 ? 6 : 3;
     for (const id of input.sources || []) {
       const pool = id === 'official' && brandMatches.length ? brandMatches : eligible.filter(s => s.category === categories[id]);
       const chosen = [...pool].sort((a, b) => rank(b) - rank(a) || a.domain.localeCompare(b.domain)).slice(0, take);
       for (let i = 0; i < chosen.length; i += 3) {
-        const domains = chosen.slice(i, i + 3).map(s => s.domain);
+        const domains = chosen.slice(i, i + 3).map(s => effectiveDomain(s.domain));
         plans.push({ label: { official: '品牌官方', media: '专业媒体', retail: '零售平台' }[id], domains, catalogue: catalogueOf(domains), readerVersion: 2,
-          sources: chosen.slice(i, i + 3).map(s => ({domain:s.domain,url:s.url,feedUrls:s.feedUrls || []})) });
+          sources: chosen.slice(i, i + 3).map(effectiveSource) });
       }
     }
   }

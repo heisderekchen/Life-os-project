@@ -19,6 +19,22 @@ test('article image and publication date must be present in source evidence; Ato
  const xml='<feed><entry><title>Nike Mind 002</title><link href="https://media.test/mind" rel="alternate"/><updated>2026-10-19</updated></entry></feed>';
  const r=await readSourcePhotos({sources:[source],readDocument:async u=>({url:u,html:xml}),readPage:async u=>({url:u,html:'<title>Nike Mind 002</title><meta name="twitter:image" content="https://media.test/mind.jpg">'}),isRelevant:relevant});assert.equal(r.results.length,1);assert.equal(r.results[0].publishedAt,undefined);
 });
+test('structured product candidates precede navigation and category links in the bounded reader',async()=>{
+ const productURL='https://media.test/pd/speedcat/398846';
+ const product={'@type':'Product',name:'Speedcat OG Sneakers',url:productURL};
+ const html=`<a href="/women/shoes">Women's shoes</a><a href="/men/shoes">Men's sneakers</a>
+   <script type="application/ld+json">${JSON.stringify({'@type':'ItemList',itemListElement:[{'@type':'ListItem',item:product}]})}</script>`;
+ const reads=[];
+ const result=await readSourcePhotos({
+   sources:[{domain:'media.test',url:'https://media.test/catalogue',feedUrls:[]}],
+   readDocument:async url=>({url,html}),
+   readPage:async url=>{reads.push(url);return{url,html:`<title>${url===productURL ? 'Speedcat OG Sneakers | PUMA' : 'Women Shoes'}</title><meta property="og:image" content="https://cdn.media.test/${url===productURL ? 'speedcat' : 'nav'}.jpg">`}},
+   isRelevant:title=>/Speedcat/.test(title),
+   isDiscoveryRelevant:title=>/Speedcat|sneakers?|shoes?/i.test(title),
+ });
+ assert.equal(reads[0],productURL);
+ assert.equal(result.results.length,1);
+});
 test('scope-ignoring search responses are failures rather than evidence of an empty source',async()=>{
  const c={title:'Nike shoes',url:'https://foreign.test/shoe',image:'https://foreign.test/shoe.jpg'};
  await assert.rejects(searchPhotos({subject:'nike',sourceScope:0,days:0,domains:[]},{plans:[{label:'source',domains:['media.test']}],fetcher:async u=>new Response(String(u).includes('/i.js?')?JSON.stringify({results:[c]}):String(u).includes('bing.com')?`<a m='${JSON.stringify({t:c.title,purl:c.url,murl:c.image})}'>shoe</a>`:"vqd='4-123'"),readPage:async()=>{assert.fail()},readImage:async()=>{assert.fail()},saveAsset:async()=>{}}),/暂不可用/);

@@ -95,6 +95,7 @@ export async function readSourcePhotos({sources,readDocument,readPage,isRelevant
     const out = [];
     const seen = new Set();
     const push = (title, url, publishedAt) => {
+      if (out.length >= 12) return;
       if (!title || !url) return;
       if (!/^https?:\/\//i.test(url)) return;
       if (!sameDomain(url, domain)) return;
@@ -108,21 +109,8 @@ export async function readSourcePhotos({sources,readDocument,readPage,isRelevant
       seen.add(key);
       out.push({title, url, publishedAt, sourceDocument: sourceURL});
     };
-    const aRe = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
-    let m;
-    while ((m = aRe.exec(html))) {
-      const attrs = m[1];
-      const href = (attrs.match(/\bhref\s*=\s*["']([^"']+)["']/i) || [])[1];
-      if (!href) continue;
-      const inner = m[2];
-      const title = stripTags(inner);
-      if (!title) continue;
-      let abs;
-      try { abs = new URL(href, pageURL).href; } catch { continue; }
-      if (!/^https?:\/\//i.test(abs)) continue;
-      push(title, abs);
-    }
     const scriptRe = /<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+    let m;
     while ((m = scriptRe.exec(html))) {
       let data;
       try { data = JSON.parse(decode(m[1]).trim()); } catch { continue; }
@@ -147,6 +135,20 @@ export async function readSourcePhotos({sources,readDocument,readPage,isRelevant
         if (node.item) walk(node.item);
       };
       walk(data);
+    }
+    // Product/article structures take precedence over navigation anchors such
+    // as gender and category menus, which otherwise consume the small candidate budget.
+    const aRe = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
+    while ((m = aRe.exec(html))) {
+      const attrs = m[1];
+      const href = (attrs.match(/\bhref\s*=\s*["']([^"']+)["']/i) || [])[1];
+      if (!href) continue;
+      const title = stripTags(m[2]);
+      if (!title) continue;
+      let abs;
+      try { abs = new URL(href, pageURL).href; } catch { continue; }
+      if (!/^https?:\/\//i.test(abs)) continue;
+      push(title, abs);
     }
     return out;
   };

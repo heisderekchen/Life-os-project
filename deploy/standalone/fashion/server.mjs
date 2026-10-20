@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { abortable } from "./async-control.mjs";
 import { runSourceQueue, SOURCE_QUEUE_READER_VERSION } from './source-queue.mjs';
 import { sourceCatalog } from "./public/source-catalog.js";
-import { searchPhotos, imageDeclared, matchesIntent, exportHTML, countResultSources, createPageReadLimiter } from "./photo-search.mjs";
+import { searchPhotos, imageDeclared, matchesIntent, matchesProductIntent, exportHTML, countResultSources, createPageReadLimiter } from "./photo-search.mjs";
 import { readFile, writeFile, mkdir, rename, unlink } from "node:fs/promises";
 import { resolve, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -326,7 +326,12 @@ export function createApp({
       const bytes = await readFile(assetFile(item.imageSha256)).catch(() => { throw Error('图片缓存失效，请重新检索并核查。'); });
       if (createHash('sha256').update(bytes).digest('hex') !== item.imageSha256) throw Error('图片缓存已变化，请重新检索。');
       const { html, url } = await getPublic(item.url, fetcher);
-      if (url !== item.url || !imageDeclared(html, item.image) || !matchesIntent(task.input.subject, html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || ''))
+      if (url !== item.url || !imageDeclared(html, item.image) || !matchesProductIntent(
+        task.input.subject,
+        html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '',
+        Boolean(item.productTypeEvidence),
+        item.verifiedBrand || '',
+      ))
         throw Error('原始来源或图片对应关系已变化，请重新检索并核查。');
     }
   }
@@ -668,7 +673,7 @@ export function createApp({
           sourceCatalog,
         });
       }
-      if (u.pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "1.0.8", storage: "persistent-files" });
+      if (u.pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "1.0.9", storage: "persistent-files" });
       if (u.pathname === "/api/login" && req.method === "POST") {
         if (guestPreview)
           return json(res, 405, { error: "此预览直接进入，无需登录。" });

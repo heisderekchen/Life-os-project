@@ -3,8 +3,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import { abortable } from './async-control.mjs';
 import { readSourcePhotos } from './source-reader.mjs';
 import { isTargetPage } from './target-page.mjs';
-import { articleProductPhotos } from './article-products.mjs';
-import { nikeCatalogNext, nikeCatalogPhotos, nikeProductPhotos } from './source-adapters.mjs';
+import { articleProductPhotos, structuredProductPhotos } from './article-products.mjs';
+import { catalogAdapter, catalogueProductPhotos } from './source-adapters.mjs';
 import { recentSitemapCandidates } from './sitemap-discovery.mjs';
 
 const translations = [
@@ -27,11 +27,30 @@ export function photoQuery(subject) {
 const stop = new Set(['shoe', 'shoes', 'footwear', 'for', 'and', 'the', 'with', 'of', 'in', 'a', 's']);
 const footwear = /\b(?:loafer|ballet|flat|sandal|boot|shoe|heel|mule|sneaker|pump|slipper)s?\b|\bmary.jane\b|鞋|靴/i;
 const apparel = /\b(?:apparel|clothing|jacket|hoodie|sweatshirt|sweater|pants|trousers|shorts|skirt|dress|shirt|tee|t-shirt|socks?|hat|cap|coat)\b|服装|衣|裤|裙/i;
-export function matchesIntent(subject, value) {
+const brandPatterns = {
+  nike: /\b(?:nike|jordan)\b/gi,
+  adidas: /\badidas\b/gi,
+  'new balance': /\bnew\s+balance\b/gi,
+  puma: /\bpuma\b/gi,
+};
+const brandsIn = value => {
+  const translated = photoQuery(value);
+  return new Set(Object.entries(brandPatterns)
+    .filter(([, pattern]) => [...translated.matchAll(pattern)].length)
+    .map(([name]) => name));
+};
+const withoutBrands = (value, brands) => {
+  let translated = photoQuery(value);
+  for (const name of brands) translated = translated.replace(brandPatterns[name], ' ');
+  return translated.replace(/\s+/g, ' ').trim();
+};
+const compactBrand = value => String(value || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+const escapeRegExp = value => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+export function matchesIntent(subject, value, productTypeEvidence = false) {
   const terms = photoQuery(subject).toLowerCase().replace(/['’]/g, '').match(/[\p{L}\p{N}]+/gu) || [];
   const hay = photoQuery(value).toLowerCase().replace(/['’]/g, '')
     .replace(/\b(?:womens?|woman|ladies|female)\b/g, 'women');
-  if (/\b(?:duffel|handbag|backpack|shoebox|shoe bag|shoe box|storefront|logo)\b|鞋盒|手提包|鞋袋/i.test(value)) return false;
+  if (/\b(?:duffel|bag|handbag|backpack|shoebox|shoe bag|shoe box|storefront|logo)\b|鞋盒|手提包|鞋袋/i.test(value)) return false;
   if (apparel.test(value) && !footwear.test(value)) return false;
   if (terms.includes('leather') && /\bfaux\b|\bsynthetic\b|leather[- ]look|仿皮|人造革/i.test(value)) return false;
   const knownNikeModel = /\b(?:Nike\s+(?:Dunk|Mind\s+00[12]|Air|Shox|Vomero|Pegasus|Sabrina\s+\d+)|Air\s+(?:Jordan|Max|Force))\b/i.test(value);
@@ -39,7 +58,25 @@ export function matchesIntent(subject, value) {
     if(t==='nike' && /\bAir\s+Jordan\b/i.test(value)) return true;
     const stem = t.length > 4 && t.endsWith('s') ? t.slice(0, -1) : t;
     return hay.includes(stem);
-  }) && (knownNikeModel || footwear.test(value));
+  }) && (productTypeEvidence || knownNikeModel || footwear.test(value));
+}
+export function matchesProductIntent(subject, value, productTypeEvidence = false, verifiedBrand = '') {
+  const translatedSubject = photoQuery(subject);
+  const requested = brandsIn(subject);
+  if (!requested.size) {
+    const evidenceKey = compactBrand(verifiedBrand);
+    if (!evidenceKey || !compactBrand(translatedSubject).includes(evidenceKey) || brandsIn(value).size)
+      return matchesIntent(subject, value, productTypeEvidence);
+    const evidencePattern = String(verifiedBrand).trim().split(/\s+/).map(escapeRegExp).join('\\s+');
+    const scopedSubject = translatedSubject.replace(new RegExp(evidencePattern, 'gi'), ' ').replace(/\s+/g, ' ').trim();
+    return matchesIntent(scopedSubject || 'shoes', value, productTypeEvidence);
+  }
+  const found = brandsIn(value);
+  if ([...found].some(brand => !requested.has(brand))) return false;
+  const evidence = brandsIn(verifiedBrand);
+  if ([...evidence].some(brand => !requested.has(brand))) return false;
+  if (![...requested].some(brand => found.has(brand) || evidence.has(brand))) return false;
+  return matchesIntent(withoutBrands(subject, requested) || 'shoes', value, productTypeEvidence);
 }
 export function discoveryIntent(subject, title) {
   return matchesIntent(subject,title) || /\b(?:shoe|footwear|flat|loafer|sneaker|boot)s?\b|鞋|靴/i.test(title);
@@ -204,11 +241,13 @@ export function photoQueries(subject, scope) {
 }
 function eligible(candidate, subject, domains) {
   try {
-    const u = new URL(candidate.url), image = new URL(candidate.image);
-    return /^https?:$/.test(u.protocol) && /^https?:$/.test(image.protocol) && !blocked.test(u.hostname) && isTargetPage(u.href) &&
+    const u = new URL(candidate.url), image = candidate.image ? new URL(candidate.image) : null;
+    return /^https?:$/.test(u.protocol) && (!image || /^https?:$/.test(image.protocol)) && !blocked.test(u.hostname) && isTargetPage(u.href) &&
       !/\/(search|collections|category|categories)(\/|$)|[?&]q=/i.test(u.pathname + u.search) &&
       (!domains.length || domains.some(d => u.hostname === d || u.hostname.endsWith('.' + d))) &&
-      !/(?:演示数据|示例商品|demo product|sample product|placeholder)/i.test(candidate.title || '') && discoveryIntent(subject, candidate.title || '') && (candidate.width === undefined || Number(candidate.width) >= 350) &&
+      !/(?:演示数据|示例商品|demo product|sample product|placeholder)/i.test(candidate.title || '') &&
+      (candidate.productTypeEvidence ? matchesProductIntent(subject, candidate.title || '', true, candidate.catalogue) : discoveryIntent(subject, candidate.title || '')) &&
+      (candidate.width === undefined || Number(candidate.width) >= 350) &&
       (candidate.height === undefined || Number(candidate.height) >= 250);
   } catch { return false; }
 }
@@ -357,7 +396,10 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
           sourceChecks.push(...read.checks);
           attempts = [{provider:'来源自身页面',results:read.results,...(read.checks.every(c=>c.status==='error')?{error:'来源文档均不可读取'}:{})}];
         } else if (entry.catalogURL) {
-          const resume = checkpoint?.readerVersion === 3 && checkpoint?.catalogURL === entry.catalogURL
+          const adapter = catalogAdapter(entry.catalogue || entry.catalogURL);
+          if (!adapter) throw Error('品牌目录适配器不可用');
+          const readerVersion = Math.max(1, Number(entry.readerVersion) || 1);
+          const resume = checkpoint?.readerVersion === readerVersion && checkpoint?.catalogURL === entry.catalogURL
             ? structuredClone(checkpoint)
             : null;
           const found = Array.isArray(resume?.products) ? resume.products : [];
@@ -367,11 +409,11 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
           catalogCompleted = new Set(Array.isArray(resume?.completedImageKeys) ? resume.completedImageKeys : []);
           if (!resume) {
             const { html, url } = await abortable(() => readPage(entry.catalogURL, fetcher), signal);
-            found.push(...nikeCatalogPhotos(html, url));
-            next = nikeCatalogNext(html);
+            found.push(...adapter.photos(html, url).map(product => ({ ...product, catalogue: adapter.name })));
+            next = adapter.next(html);
           }
           catalogCheckpoint = {
-            readerVersion: 3,
+            readerVersion,
             catalogURL: entry.catalogURL,
             products: found.slice(0, productLimit),
             next,
@@ -399,8 +441,8 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
               if (!response.ok || response.status >= 300 || (responseURL && responseURL.hostname !== 'api.nike.com'))
                 throw Error(`Nike 官方目录分页暂不可用（${response.status}）`);
               const data = await abortable(() => response.json(), signal);
-              const safeNext = nikeCatalogNext(data);
-              found.push(...nikeCatalogPhotos(data, entry.catalogURL));
+              const safeNext = adapter.next(data);
+              found.push(...adapter.photos(data, entry.catalogURL).map(product => ({ ...product, catalogue: adapter.name })));
               next = safeNext;
             } catch (error) {
               catalogDiscoveryError = error;
@@ -439,6 +481,9 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
           channels.push(channel);
           buckets.push(matches.map(candidate => ({
             ...candidate, channel, domains: entry.domains,
+            catalogue: candidate.catalogURL
+              ? candidate.catalogue || entry.catalogue || catalogAdapter(entry.catalogURL)?.name
+              : undefined,
             catalogImageLimit: entry.catalogImageLimit,
           })));
         }
@@ -457,8 +502,8 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
   for (let row = 0; buckets.some(bucket => row < bucket.length); row++)
     for (const bucket of buckets) if (bucket[row]) candidates.push(bucket[row]);
   const unique = candidates.filter(candidate => {
-    if (candidate.catalogURL && catalogCompleted.has(candidate.url + '|' + keyURL(candidate.image))) return false;
-    const key = keyURL(candidate.image);
+    if (candidate.catalogURL && candidate.image && catalogCompleted.has(candidate.url + '|' + keyURL(candidate.image))) return false;
+    const key = candidate.image ? keyURL(candidate.image) : `catalog:${candidate.productCode || candidate.url}`;
     if (images.has(key)) return false;
     images.add(key); return true;
   }).slice(0, Math.max(limits.candidates, candidates.filter(candidate => candidate.catalogURL).length));
@@ -472,11 +517,11 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
         const source = new URL(url);
         if (blocked.test(source.hostname) || excluded(source.hostname) || !isTargetPage(url) || (candidate.domains.length && !candidate.domains.some(d => source.hostname === d || source.hostname.endsWith('.' + d)))) throw Error();
         const pageTitle = plain(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '');
-        const nikeProducts = source.hostname === 'www.nike.com'
-          ? nikeProductPhotos(html, url, title => discoveryIntent(input.subject, title))
+        const catalogueProducts = candidate.catalogue
+          ? catalogueProductPhotos(candidate.catalogue, html, url, title => matchesProductIntent(input.subject, title, true, candidate.catalogue))
           : [];
-        if (nikeProducts.length) {
-          const selected = nikeProducts.slice(0, Math.max(1, Number(candidate.catalogImageLimit) || 2));
+        if (catalogueProducts.length) {
+          const selected = catalogueProducts.slice(0, Math.max(1, Number(candidate.catalogImageLimit) || 2));
           const accepted = [];
           for (const product of selected) {
             try {
@@ -491,10 +536,12 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
                 id: randomBytes(8).toString('hex'), title: product.title, url,
                 canonicalURL: product.canonicalURL || url,
                 productCode: product.productCode || candidate.productCode || '',
-                clueKey: `nike:${product.productCode || candidate.productCode || new URL(url).pathname}`,
+                clueKey: `${candidate.catalogue || 'product'}:${product.productCode || candidate.productCode || new URL(url).pathname}`,
                 source: source.hostname.replace(/^www\./, ''), image, imageKind: 'source-matched',
                 imageSha256: sha256, imageMime: asset.mime,
                 sourceCheckedAt: new Date().toISOString(), sourceImageMatched: true,
+                productTypeEvidence: true,
+                verifiedBrand: candidate.catalogue,
                 publishedAt: null, collectedAt: new Date().toISOString(),
                 review: 'pending', selected: false, note: '', summary: '',
               });
@@ -509,12 +556,13 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
           }
           return accepted;
         }
-        const products = articleProductPhotos(html,url,t=>matchesIntent(input.subject,t));
+        const products = structuredProductPhotos(html, url, (title, brand) => matchesProductIntent(input.subject, title, true, brand))
+          .concat(articleProductPhotos(html,url,t=>matchesIntent(input.subject,t)));
         const product = products.find(p=>keyURL(p.image)===keyURL(candidate.image)) || (!matchesIntent(input.subject,pageTitle) ? products[0] : null);
         const title = product?.title || pageTitle;
         const candidateImage = product?.image || candidate.image;
         reason = 'sourceIntentMismatch';
-        if (!matchesIntent(input.subject, title)) throw Error();
+        if (!matchesProductIntent(input.subject, title, Boolean(product?.productTypeEvidence), product?.brandEvidence)) throw Error();
         reason = 'imageSourceMismatch';
         if (!imageDeclared(html, candidateImage)) throw Error();
         const timestamp = Date.parse(
@@ -539,10 +587,12 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
         candidate.channel.count++;
         for(const check of sourceChecks)if(source.hostname===check.domain||source.hostname.endsWith('.'+check.domain)){check.status='queried';delete check.error;}
         return { id: randomBytes(8).toString('hex'), title, url, source: source.hostname.replace(/^www\./, ''),
-          canonicalURL: candidate.canonicalURL || url, productCode: candidate.productCode || '',
-          clueKey: candidate.productCode ? `nike:${candidate.productCode}` : `page:${source.hostname.toLowerCase()}${source.pathname}`,
+          canonicalURL: product?.canonicalURL || candidate.canonicalURL || url, productCode: product?.productCode || candidate.productCode || '',
+          clueKey: (product?.productCode || candidate.productCode) ? `product:${source.hostname.toLowerCase()}:${product?.productCode || candidate.productCode}` : `page:${source.hostname.toLowerCase()}${source.pathname}`,
           image, imageKind: 'source-matched', imageSha256: sha256, imageMime: asset.mime,
           sourceCheckedAt: new Date().toISOString(), sourceImageMatched: true,
+          productTypeEvidence: Boolean(product?.productTypeEvidence),
+          verifiedBrand: product?.brandEvidence || '',
           publishedAt, collectedAt: new Date().toISOString(), review: 'pending', selected: false, note: '', summary: '' };
       } catch {
         signal?.throwIfAborted();

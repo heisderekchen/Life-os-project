@@ -14,3 +14,63 @@ export function articleProductPhotos(html,pageURL,isRelevant){
  }
  return out;
 }
+
+function jsonNodes(value, out = []) {
+  if (!value || typeof value !== 'object') return out;
+  if (Array.isArray(value)) {
+    for (const item of value) jsonNodes(item, out);
+    return out;
+  }
+  out.push(value);
+  for (const key of ['@graph', 'mainEntity', 'itemListElement', 'item']) jsonNodes(value[key], out);
+  return out;
+}
+
+function absoluteURL(value, base) {
+  if (typeof value === 'object' && value) value = value.url || value.contentUrl || value['@id'];
+  if (typeof value !== 'string') return '';
+  const url = abs(value, base);
+  return url && /^https?:$/.test(new URL(url).protocol) ? url : '';
+}
+
+export function structuredProductPhotos(html, pageURL, isRelevant) {
+  if (typeof html !== 'string') return [];
+  const out = [], seen = new Set();
+  for (const script of html.matchAll(/<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+    let data;
+    try { data = JSON.parse(ent(script[1]).trim()); } catch { continue; }
+    for (const node of jsonNodes(data)) {
+      const types = Array.isArray(node['@type']) ? node['@type'] : [node['@type']];
+      if (!types.some(type => /^Product$/i.test(String(type || '')))) continue;
+      const title = copy(ent(String(node.name || node.headline || '')).trim());
+      const category = copy(ent(String(node.category || '')).trim());
+      const productURL = copy(absoluteURL(node.url || node.mainEntityOfPage, pageURL) || pageURL);
+      const brandEvidence = copy(typeof node.brand === 'string' ? ent(node.brand)
+        : ent(String(node.brand?.name || node.brand?.legalName || '')));
+      const productTypeEvidence = /\b(?:footwear|shoes?|sneakers?|trainers?|boots?|sandals?)\b|鞋|靴/i.test(category + ' ' + title);
+      if (!title || !productTypeEvidence || !isRelevant(title, brandEvidence)) continue;
+      const pathCode = (() => {
+        try {
+          const path = new URL(productURL).pathname;
+          return path.match(/\/(\d{4,})\/?$/)?.[1] || '';
+        } catch { return ''; }
+      })();
+      const images = Array.isArray(node.image) ? node.image : [node.image];
+      for (const raw of images) {
+        const image = copy(absoluteURL(raw, pageURL));
+        if (!image || seen.has(image)) continue;
+        seen.add(image);
+        out.push({
+          title,
+          image,
+          url: productURL,
+          canonicalURL: productURL,
+          productCode: copy(String(node.sku || node.mpn || pathCode)),
+          productTypeEvidence: 'footwear',
+          brandEvidence,
+        });
+      }
+    }
+  }
+  return out.slice(0, 20);
+}
