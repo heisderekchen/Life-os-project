@@ -25,6 +25,7 @@ import {
   ChevronDown,
   Maximize2,
   ShieldCheck,
+  Activity,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -109,6 +110,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
         { id: 'goals' as ModuleId, label: t('nav.goals'), icon: Target },
         { id: 'learning' as ModuleId, label: t('nav.learning'), icon: GraduationCap },
         { id: 'finance' as ModuleId, label: t('nav.finance'), icon: Wallet },
+        { id: 'happyspa-bench' as ModuleId, label: 'HappyspaBench', icon: Activity },
       ],
     },
   ], [t])

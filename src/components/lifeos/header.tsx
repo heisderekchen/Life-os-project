@@ -78,6 +78,7 @@ export function Header() {
     time: t('nav.timeTracker'),
     settings: t('nav.settings'),
     accounts: t('nav.accounts'),
+    'happyspa-bench': 'HappyspaBench',
   }
 
   const moduleGroups: Record<ModuleId, string> = {
@@ -96,6 +97,7 @@ export function Header() {
     time: t('nav.appsChannels'),
     settings: t('groups.settings'),
     accounts: t('groups.settings'),
+    'happyspa-bench': t('nav.appsChannels'),
   }
 
   const userName = profile?.name || ''

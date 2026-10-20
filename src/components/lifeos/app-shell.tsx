@@ -44,6 +44,7 @@ import { useTranslation } from '@/lib/i18n'
 import { MyOsHome } from './myos/myos-home'
 import { MyOsPage } from './myos/myos-page'
 import { RemindersPage } from './reminders/reminders-page'
+import { HappySpaBenchPage } from './happyspa-bench/happyspa-bench-page'
 
 const moduleComponents: Record<string, React.ComponentType> = {
   dashboard: MyOsHome,
@@ -61,6 +62,7 @@ const moduleComponents: Record<string, React.ComponentType> = {
   time: TimePage,
   settings: SettingsPage,
   accounts: PlatformAccountsPage,
+  'happyspa-bench': HappySpaBenchPage,
 }
 
 export function AppShell() {

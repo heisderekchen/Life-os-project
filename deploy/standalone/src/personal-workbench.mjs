@@ -3,6 +3,7 @@ import { handleProjectTopics, taskTopicForProject } from './project-topics.mjs';
 import { buildRecurringTaskSeries } from './recurring-task-series.mjs';
 import { importLifeOsTasks, previewLifeOsTaskImport } from './lifeos-task-import.mjs';
 import { normalizeDotTaskExport } from './dot-task-export.mjs';
+import { acceptOutboxRecord, happySpaBenchSnapshot } from './happyspa-bench.mjs';
 
 const PROJECT_STATUSES = new Set(['active', 'paused', 'review', 'archived']);
 const CHECKPOINT_KINDS = new Set(['progress', 'blocker', 'review', 'capture']);
@@ -2375,6 +2376,11 @@ export async function handlePersonalWorkbench(request, env, url, auth) {
     // Do not disclose this private surface by returning an authorization error.
     if (!isPersonalWorkbenchPrincipal(auth, env)) return notFound();
     const actor = text(auth.username, 120);
+    if (url.pathname === '/api/personal-workbench/lifeos/happyspa-bench/snapshot' && request.method === 'GET') return json(await happySpaBenchSnapshot(env));
+    if (url.pathname === '/api/personal-workbench/lifeos/happyspa-bench/outbox' && request.method === 'POST') {
+        const result = await acceptOutboxRecord(request, env);
+        return json(result.body, result.status);
+    }
     const appStateResponse = await handleLifeOsAppState(request, env, url, actor);
     if (appStateResponse) return appStateResponse;
     const dashboardResponse = await handleLifeOsDashboard(request, env, url);
