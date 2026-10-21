@@ -559,7 +559,7 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
             count: 0, discovered: found.length, intentMatched: matches.length, prefilterRejected: found.length - matches.length, rejected: {}, ...(planningError ? { planningError } : {}), ...(channelError ? { error:channelError } : {}) };
           channels.push(channel);
           buckets.push(matches.map(candidate => ({
-            ...candidate, channel, domains: entry.domains, ...(intent ? { intentSubject: intent } : {}),
+            ...candidate, channel, domains: entry.domains, intentSubject: intent || input.subject,
             catalogue: candidate.catalogURL
               ? candidate.catalogue || entry.catalogue || catalogAdapter(entry.catalogURL)?.name
               : undefined,
