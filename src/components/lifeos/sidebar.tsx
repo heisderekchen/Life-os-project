@@ -26,6 +26,7 @@ import {
   Maximize2,
   ShieldCheck,
   Activity,
+  Dumbbell,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -38,7 +39,7 @@ import { WorkspaceSwitcher, useGrantedWorkspaces } from '@/components/lifeos/myo
 // These are core entry points, not optional setup-wizard apps. Keeping the
 // bench here makes a newly shipped read-only safety surface visible to people
 // whose persisted module list predates it, without changing that preference.
-const ALWAYS_VISIBLE_MODULE_IDS: ModuleId[] = ['accounts', 'dashboard', 'myos', 'reminders', 'projects', 'happyspa-bench']
+const ALWAYS_VISIBLE_MODULE_IDS: ModuleId[] = ['accounts', 'dashboard', 'myos', 'reminders', 'projects', 'fitness', 'happyspa-bench']
 
 function WorkspaceLinks() {
   const { workspaces, status } = useGrantedWorkspaces()
@@ -111,6 +112,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
         { id: 'calendar' as ModuleId, label: t('nav.calendar'), icon: CalendarDays },
         { id: 'time' as ModuleId, label: t('nav.timeTracker'), icon: Timer },
         { id: 'habits' as ModuleId, label: t('nav.habits'), icon: Repeat },
+        { id: 'fitness' as ModuleId, label: t('nav.fitness'), icon: Dumbbell },
         { id: 'journal' as ModuleId, label: t('nav.journal'), icon: BookOpen },
         { id: 'goals' as ModuleId, label: t('nav.goals'), icon: Target },
         { id: 'learning' as ModuleId, label: t('nav.learning'), icon: GraduationCap },

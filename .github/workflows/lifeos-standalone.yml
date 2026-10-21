@@ -81,6 +81,7 @@ jobs:
       - run: node --check deploy/standalone/src/task-cards.mjs
       - run: node --check deploy/standalone/src/research.mjs
       - run: node deploy/standalone/scripts/test-runtime.mjs
+      - run: node deploy/standalone/scripts/test-fitness.mjs
       - run: node deploy/standalone/scripts/test-project-topics.mjs
       - run: node deploy/standalone/scripts/test-task-notes.mjs
       - run: node deploy/standalone/scripts/test-platform-migration.mjs

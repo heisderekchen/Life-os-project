@@ -279,6 +279,53 @@ export function useLogHabit() {
 }
 
 // ============================================
+// Fitness
+// ============================================
+export interface FitnessPlan {
+  id: string
+  name: string
+  description: string | null
+  exercises: { id: string; name: string; position: number }[]
+}
+
+export interface FitnessSet { id: string; setNumber: number; reps: number; weightKg: number }
+export interface FitnessExercise { id: string; name: string; position: number; sets: FitnessSet[] }
+export interface FitnessSession {
+  id: string; planId: string | null; title: string; status: 'active' | 'completed' | 'cancelled'
+  startedAt: string; endedAt: string | null; exercises: FitnessExercise[]
+}
+const fitnessRoot = '/api/personal-workbench/lifeos/fitness'
+
+export function useFitnessPlans() {
+  return useQuery({ queryKey: ['fitness', 'plans'], queryFn: () => apiGet<FitnessPlan[]>(`${fitnessRoot}/plans`) })
+}
+export function useFitnessSessions() {
+  return useQuery({ queryKey: ['fitness', 'sessions'], queryFn: () => apiGet<FitnessSession[]>(`${fitnessRoot}/sessions`) })
+}
+export function useCreateFitnessPlan() {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: (data: { name: string; exercises: string[] }) => apiPost(`${fitnessRoot}/plans`, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['fitness', 'plans'] }) })
+}
+export function useStartFitnessSession() {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: (planId: string) => apiPost<FitnessSession>(`${fitnessRoot}/sessions`, { planId }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['fitness'] }) })
+}
+export function useAddFitnessSet() {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: ({ sessionId, exerciseId, reps, weightKg }: { sessionId: string; exerciseId: string; reps: number; weightKg: number }) =>
+    apiPost(`${fitnessRoot}/sessions/${sessionId}/sets`, { exerciseId, reps, weightKg }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['fitness', 'sessions'] }) })
+}
+export function useFinishFitnessSession() {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: ({ sessionId, status = 'completed' }: { sessionId: string; status?: 'completed' | 'cancelled' }) =>
+    apiPatch(`${fitnessRoot}/sessions/${sessionId}`, { status }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['fitness'] }) })
+}
+
+// ============================================
 // Journal
 // ============================================
 export function useJournal(filters?: { mood?: string; isFavorite?: string }) {

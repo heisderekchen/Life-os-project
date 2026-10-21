@@ -13,6 +13,7 @@ import {
   FolderKanban,
   StickyNote,
   Repeat,
+  Dumbbell,
   BookOpen,
   Wallet,
   Target,
@@ -111,6 +112,7 @@ const moduleCategories: { name: string; modules: WizardModule[] }[] = [
     name: 'Wellness',
     modules: [
       { id: 'habits', icon: Repeat, enabled: true },
+      { id: 'fitness', icon: Dumbbell, enabled: true },
       { id: 'journal', icon: BookOpen, enabled: true },
     ],
   },

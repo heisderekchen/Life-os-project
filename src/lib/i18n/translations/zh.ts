@@ -53,6 +53,7 @@ const zh = {
     "calendar": "日历",
     "timeTracker": "时间追踪",
     "habits": "习惯",
+    "fitness": "健身",
     "journal": "日志",
     "goals": "目标",
     "learning": "学习",

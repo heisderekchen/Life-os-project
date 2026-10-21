@@ -14,6 +14,7 @@ import {
   Timer,
   Target,
   Wallet,
+  Dumbbell,
   type LucideIcon,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -37,17 +38,18 @@ export function MobileModuleDirectory({ onSelect, onClose, category = 'apps' }: 
     const calendar: DirectoryModule = { id: 'calendar', label: t('nav.calendar'), icon: CalendarDays }
     const time: DirectoryModule = { id: 'time', label: t('nav.timeTracker'), icon: Timer }
     const habits: DirectoryModule = { id: 'habits', label: t('nav.habits'), icon: Repeat }
+    const fitness: DirectoryModule = { id: 'fitness', label: t('nav.fitness'), icon: Dumbbell }
     const journal: DirectoryModule = { id: 'journal', label: t('nav.journal'), icon: BookOpen }
     const goals: DirectoryModule = { id: 'goals', label: t('nav.goals'), icon: Target }
     const learning: DirectoryModule = { id: 'learning', label: t('nav.learning'), icon: GraduationCap }
     const finance: DirectoryModule = { id: 'finance', label: t('nav.finance'), icon: Wallet }
     const groups: DirectoryGroup[] = [
       { title: t('nav.overview'), items: [dashboard] },
-      { title: t('nav.appsChannels'), items: [projects, notes, calendar, time, habits, journal, goals, learning, finance] },
+      { title: t('nav.appsChannels'), items: [projects, notes, calendar, time, habits, fitness, journal, goals, learning, finance] },
     ]
     return groups.map((group) => ({
       ...group,
-      items: group.items.filter((item) => item.id === 'dashboard' || item.id === 'projects' || enabledModules.includes(item.id)),
+      items: group.items.filter((item) => item.id === 'dashboard' || item.id === 'projects' || item.id === 'fitness' || enabledModules.includes(item.id)),
     })).filter((group) => group.items.length > 0)
   }, [enabledModules, t, language])
 
