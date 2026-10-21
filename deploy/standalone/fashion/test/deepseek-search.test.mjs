@@ -61,3 +61,21 @@ test('paid guest search budget survives guest cookie changes and bounds the glob
   time=3600001; assert(!allow('client-A'));
   time=86400001; assert(allow('client-A'));
 });
+
+test('transient connection failures recover before translating an unmapped Chinese subject', async () => {
+ const old=process.env.DEEPSEEK_API_KEY;process.env.DEEPSEEK_API_KEY='fixture-not-real';
+ try {
+  let planning=0,searching=0;
+  const attempts=await deepseekDiscover({subject:'薄荷绿女款低帮鞋',domains:[]},'薄荷绿 women 低帮 shoes',async(url)=>{
+   if(url.endsWith('/chat/completions')){
+    planning++;if(planning<3)throw new TypeError('fetch failed');
+    return Response.json({choices:[{message:{content:'{"intent":"women mint green low top sneakers","queries":["women mint green low top sneakers"]}'}}]});
+   }
+   searching++;if(searching<2)throw new TypeError('fetch failed');
+   return Response.json({results:[{title:'Women mint green low top sneakers',url:'https://brand.example/products/mint'}]});
+  });
+  assert.equal(attempts[0].planningAttempts,3);assert.equal(attempts[0].transportAttempts,2);
+  assert.equal(attempts[0].planningError,undefined);assert.equal(attempts[0].results.length,1);
+  assert(!/[\u3400-\u9fff]/.test(attempts[0].query));
+ }finally{if(old===undefined)delete process.env.DEEPSEEK_API_KEY;else process.env.DEEPSEEK_API_KEY=old;}
+});

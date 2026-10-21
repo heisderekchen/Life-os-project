@@ -1,3 +1,4 @@
+import { abortable } from './async-control.mjs';
 const ORIGIN = 'https://api.deepseek.com';
 export const deepseekSearchReady = fetcher => Boolean(process.env.DEEPSEEK_API_KEY || fetcher?.deepseekRelay);
 
@@ -5,20 +6,42 @@ async function request(path, payload, fetcher, signal) {
   const key = process.env.DEEPSEEK_API_KEY;
   const relay = !key && fetcher.deepseekRelay;
   if (!key && !relay) throw Error('DeepSeek 搜索未配置服务端密钥');
-  const response = await fetcher((relay || ORIGIN) + path, {
-    method: 'POST',
-    headers: { ...(key ? { authorization: `Bearer ${key}` } : {}), 'content-type': 'application/json' },
-    body: JSON.stringify(payload),
-    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20000)]) : AbortSignal.timeout(20000),
-  });
-  if (!response.ok) throw Error(`DeepSeek 搜索服务返回 ${response.status}`);
-  return response.json();
+  const deadline = Date.now() + 20000;
+  let lastError;
+  for (let attempt = 0; attempt < 3 && Date.now() < deadline; attempt++) {
+    const timeout = AbortSignal.timeout(Math.max(1, Math.min(8000, deadline - Date.now())));
+    try {
+      const response = await fetcher((relay || ORIGIN) + path, {
+        method: 'POST', redirect: 'manual',
+        headers: { ...(key ? { authorization: `Bearer ${key}` } : {}), 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      });
+      if (!response.ok) {
+        await response.body?.cancel();
+        const error = Error(`DeepSeek 搜索服务返回 ${response.status}`);
+        error.retryable = response.status >= 500;
+        throw error;
+      }
+      return { ...await response.json(), transportAttempts: attempt + 1 };
+    } catch (error) {
+      signal?.throwIfAborted();
+      lastError = error;
+      const retryable = error.retryable === true || error instanceof TypeError || ['TimeoutError', 'AbortError'].includes(error.name);
+      if (!retryable || attempt === 2) break;
+      await abortable(() => new Promise(resolve => setTimeout(resolve, 200 * 2 ** attempt)), signal);
+    }
+  }
+  const code = lastError?.cause?.code;
+  if (typeof code === 'string' && /^[A-Z0-9_]{1,60}$/.test(code)) throw Error(`DeepSeek 网络连接失败（${code}），已完成有限重试`);
+  throw lastError || Error('DeepSeek 请求达到时限');
 }
 
 export async function deepseekDiscover(input, fallbackQuery, fetcher, signal) {
   let queries = [fallbackQuery];
   let intent = fallbackQuery;
   let planningError;
+  let planningAttempts = 0;
   try {
     const data = await request('/chat/completions', {
       model: process.env.DEEPSEEK_MODEL || 'deepseek-flash',
@@ -29,6 +52,7 @@ export async function deepseekDiscover(input, fallbackQuery, fetcher, signal) {
         { role: 'user', content: JSON.stringify({ subject: input.subject, sourceTypes: input.sources || [], days: input.days }) },
       ],
     }, fetcher, signal);
+    planningAttempts = data.transportAttempts;
     const result = JSON.parse(data.choices?.[0]?.message?.content || '{}');
     if (typeof result.intent === 'string' && result.intent.trim() && result.intent.length <= 128 && !/[\u3400-\u9fff]/.test(result.intent)) intent = result.intent.trim();
     if (/[\u3400-\u9fff]/.test(intent)) throw Error('原始需求未完整翻译为英文');
@@ -50,7 +74,7 @@ export async function deepseekDiscover(input, fallbackQuery, fetcher, signal) {
     try {
       const data = await request('/v1/tools/search', { query: actualQuery, ori_question: [...input.subject].slice(0,128).join(''), count: 20, need_content: false }, fetcher, signal);
       if (!Array.isArray(data.results)) throw Error('返回内容缺少搜索结果数组');
-      attempts.push({ provider: 'DeepSeek 网页搜索', query: actualQuery, intent, planningError,
+      attempts.push({ provider: 'DeepSeek 网页搜索', query: actualQuery, intent, planningError, planningAttempts, transportAttempts: data.transportAttempts,
         results: data.results.map(r => ({ title: r.title, url: r.url, publishedAt: r.date,
           searchScore: r.rerank_score, searchSummary: r.snippet, searchProvider: 'DeepSeek' })) });
     } catch (error) {
