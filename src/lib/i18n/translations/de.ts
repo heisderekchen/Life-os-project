@@ -58,6 +58,7 @@ const de: TranslationKeys = {
     calendar: 'Kalender',
     timeTracker: 'Zeiterfassung',
     habits: 'Gewohnheiten',
+    fitness: 'Fitness',
     journal: 'Tagebuch',
     goals: 'Ziele',
     learning: 'Lernen',

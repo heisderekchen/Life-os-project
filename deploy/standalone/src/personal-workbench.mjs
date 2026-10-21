@@ -5,6 +5,7 @@ import { buildRecurringTaskSeries } from './recurring-task-series.mjs';
 import { importLifeOsTasks, previewLifeOsTaskImport } from './lifeos-task-import.mjs';
 import { normalizeDotTaskExport } from './dot-task-export.mjs';
 import { acceptOutboxRecord, happySpaBenchSnapshot } from './happyspa-bench.mjs';
+import { handleLifeOsFitness } from './lifeos-fitness.mjs';
 
 const PROJECT_STATUSES = new Set(['active', 'paused', 'review', 'archived']);
 const CHECKPOINT_KINDS = new Set(['progress', 'blocker', 'review', 'capture']);
@@ -217,7 +218,7 @@ const LIFEOS_APP_PREFERENCE_VALUES = {
     uiDensity: new Set(['compact', 'comfortable', 'spacious']),
     themeVariant: new Set(['default', 'black', 'warm', 'cool', 'midnight', 'forest', 'sunset', 'lavender', 'nord']),
 };
-const LIFEOS_APP_MODULES = new Set(['dashboard', 'tasks', 'notes', 'habits', 'journal', 'finance', 'goals', 'learning', 'calendar', 'time', 'settings']);
+const LIFEOS_APP_MODULES = new Set(['dashboard', 'tasks', 'notes', 'habits', 'fitness', 'journal', 'finance', 'goals', 'learning', 'calendar', 'time', 'settings']);
 
 function normalizeLifeOsAppPreferences(input) {
     if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
@@ -2422,6 +2423,8 @@ export async function handlePersonalWorkbench(request, env, url, auth) {
     if (lifeOsKnowledgeResponse) return lifeOsKnowledgeResponse;
     const lifeOsHabitsResponse = await handleLifeOsHabits(request, env, url, actor);
     if (lifeOsHabitsResponse) return lifeOsHabitsResponse;
+    const lifeOsFitnessResponse = await handleLifeOsFitness(request, env, url, actor);
+    if (lifeOsFitnessResponse) return lifeOsFitnessResponse;
     const lifeOsGoalsResponse = await handleLifeOsGoals(request, env, url, actor);
     if (lifeOsGoalsResponse) return lifeOsGoalsResponse;
     const lifeOsJournalResponse = await handleLifeOsJournal(request, env, url, actor);

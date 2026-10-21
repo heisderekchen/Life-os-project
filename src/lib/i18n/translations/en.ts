@@ -60,6 +60,7 @@ const en = {
     calendar: 'Calendar',
     timeTracker: 'Time Tracker',
     habits: 'Habits',
+    fitness: 'Fitness',
     journal: 'Journal',
     goals: 'Goals',
     learning: 'Learning',

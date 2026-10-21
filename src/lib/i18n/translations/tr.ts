@@ -62,6 +62,7 @@ const tr: TranslationKeys = {
     calendar: 'Takvim',
     timeTracker: 'Zaman Takip',
     habits: 'Alışkanlıklar',
+    fitness: 'Antrenman',
     journal: 'Günlük',
     goals: 'Hedefler',
     learning: 'Öğrenme',

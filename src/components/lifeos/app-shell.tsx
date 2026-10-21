@@ -44,6 +44,7 @@ import { useTranslation } from '@/lib/i18n'
 import { MyOsHome } from './myos/myos-home'
 import { MyOsPage } from './myos/myos-page'
 import { RemindersPage } from './reminders/reminders-page'
+import { FitnessPage } from './fitness/fitness-page'
 import { HappySpaBenchPage } from './happyspa-bench/happyspa-bench-page'
 
 const moduleComponents: Record<string, React.ComponentType> = {
@@ -54,6 +55,7 @@ const moduleComponents: Record<string, React.ComponentType> = {
   projects: ProjectWorkspace,
   notes: NotesPage,
   habits: HabitsPage,
+  fitness: FitnessPage,
   journal: JournalPage,
   finance: FinancePage,
   goals: GoalsPage,

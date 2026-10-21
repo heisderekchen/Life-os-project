@@ -21,6 +21,8 @@ describe('mobile module directory', () => {
     expect(screen.queryByRole('region', { name: '身心健康' })).not.toBeInTheDocument()
     expect(screen.queryByRole('region', { name: '成长' })).not.toBeInTheDocument()
     expect(screen.queryByRole('region', { name: '总览' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /健身/ }))
+    expect(onSelect).toHaveBeenCalledWith('fitness')
 
     await user.click(screen.getByRole('button', { name: /任务/ }))
     expect(onSelect).toHaveBeenCalledWith('projects')
