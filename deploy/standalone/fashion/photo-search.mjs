@@ -12,7 +12,7 @@ const translations = [
   ['玛丽珍鞋', 'mary jane shoes'], ['玛丽珍', 'mary jane'], ['芭蕾平底鞋', 'ballet flats'],
   ['芭蕾鞋', 'ballet flats'], ['乐福鞋', 'loafers'], ['高跟鞋', 'heels'],
   ['运动鞋', 'sneakers'], ['凉鞋', 'sandals'], ['短靴', 'ankle boots'], ['靴子', 'boots'],
-  ['穆勒鞋', 'mules'], ['女款', 'women'], ['女士', 'women'], ['女鞋', 'women shoes'],
+  ['穆勒鞋', 'mules'], ['小白鞋', 'white sneakers'], ['女款', 'women'], ['女士', 'women'], ['女鞋', 'women shoes'],
   ['漆皮', 'patent leather'], ['绒面', 'suede'], ['麂皮', 'suede'], ['真皮', 'leather'],
   ['皮革', 'leather'], ['网眼', 'mesh'], ['缎面', 'satin'], ['金属', 'metallic'],
   ['极简', 'minimalist'], ['复古', 'retro'], ['黑色', 'black'], ['棕色', 'brown'],
@@ -21,7 +21,9 @@ const translations = [
 ];
 export function photoQuery(subject) {
   let value = subject;
-  for (const [cn, en] of translations) value = value.replaceAll(cn, ` ${en} `);
+  const compounds = translations.filter(([cn]) => cn === '小白鞋');
+  for (const [cn, en] of compounds) value = value.replaceAll(cn, ` ${en} `);
+  for (const [cn, en] of translations.filter(([cn]) => cn !== '小白鞋')) value = value.replaceAll(cn, ` ${en} `);
   return value.replace(/[,，。；;]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 const stop = new Set(['shoe', 'shoes', 'footwear', 'for', 'and', 'the', 'with', 'of', 'in', 'a', 's']);
