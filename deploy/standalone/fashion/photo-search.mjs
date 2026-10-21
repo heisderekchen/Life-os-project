@@ -551,11 +551,12 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
             ...(catalogDiscoveryError ? { error: catalogDiscoveryError.message } : {}) }];
         } else attempts = await discover(entry, fetcher, input.subject, signal);
         signal?.throwIfAborted();
-        for (const { results: found, provider, error, query, intent, planningError } of attempts) {
+        for (const { results: found, provider, error, query, intent, planningError, planningAttempts, transportAttempts } of attempts) {
           const matches = found.filter(candidate => eligible(candidate, intent || input.subject, entry.domains) && !excluded(new URL(candidate.url).hostname));
           const scopeRejected = entry.domains.length && found.length && !found.some(c=>{try{const h=new URL(c.url).hostname;return entry.domains.some(d=>h===d||h.endsWith('.'+d));}catch{return false;}});
           const channelError = error || (scopeRejected ? '检索渠道未返回指定来源内的内容，范围未确认' : null);
           const channel = { provider, query: query || entry.query, ...(intent ? { intent } : {}), label: entry.label, domains: entry.domains, status: channelError ? 'error' : matches.length ? 'ready' : 'empty',
+            ...(transportAttempts ? { transportAttempts, planningAttempts } : {}),
             count: 0, discovered: found.length, intentMatched: matches.length, prefilterRejected: found.length - matches.length, rejected: {}, ...(planningError ? { planningError } : {}), ...(channelError ? { error:channelError } : {}) };
           channels.push(channel);
           buckets.push(matches.map(candidate => ({

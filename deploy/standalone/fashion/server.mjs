@@ -682,7 +682,7 @@ export function createApp({
           sourceCatalog,
         });
       }
-      if (u.pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "1.0.11", storage: "persistent-files", searchProvider: deepseekSearchReady(fetcher) ? 'deepseek' : 'legacy', deepseekConfigured: deepseekSearchReady(fetcher) });
+      if (u.pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "1.0.12", storage: "persistent-files", searchProvider: deepseekSearchReady(fetcher) ? 'deepseek' : 'legacy', deepseekConfigured: deepseekSearchReady(fetcher) });
       if (u.pathname === "/api/login" && req.method === "POST") {
         if (guestPreview)
           return json(res, 405, { error: "此预览直接进入，无需登录。" });
