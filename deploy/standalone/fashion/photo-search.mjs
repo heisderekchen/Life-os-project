@@ -6,6 +6,7 @@ import { isTargetPage } from './target-page.mjs';
 import { articleProductPhotos, structuredProductPhotos } from './article-products.mjs';
 import { catalogAdapter, catalogueProductPhotos } from './source-adapters.mjs';
 import { recentSitemapCandidates } from './sitemap-discovery.mjs';
+import { deepseekDiscover } from './deepseek-search.mjs';
 
 const translations = [
   ['耐克', 'Nike'], ['阿迪达斯', 'Adidas'], ['新百伦', 'New Balance'], ['彪马', 'Puma'],
@@ -83,7 +84,7 @@ export function matchesProductIntent(subject, value, productTypeEvidence = false
 export function discoveryIntent(subject, title) {
   return matchesIntent(subject,title) || /\b(?:shoe|footwear|flat|loafer|sneaker|boot)s?\b|鞋|靴/i.test(title);
 }
-const blocked = /(?:pinterest|etsy|ebay|1stdibs|ufonomore|therealreal|vestiairecollective|grailed|carousell|amazon|walmart|poshmark|depop|mercari|aliexpress|temu|storage\.googleapis|lyst\.|gihut\.com|dashangu\.com|wenmiyuan\.com)/i;
+const blocked = /(?:pinterest|etsy|ebay|1stdibs|ufonomore|fashionphile|stockx|goat\.|therealreal|vestiairecollective|grailed|carousell|amazon|walmart|poshmark|depop|mercari|aliexpress|temu|storage\.googleapis|lyst\.|gihut\.com|dashangu\.com|wenmiyuan\.com)/i;
 const decode = s => s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&ndash;/g, '–').replace(/&mdash;/g, '—').replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&#x([a-f\d]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));
 const plain = s => decode(s.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
 const copyString = value => typeof value === 'string' ? Buffer.from(value, 'utf8').toString('utf8') : value;
@@ -254,7 +255,7 @@ function eligible(candidate, subject, domains) {
   try {
     const u = new URL(candidate.url), image = candidate.image ? new URL(candidate.image) : null;
     return /^https?:$/.test(u.protocol) && (!image || /^https?:$/.test(image.protocol)) && !blocked.test(u.hostname) && isTargetPage(u.href) &&
-      !/\/(search|collections|category|categories)(\/|$)|[?&]q=/i.test(u.pathname + u.search) &&
+      !/\/(search|category|categories)(\/|$)|[?&]q=/i.test(u.pathname + u.search) &&
       (!domains.length || domains.some(d => u.hostname === d || u.hostname.endsWith('.' + d))) &&
       !/(?:演示数据|示例商品|demo product|sample product|placeholder)/i.test(candidate.title || '') &&
       (candidate.productTypeEvidence ? matchesProductIntent(subject, candidate.title || '', true, candidate.brandEvidence || candidate.catalogue) : discoveryIntent(subject, candidate.title || '')) &&
@@ -361,9 +362,10 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
   const excluded = host => (plans.excludedDomains || []).some(d => host === d || host.endsWith('.' + d));
   const variants = photoQueries(input.subject, input.sourceScope);
   const base = variants[0];
-  const entries = plans.filter(x => x.domains.length && !x.catalogURL && !x.sources?.length)
+  const entries = plans.filter(x => x.domains.length && !x.deepseek && !x.catalogURL && !x.sources?.length)
     .map(x => ({ ...x, query: `${base} (${x.domains.map(d => `site:${d}`).join(' OR ')})` }));
-  if (input.sourceScope !== 0 && (input.sourceScope !== undefined || !input.domains.length)) {
+  const agentPlan = plans.find(p => p.deepseek);
+  if (!agentPlan && input.sourceScope !== 0 && (input.sourceScope !== undefined || !input.domains.length)) {
     entries.unshift(...variants.map(query => ({ query, domains: [], label: '公开图片' })));
     if (input.sourceScope === 2) entries.push({ query: base, domains: [], label: '公开图片 · 后续页', offset: 60 });
   }
@@ -377,6 +379,7 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
   entries.unshift(...plans.filter(p => p.openDiscovery).map(p => ({
     ...p, sources: undefined, catalogURL: undefined, catalogue: undefined, sourceReader: false, openDiscovery: true, query: base,
   })));
+  if (agentPlan) entries.unshift({ ...agentPlan, query: base, label: 'DeepSeek 商品发现' });
   let checked = 0, completed = 0;
   const items = [];
   let catalogCheckpoint = null;
@@ -399,7 +402,9 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
       const entry = entries[nextEntry++];
       try {
         let attempts;
-        if (entry.openDiscovery) {
+        if (entry.deepseek) {
+          attempts = await deepseekDiscover(input, base, fetcher, signal);
+        } else if (entry.openDiscovery) {
           attempts = await discoverOpenSources(entry, fetcher, readDocument, input, signal, excluded);
         } else if (entry.sourceReader) {
           const read = await readSourcePhotos({sources:entry.sources, readDocument:url=>abortable(()=>readDocument(url,fetcher),signal),
@@ -546,12 +551,12 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
             ...(catalogDiscoveryError ? { error: catalogDiscoveryError.message } : {}) }];
         } else attempts = await discover(entry, fetcher, input.subject, signal);
         signal?.throwIfAborted();
-        for (const { results: found, provider, error } of attempts) {
+        for (const { results: found, provider, error, query, planningError } of attempts) {
           const matches = found.filter(candidate => eligible(candidate, input.subject, entry.domains) && !excluded(new URL(candidate.url).hostname));
           const scopeRejected = entry.domains.length && found.length && !found.some(c=>{try{const h=new URL(c.url).hostname;return entry.domains.some(d=>h===d||h.endsWith('.'+d));}catch{return false;}});
           const channelError = error || (scopeRejected ? '检索渠道未返回指定来源内的内容，范围未确认' : null);
-          const channel = { provider, query: entry.query, label: entry.label, status: channelError ? 'error' : matches.length ? 'ready' : 'empty',
-            count: 0, discovered: found.length, intentMatched: matches.length, rejected: {}, ...(channelError ? { error:channelError } : {}) };
+          const channel = { provider, query: query || entry.query, label: entry.label, domains: entry.domains, status: channelError ? 'error' : matches.length ? 'ready' : 'empty',
+            count: 0, discovered: found.length, intentMatched: matches.length, prefilterRejected: found.length - matches.length, rejected: {}, ...(planningError ? { planningError } : {}), ...(channelError ? { error:channelError } : {}) };
           channels.push(channel);
           buckets.push(matches.map(candidate => ({
             ...candidate, channel, domains: entry.domains,
@@ -635,13 +640,16 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
         }
         const products = structuredProductPhotos(html, url, (title, brand) => matchesProductIntent(input.subject, title, true, brand))
           .concat(articleProductPhotos(html,url,t=>matchesIntent(input.subject,t)));
-        const product = products.find(p=>keyURL(p.image)===keyURL(candidate.image)) || (!matchesIntent(input.subject,pageTitle) ? products[0] : null);
+        const ownProducts = products.filter(p => keyURL(p.canonicalURL || p.url || url) === keyURL(url) && !/preview_images|\.thumbnail\./i.test(p.image));
+        reason = 'productEvidenceMissing';
+        if (!candidate.image && (!ownProducts.length || new Set(products.map(p => keyURL(p.canonicalURL || p.url || url))).size !== 1)) throw Error();
+        const product = (candidate.image ? products.find(p=>keyURL(p.image)===keyURL(candidate.image)) : ownProducts[0]) || (!matchesIntent(input.subject,pageTitle) ? products[0] : null);
         const title = product?.title || pageTitle;
         const candidateImage = product?.image || candidate.image;
         reason = 'sourceIntentMismatch';
         if (!matchesProductIntent(input.subject, title, Boolean(product?.productTypeEvidence), product?.brandEvidence)) throw Error();
         reason = 'imageSourceMismatch';
-        if (!imageDeclared(html, candidateImage)) throw Error();
+        if (!candidateImage || !imageDeclared(html, candidateImage)) throw Error();
         const timestamp = Date.parse(
           html.match(/"datePublished"\s*:\s*"([^"]+)"/)?.[1] ||
           html.match(/property=["']article:published_time["'][^>]*content=["']([^"']+)/i)?.[1] ||
@@ -670,6 +678,7 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
           sourceCheckedAt: new Date().toISOString(), sourceImageMatched: true,
           productTypeEvidence: Boolean(product?.productTypeEvidence),
           verifiedBrand: product?.brandEvidence || '',
+          ...(candidate.searchProvider ? { discovery: { provider: candidate.searchProvider, query: candidate.channel.query, score: candidate.searchScore } } : {}),
           publishedAt, collectedAt: new Date().toISOString(), review: 'pending', selected: false, note: '', summary: '' };
       } catch {
         signal?.throwIfAborted();
@@ -710,4 +719,3 @@ const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;
 export function exportHTML(task, assets) {
   return `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>${esc(task.input.subject)} · 图片与来源</title><style>body{font:16px/1.6 system-ui;max-width:1000px;margin:40px auto;padding:20px;color:#11141a}article{border-top:1px solid #ccd3dc;padding:24px 0;break-inside:avoid}img{width:100%;max-height:520px;object-fit:contain}a,code{overflow-wrap:anywhere}p{margin:8px 0}a{color:#154bea}</style><h1>${esc(task.input.subject)}</h1><p>交付时间 ${esc(task.delivery.createdAt)} · ${task.delivery.items.length} 张图片</p><p>图片已嵌入本文件，可离线查看。原始来源与图片地址逐张保留。来源可追溯不代表获得商用授权。</p>${task.delivery.items.map((i, n) => `<article data-image-id="${esc(i.id)}"><h2>${n + 1}. ${esc(i.title)}</h2><img src="data:${i.imageMime};base64,${assets[n].toString('base64')}" alt="${esc(i.title)}"><p>图片编号：${esc(i.id)}</p><p><a href="${esc(i.url)}">打开原始来源：${esc(i.url)}</a></p><p><a href="${esc(i.image)}">原始图片：${esc(i.image)}</a></p><p>核查依据：${esc(i.note)}</p><p>来源核对时间：${esc(i.sourceCheckedAt)} · 发布日期：${esc(i.publishedAt || '未确认')}</p><p>SHA-256：<code>${esc(i.imageSha256)}</code></p></article>`).join('')}</html>`;
 }
-

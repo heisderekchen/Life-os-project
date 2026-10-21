@@ -466,6 +466,7 @@ async function handlePlatformRequest(req, res, requestUrl, principal) {
 
 const handleFashion = createFashionRouter({
   dataDir: join(dirname(DB_PATH), 'fashion-workbench'),
+  deepseekRelay: process.env.FASHION_DEEPSEEK_RELAY || 'https://fashion-source-connector.yecol.workers.dev/deepseek',
   authorizeAdmin: async req => {
     if (!forwardedSecure(req) || (req.headers.origin && req.headers.origin !== PUBLIC_ORIGIN)) return false
     const principal = await resolvePrincipal(env, cookie(req)).catch(() => null)

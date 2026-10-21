@@ -3,6 +3,7 @@ import { abortable } from "./async-control.mjs";
 import { runSourceQueue, SOURCE_QUEUE_READER_VERSION } from './source-queue.mjs';
 import { sourceCatalog } from "./public/source-catalog.js";
 import { searchPhotos, imageDeclared, matchesIntent, matchesProductIntent, exportHTML, countResultSources, createPageReadLimiter } from "./photo-search.mjs";
+import { deepseekSearchReady } from './deepseek-search.mjs';
 import { readFile, writeFile, mkdir, rename, unlink } from "node:fs/promises";
 import { resolve, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -388,6 +389,12 @@ export function createApp({
       return all;
     }, {});
     const notes = [];
+    const failures = task.channels.filter(c => c.status === 'error');
+    const discovered = task.channels.reduce((n, c) => n + (c.discovered || 0), 0);
+    const matched = task.channels.reduce((n, c) => n + (c.intentMatched || 0), 0);
+    if (failures.length) notes.push(`${failures.length} 个检索渠道失败，请展开渠道记录查看原因`);
+    if (discovered && !matched) notes.push(`找到 ${discovered} 个候选，全部在来源或相关性筛选阶段被排除`);
+    if (matched) notes.push(`${matched} 个候选进入原网页及图片核对，未有通过结果`);
     if (rejected.dateUnconfirmed) notes.push(`${rejected.dateUnconfirmed} 条未能确认发布日期`);
     if (rejected.outsideDateRange) notes.push(`${rejected.outsideDateRange} 条超出近 ${task.input.days} 天`);
     if (rejected.sourceUnavailable) notes.push(`${rejected.sourceUnavailable} 条原页面暂时无法读取`);
@@ -404,6 +411,7 @@ export function createApp({
     const jobFetcher = (url, options = {}) => abortable(() => fetcher(url, { ...options,
       signal: options.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal }), controller.signal);
     jobFetcher.trustedRelayHosts = fetcher.trustedRelayHosts;
+    jobFetcher.deepseekRelay = fetcher.deepseekRelay;
     const limitPageRead = createPageReadLimiter();
     const old = new Map(task.items.map(x => [x.url + ':' + x.imageSha256, x]));
     const retainReview = items => items.map(x => {
@@ -480,7 +488,7 @@ export function createApp({
           await scheduleProgressSave();
         };
         const plans = await abortable(async () => await planSources(task.input) || searchPlan(task.input), controller.signal);
-        const broadScope = photoSearch && task.input.sourceScope === 2 && Array.isArray(plans) && plans.some(p => p.domains.length);
+        const broadScope = photoSearch && task.input.sourceScope === 2 && Array.isArray(plans) && !plans.some(p => p.deepseek) && plans.some(p => p.domains.length);
         if (broadScope) {
           clearMainTimer();
           const excludedDomains = plans.excludedDomains || [];
@@ -503,6 +511,7 @@ export function createApp({
               const entryFetcher = (url, options = {}) => abortable(() => fetcher(url, { ...options,
                 signal: options.signal ? AbortSignal.any([comboSignal, options.signal]) : comboSignal }), comboSignal);
               entryFetcher.trustedRelayHosts = fetcher.trustedRelayHosts;
+              entryFetcher.deepseekRelay = fetcher.deepseekRelay;
               const entryPlans = [entry];
               entryPlans.excludedDomains = excludedDomains;
               const value = await searchPhotos({ ...task.input, sourceScope: 0, domains: [] }, {
@@ -673,7 +682,7 @@ export function createApp({
           sourceCatalog,
         });
       }
-      if (u.pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "1.0.10", storage: "persistent-files" });
+      if (u.pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "1.0.11", storage: "persistent-files", searchProvider: deepseekSearchReady(fetcher) ? 'deepseek' : 'legacy', deepseekConfigured: deepseekSearchReady(fetcher) });
       if (u.pathname === "/api/login" && req.method === "POST") {
         if (guestPreview)
           return json(res, 405, { error: "此预览直接进入，无需登录。" });
