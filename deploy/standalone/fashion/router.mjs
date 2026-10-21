@@ -3,6 +3,7 @@ import { createApp } from './server.mjs';
 import { sourceSearchPlan } from './source-planner.mjs';
 import { deepseekSearchReady } from './deepseek-search.mjs';
 import { createSearchBudget } from './search-budget.mjs';
+import { photoQuery } from './photo-search.mjs';
 import { createAdmin } from './admin/server.mjs';
 import { createFashionIntelligenceSearch } from './legacy-search.mjs';
 import { resolve, dirname } from 'node:path';
@@ -17,6 +18,9 @@ export function createFashionRouter({dataDir,authorizeAdmin,fetcher=fetch,photoS
     planSources: async input => {
       if (deepseekSearchReady(fetcher)) {
         const sources = (await admin.store.read()).sources;
+        const existing = sourceSearchPlan(input, sources);
+        // Dedicated catalogues retain their resumable bulk-photo workflow for brand searches.
+        if (existing?.some(p => p.catalogURL) && /^(nike|adidas)(\s+(women|men|shoes|sneakers|footwear))*$/i.test(photoQuery(input.subject))) return existing;
         const selected = new Set(input.sources || ['official', 'media', 'retail']);
         const categories = { official: ['brand'], media: ['media', 'industry', 'trend'], retail: ['retail'] };
         const groups = new Set([...selected].flatMap(id => categories[id] || []));
