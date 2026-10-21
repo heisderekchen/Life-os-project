@@ -551,15 +551,15 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
             ...(catalogDiscoveryError ? { error: catalogDiscoveryError.message } : {}) }];
         } else attempts = await discover(entry, fetcher, input.subject, signal);
         signal?.throwIfAborted();
-        for (const { results: found, provider, error, query, planningError } of attempts) {
-          const matches = found.filter(candidate => eligible(candidate, input.subject, entry.domains) && !excluded(new URL(candidate.url).hostname));
+        for (const { results: found, provider, error, query, intent, planningError } of attempts) {
+          const matches = found.filter(candidate => eligible(candidate, intent || input.subject, entry.domains) && !excluded(new URL(candidate.url).hostname));
           const scopeRejected = entry.domains.length && found.length && !found.some(c=>{try{const h=new URL(c.url).hostname;return entry.domains.some(d=>h===d||h.endsWith('.'+d));}catch{return false;}});
           const channelError = error || (scopeRejected ? '检索渠道未返回指定来源内的内容，范围未确认' : null);
-          const channel = { provider, query: query || entry.query, label: entry.label, domains: entry.domains, status: channelError ? 'error' : matches.length ? 'ready' : 'empty',
+          const channel = { provider, query: query || entry.query, ...(intent ? { intent } : {}), label: entry.label, domains: entry.domains, status: channelError ? 'error' : matches.length ? 'ready' : 'empty',
             count: 0, discovered: found.length, intentMatched: matches.length, prefilterRejected: found.length - matches.length, rejected: {}, ...(planningError ? { planningError } : {}), ...(channelError ? { error:channelError } : {}) };
           channels.push(channel);
           buckets.push(matches.map(candidate => ({
-            ...candidate, channel, domains: entry.domains,
+            ...candidate, channel, domains: entry.domains, ...(intent ? { intentSubject: intent } : {}),
             catalogue: candidate.catalogURL
               ? candidate.catalogue || entry.catalogue || catalogAdapter(entry.catalogURL)?.name
               : undefined,
@@ -591,6 +591,7 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
   for (let index = 0; index < unique.length && items.length < maxResults; index += verifyBatch) {
     await Promise.all(unique.slice(index, index + verifyBatch).map(async candidate => {
       let reason = 'sourceUnavailable';
+      const subject = candidate.intentSubject || input.subject;
       try {
         const { html, url } = await readCachedWithRetry(candidate.url, candidate.catalogURL ? 3 : 1);
         const source = new URL(url);
@@ -638,16 +639,16 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
           }
           return accepted;
         }
-        const products = structuredProductPhotos(html, url, (title, brand) => matchesProductIntent(input.subject, title, true, brand))
-          .concat(articleProductPhotos(html,url,t=>matchesIntent(input.subject,t)));
+        const products = structuredProductPhotos(html, url, (title, brand) => matchesProductIntent(subject, title, true, brand))
+          .concat(articleProductPhotos(html,url,t=>matchesIntent(subject,t)));
         const ownProducts = products.filter(p => keyURL(p.canonicalURL || p.url || url) === keyURL(url) && !/preview_images|\.thumbnail\./i.test(p.image));
         reason = 'productEvidenceMissing';
         if (!candidate.image && (!ownProducts.length || new Set(products.map(p => keyURL(p.canonicalURL || p.url || url))).size !== 1)) throw Error();
-        const product = (candidate.image ? products.find(p=>keyURL(p.image)===keyURL(candidate.image)) : ownProducts[0]) || (!matchesIntent(input.subject,pageTitle) ? products[0] : null);
+        const product = (candidate.image ? products.find(p=>keyURL(p.image)===keyURL(candidate.image)) : ownProducts[0]) || (!matchesIntent(subject,pageTitle) ? products[0] : null);
         const title = product?.title || pageTitle;
         const candidateImage = product?.image || candidate.image;
         reason = 'sourceIntentMismatch';
-        if (!matchesProductIntent(input.subject, title, Boolean(product?.productTypeEvidence), product?.brandEvidence)) throw Error();
+        if (!matchesProductIntent(subject, title, Boolean(product?.productTypeEvidence), product?.brandEvidence)) throw Error();
         reason = 'imageSourceMismatch';
         if (!candidateImage || !imageDeclared(html, candidateImage)) throw Error();
         const timestamp = Date.parse(
@@ -678,7 +679,7 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
           sourceCheckedAt: new Date().toISOString(), sourceImageMatched: true,
           productTypeEvidence: Boolean(product?.productTypeEvidence),
           verifiedBrand: product?.brandEvidence || '',
-          ...(candidate.searchProvider ? { discovery: { provider: candidate.searchProvider, query: candidate.channel.query, score: candidate.searchScore } } : {}),
+          ...(candidate.searchProvider ? { searchIntent: subject, discovery: { provider: candidate.searchProvider, query: candidate.channel.query, score: candidate.searchScore } } : {}),
           publishedAt, collectedAt: new Date().toISOString(), review: 'pending', selected: false, note: '', summary: '' };
       } catch {
         signal?.throwIfAborted();

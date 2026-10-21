@@ -328,7 +328,7 @@ export function createApp({
       if (createHash('sha256').update(bytes).digest('hex') !== item.imageSha256) throw Error('图片缓存已变化，请重新检索。');
       const { html, url } = await getPublic(item.url, fetcher);
       if (url !== item.url || !imageDeclared(html, item.image) || !matchesProductIntent(
-        task.input.subject,
+        item.searchIntent || task.input.subject,
         html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '',
         Boolean(item.productTypeEvidence),
         item.verifiedBrand || '',

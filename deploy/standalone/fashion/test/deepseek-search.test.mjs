@@ -29,20 +29,21 @@ test('retrieved product pages without a search thumbnail still require declared 
   process.env.DEEPSEEK_API_KEY = 'fixture-not-a-real-key';
   try {
     const image = 'https://cdn.example/white.jpg';
-    const result = await searchPhotos({ subject: '女款小白鞋', domains: [], sourceScope: 1, days: 0 }, {
+    const result = await searchPhotos({ subject: '薄荷绿女款低帮鞋', domains: [], sourceScope: 1, days: 0 }, {
       plans: [{ deepseek: true, domains: [] }],
       fetcher: async url => url.endsWith('/chat/completions')
-        ? Response.json({ choices: [{ message: { content: '{"queries":["women white sneakers"]}' } }] })
+        ? Response.json({ choices: [{ message: { content: '{"intent":"women mint green low top sneakers","queries":["women mint green low top sneakers"]}' } }] })
         : Response.json({ results: [
-          { title: 'Women white sneakers', url: 'https://brand.example/collections/women/products/white' },
-          { title: 'Women white sneakers', url: 'https://lyst.com/shoes/white' },
+          { title: 'Women mint green low top sneakers', url: 'https://brand.example/collections/women/products/white' },
+          { title: 'Women mint green low top sneakers', url: 'https://lyst.com/shoes/white' },
         ] }),
-      readPage: async url => ({ url, html: '<title>Women white sneakers</title><script type="application/ld+json">' + JSON.stringify({ '@type': 'Product', name: 'Women white sneakers', category: 'shoes', image }) + '</script>' }),
+      readPage: async url => ({ url, html: '<title>Women mint green low top sneakers</title><script type="application/ld+json">' + JSON.stringify({ '@type': 'Product', name: 'Women mint green low top sneakers', category: 'shoes', image }) + '</script>' }),
       readImage: async () => ({ bytes: Buffer.from('verified-image-fixture'), mime: 'image/jpeg' }),
       saveAsset: async () => {},
     });
     assert.equal(result.items.length, 1);
     assert.equal(result.items[0].sourceImageMatched, true);
+    assert.equal(result.items[0].searchIntent, 'women mint green low top sneakers');
     assert.equal(result.items[0].image, image);
     assert.equal(result.channels[0].discovered, 2);
     assert.equal(result.channels[0].prefilterRejected, 1);
