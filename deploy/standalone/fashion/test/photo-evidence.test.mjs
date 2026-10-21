@@ -4,7 +4,7 @@ import { searchPhotos, imageDeclared, exportHTML, matchesIntent } from '../photo
 
 test('图片与原页面必须对应；失效、改款和重复图片均不混入结果', async () => {
   const good = { title: 'Women suede loafers', width: 1000, height: 800, image: 'https://cdn.example.com/good.jpg', url: 'https://example.com/products/good' };
-  const candidates = [good, { ...good }, { ...good, image: 'https://cdn.example.com/mismatch.jpg', url: 'https://example.com/products/mismatch' }, { ...good, image: 'https://cdn.example.com/broken.jpg', url: 'https://example.com/products/broken' }, { ...good, image: 'https://cdn.example.com/wrong.jpg', url: 'https://example.com/products/wrong' }, { ...good, title: 'Manchester United football' }];
+  const candidates = [good, { ...good }, { ...good, image: 'https://cdn.example.com/mismatch.jpg', url: 'https://example.com/products/mismatch' }, { ...good, image: 'https://cdn.example.com/broken.jpg', url: 'https://example.com/products/broken' }, { ...good, intentSubject: 'shoes', image: 'https://cdn.example.com/wrong.jpg', url: 'https://example.com/products/wrong' }, { ...good, title: 'Manchester United football' }];
   const saved = [];
   const result = await searchPhotos({ subject: '女款 绒面 乐福鞋', days: 0, domains: [], sourceScope: 2 }, {
     plans: [],
