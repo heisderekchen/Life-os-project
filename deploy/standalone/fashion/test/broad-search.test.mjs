@@ -109,6 +109,18 @@ test('combined flat/loafer navigation tags are excluded; generic audience catego
  assert(!matchesPhotoProduct('women ballet flats',boot));
 });
 
+test('ballet-inspired high heels and generic lace-up flats cannot count as ballet flats', async () => {
+ const {matchesPhotoProduct}=await import('../photo-search.mjs');
+ for(const tags of [['female','Type:Heels','Style:Ballet'],['female','Type:Heels','Style:Platform']]) {
+  const p=publicProductPhotos(raw(1,{title:'SOFIE BLUSH SATIN',type:"Women's Shoes",description:'Ballet-inspired heel with a bow. 4 inch heel height.',tags}),'https://brand.example')[0];
+  assert(!matchesPhotoProduct('women ballet flats',p));
+ }
+ const lace=publicProductPhotos(raw(2,{title:'Grey leather flat shoes',type:"Women's Shoes",description:'Flat lace-up shoes. Browse ballet flats.',tags:['female','Type:Flats']}),'https://brand.example')[0];
+ assert(!matchesPhotoProduct('women ballet flats',lace));
+ const real=publicProductPhotos(raw(3,{title:'BELINDA BLACK',type:"Women's Shoes",description:'Ballet flats with a bow, .25 inch heel.',tags:['female','Type:Flats','Style:Ballet']}),'https://brand.example')[0];
+ assert(matchesPhotoProduct('women ballet flats',real));
+});
+
 test('almost black and empty white images are rejected as unusable visual clues', async () => {
  const sharp=(await import('sharp')).default;const {imageFingerprint}=await import('../image-quality.mjs');
  for(const color of ['#050505','#ffffff']){const bytes=await sharp({create:{width:800,height:600,channels:3,background:color}}).jpeg().toBuffer();await assert.rejects(imageFingerprint(bytes),e=>e.code==='IMAGE_QUALITY')}

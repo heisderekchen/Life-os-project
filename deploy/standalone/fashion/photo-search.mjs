@@ -97,6 +97,10 @@ export function matchesPhotoProduct(subject, product) {
   if (!matchesProductIntent(subject, product.intentEvidence || product.title, Boolean(product.productTypeEvidence), product.brandEvidence)) return false;
   const requested = photoQuery(subject).toLowerCase();
   const primary = product.primaryTypeEvidence || '';
+  // Ballet-inspired heels and generic flat lace-ups are not ballet flats.
+  // A Style:Ballet tag cannot override an explicit Type:Heels classification.
+  if (/\bflats?\b/.test(requested) && /\b(?:heels|pumps|stilettos)\b/i.test(primary)) return false;
+  if (/\bballet\b/.test(requested) && !/\b(?:ballet|ballerinas?)\b/i.test(primary)) return false;
   if (/\bheels?\b/.test(requested) && !/\b(?:heels?|pumps?|stilettos?)\b/i.test(primary)) {
     const values = product.intentEvidence || product.title || '';
     const height = [...values.matchAll(/heel\s*height\s*:?\s*(\d+(?:\.\d+)?)\s*(inches|inch|in\b|cm|["″])/gi)]
