@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ReactFlow, ReactFlowProvider, Controls, ControlButton, Handle, Position, useReactFlow, useNodesInitialized, useStore, type Node, type NodeProps, type Edge, type NodeChange, type XYPosition } from '@xyflow/react'
+import { ReactFlow, ReactFlowProvider, Controls, ControlButton, Handle, PanOnScrollMode, Position, useReactFlow, useNodesInitialized, useStore, type Node, type NodeProps, type Edge, type NodeChange, type XYPosition } from '@xyflow/react'
 import { ChevronRight, FileText, Folder, Layers, RotateCcw } from 'lucide-react'
 import { useReducedMotion } from 'framer-motion'
 import { nodeKey, taskTree, type TaskBranch, type WorkspaceGroup, type WorkspaceSelection } from './workspace-model'
@@ -137,6 +137,7 @@ function Graph({ groups, selection, expanded, onExpand, onSelect, menuFor, match
     return () => { if (focusTimer.current) clearTimeout(focusTimer.current) }
   }, [visibleNodeIds, positionsReady, nodesInitialized, viewportWidth, viewportHeight, flow, reducedMotion])
   return <ReactFlow<GraphNode> nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.08, minZoom: 0.01, maxZoom: 1 }}
+    panOnScroll panOnScrollMode={PanOnScrollMode.Vertical} zoomOnScroll={false}
     minZoom={0.01} maxZoom={1.4} nodesDraggable nodesConnectable={false} nodesFocusable nodeDragThreshold={5} onNodesChange={moveNodes} onNodeDragStart={cancelFocus} onNodeDragStop={(_, node) => { const next = { ...positions, [node.id]: { ...node.position } }; setPositions(next); try { localStorage.setItem(positionKey, JSON.stringify(next)) } catch {} }} onMoveStart={event => { if (event) cancelFocus() }} deleteKeyCode={null} multiSelectionKeyCode={null} elementsSelectable
     onNodeClick={(_, node) => onSelect(node.data.target)} onNodeDoubleClick={(_, node) => node.data.onExpand?.()}
     onlyRenderVisibleElements={nodes.length > 200} proOptions={{ hideAttribution: false }} aria-label={zh ? '项目主题任务关系图' : 'Project topic task graph'}>
