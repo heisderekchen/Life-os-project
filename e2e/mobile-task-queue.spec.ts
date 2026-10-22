@@ -98,6 +98,7 @@ test('unified workspace keeps filters, task rows and graph selection usable acro
   await page.getByRole('group', { name: 'Workspace view' }).getByRole('button', { name: 'List', exact: true }).click()
   await page.setViewportSize({ width: 390, height: 844 })
   await expectSelectionVisible()
+  await expect(selected).toBeInViewport()
   await expect(page.getByRole('button', { name: /Exit Focus/ })).toBeVisible()
   await captureFocus('phone')
   await page.getByRole('button', { name: /Exit Focus/ }).click()
