@@ -44,13 +44,13 @@ export function publicProductPhotos(raw, base, expectedURL) {
     productPhotos = own.length ? own : photos.slice(0, 1);
     imageSelectionEvidence = own.length ? 'named-product-view' : 'primary-product-image-only';
   }
-  return productPhotos.map((im, index) => {
+  return productPhotos.map(im => {
     const rawURL = typeof im === 'string' ? im : im?.src;
     let image; try { image = new URL(rawURL, base).href; } catch { return null; }
     if (!rawURL || !/^https?:/.test(image)) return null;
     return { title: text(p.title), image, url, canonicalURL: url, productCode: String(p.id),
       productTypeEvidence: 'footwear', primaryTypeEvidence: [p.title, classification, ...tags.filter(t => /^(?:Type|Style):/i.test(t))].join(' '), brandEvidence: text(p.vendor), intentEvidence: evidence,
-      imagePosition: index + 1, colorEvidence, audienceEvidence: [type, ...tags.filter(t => /^(?:kids?|children|girls?|boys?|junior|toddler|baby|infant|woman|women|man|men|female|male)$/i.test(t))].join(' '), ...(im?.width ? { width: im.width, height: im.height } : {}),
+      imagePosition: photos.indexOf(im) + 1, colorEvidence, audienceEvidence: [type, ...tags.filter(t => /^(?:kids?|children|girls?|boys?|junior|toddler|baby|infant|woman|women|man|men|female|male)$/i.test(t))].join(' '), ...(im?.width ? { width: im.width, height: im.height } : {}),
       ...(imageSelectionEvidence ? { imageSelectionEvidence, excludedGalleryImages: photos.length - productPhotos.length } : {}),
       publishedAt: p.published_at || null, schemaType: 'ShopifyProduct' };
   }).filter(Boolean);

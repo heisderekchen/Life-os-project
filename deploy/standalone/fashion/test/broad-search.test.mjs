@@ -36,6 +36,7 @@ test('M.Gemi campaign photographs cannot replace identifiable own-product views'
  const photos=publicProductPhotos(p,'https://mgemi.com');
  assert.equal(photos.length,1);assert(photos[0].image.includes('TheUna'));assert.equal(photos[0].excludedGalleryImages,1);
  assert.equal(publicProductPhotos(p,'https://another-brand.test').length,2);
+ assert.equal(publicProductPhotos({...p,images:[p.images[1],p.images[0]]},'https://mgemi.com')[0].imagePosition,2);
  const unknown=publicProductPhotos({...p,images:['https://cdn.test/photo1.jpg','https://cdn.test/photo2.jpg']},'https://mgemi.com');assert.equal(unknown.length,1);
 });
 test('third-page official evidence precedes verification of unrelated web fallback candidates', async () => {
