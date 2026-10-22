@@ -142,3 +142,19 @@ test('delivery rechecks one shared catalogue once and verifies moved records thr
  await call('/tasks/'+taskId+'/reopen');mode='moved';requests.length=0;result=await call('/tasks/'+taskId+'/deliver');assert.equal(result.status,200);assert.equal(requests.filter(u=>u===proof).length,1);assert(requests.includes(items[0].url+'.js'));
  await call('/tasks/'+taskId+'/reopen');mode='wrong';result=await call('/tasks/'+taskId+'/deliver');assert.equal(result.status,400);
 });
+
+test('a Heel Height field on a sneaker is not high-heel shoe evidence; primary type aliases retain meaning', async () => {
+ const {matchesPhotoProduct}=await import('../photo-search.mjs');
+ const sneaker=publicProductPhotos(raw(1,{title:"Women's white sneakers",description:'Heel Height: 0.5 inches',tags:['female','Heel Height:Flat (0-1 inch)']}),'https://brand.example')[0];assert(!matchesPhotoProduct('women heels',sneaker));
+ const heel=publicProductPhotos(raw(2,{title:"Women's court shoes",type:'Shoes',description:'Heel Height: 5 cm',tags:['female']}),'https://brand.example')[0];assert(matchesPhotoProduct('women heels',heel));
+ const flat=publicProductPhotos(raw(3,{title:"Women's mesh ballet flats",description:'Ballet flats with jelly mule inspired design.',tags:['female','Type:Flats','Style:Ballet']}),'https://brand.example')[0];assert(!matchesPhotoProduct('women mules',flat));
+ assert(matchesIntent('women ballet flats','Women ballerinas',true));assert(matchesIntent('women sneakers','Women trainers',true));
+});
+
+test('a fresh date on another catalogue record cannot qualify an old product for a recent window', async () => {
+ const p=raw(50,{published_at:'2020-01-01T00:00:00Z'}),other=raw(51,{datePublished:new Date().toISOString()});const url='https://date.test/products/shoe-50',proof='https://date.test/products.json?limit=250';
+ const doc={url:proof,html:JSON.stringify({products:[p,other]})};let images=0;
+ const result=await searchPhotos({...input,days:7},{fetcher,plans:[{domains:['date.test'],candidates:[{title:p.title,url,evidenceURL:proof,evidenceKind:'public-product-catalogue',productCode:String(p.id)}]}],
+  evidenceDocuments:new Map([[proof,doc]]),readPage:async()=>{throw Error('unexpected')},readDocument:async()=>{throw Error('unexpected extra read')},readImage:async()=>{images++;throw Error('unexpected image')},saveAsset:async()=>{}});
+ assert.equal(result.items.length,0);assert.equal(images,0);assert.equal(result.channels[0].rejected.outsideDateRange,1);
+});

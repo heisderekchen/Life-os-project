@@ -60,7 +60,10 @@ export function matchesIntent(subject, value, productTypeEvidence = false) {
   // Season and casual use are often expressed as product features rather than
   // literal title keywords. These aliases require positive product evidence.
   const features = hay + (/\b(?:snow|insulated|thermal|winter|cold.weather|fleece.lined)\b/i.test(hay) ? ' winter' : '') +
-    (/\b(?:everyday|casual|lifestyle|sneakers?|trainers?)\b/i.test(hay) ? ' casual' : '');
+    (/\b(?:everyday|casual|lifestyle|sneakers?|trainers?)\b/i.test(hay) ? ' casual' : '') +
+    (/\btrainers?\b/i.test(hay) ? ' sneakers' : '') +
+    (/\bballerinas?\b/i.test(hay) ? ' ballet flats' : '') +
+    (/\bmary[ _-]?janes?\b/i.test(hay) ? ' mary jane' : '');
   if (/\b(?:duffel|bag|handbag|backpack|shoebox|shoe bag|shoe box|storefront|logo)\b|鞋盒|手提包|鞋袋/i.test(value)) return false;
   if (apparel.test(value) && !footwear.test(value)) return false;
   if (terms.includes('leather') && /\bfaux\b|\bsynthetic\b|leather[- ]look|仿皮|人造革/i.test(value)) return false;
@@ -94,7 +97,16 @@ export function matchesPhotoProduct(subject, product) {
   if (!matchesProductIntent(subject, product.intentEvidence || product.title, Boolean(product.productTypeEvidence), product.brandEvidence)) return false;
   const requested = photoQuery(subject).toLowerCase();
   const primary = product.primaryTypeEvidence || '';
+  if (/\bheels?\b/.test(requested) && !/\b(?:heels?|pumps?|stilettos?)\b/i.test(primary)) {
+    const values = product.intentEvidence || product.title || '';
+    const height = [...values.matchAll(/heel\s*height\s*:?\s*(\d+(?:\.\d+)?)\s*(inches|inch|in\b|cm|["″])/gi)]
+      .some(m => Number(m[1]) * (m[2].toLowerCase() === 'cm' ? 1 : 2.54) >= 3.5);
+    if (/\b(?:sneakers?|trainers?|ballet|ballerinas?|flats?)\b/i.test(primary) ||
+        (!height && !/Heel Height:\s*(?:Medium|High|Ultra High)\b/i.test(values))) return false;
+  }
   const typeRules = [
+    [/\bmules?\b/, /\bmules?\b/i, /\b(?:ballet|ballerinas?|loafers?|boots?|sneakers?|sandals?)\b/i],
+    [/\bmary.jane\b/, /\bmary[ _-]?janes?\b/i, /\b(?:loafers?|boots?|sneakers?|sandals?)\b/i],
     [/\bloafers?\b/, /\bloafers?\b/i, /\b(?:ballet|ballerinas?|mary.jane|boots?|sneakers?|sandals?)\b/i],
     [/\bballet\b/, /\b(?:ballet|ballerinas?)\b/i, /\b(?:loafers?|boots?|sneakers?|sandals?)\b/i],
     [/\bsandals?\b/, /\bsandals?\b/i, /\b(?:ballet|ballerinas?|loafers?|boots?|sneakers?)\b/i],
@@ -766,12 +778,12 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
         if (!matchesProductIntent(subject, productEvidence, Boolean(product?.productTypeEvidence), product?.brandEvidence)) throw Error('原页商品信息与英文需求不符');
         reason = 'imageSourceMismatch';
         if (!candidateImage || !imageDeclared(html, candidateImage)) throw Error('候选图片未在原页中找到');
-        const timestamp = Date.parse(
+        const timestamp = candidate.evidenceURL ? Date.parse(product?.publishedAt) : Date.parse(
           html.match(/"datePublished"\s*:\s*"([^"]+)"/)?.[1] ||
           html.match(/property=["']article:published_time["'][^>]*content=["']([^"']+)/i)?.[1] ||
           (candidate.evidenceURL ? product?.publishedAt : candidate.publishedAt),
         );
-        const publishedAt = sourcePublishedAt(html, candidate.evidenceURL ? { ...candidate, publishedAt: product?.publishedAt } : candidate);
+        const publishedAt = sourcePublishedAt(candidate.evidenceURL ? '' : html, candidate.evidenceURL ? { ...candidate, publishedAt: product?.publishedAt } : candidate);
         Object.assign(evidence, { publishedAt, requestedDays: input.days, imageDeclared: Boolean(candidateImage && imageDeclared(html, candidateImage)) });
         reason = 'dateUnconfirmed';
         if (input.days && !publishedAt) throw Error('无法确认原页或候选的发布日期');
