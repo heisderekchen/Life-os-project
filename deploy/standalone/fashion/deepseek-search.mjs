@@ -111,11 +111,18 @@ export async function deepseekDiscover(input, fallbackQuery, fetcher, signal, tr
       const valid = (result.queries || []).filter(q => typeof q === 'string' && q.trim() && q.length <= 65 && !/[\u3400-\u9fff]/.test(q));
       if (valid.length) queries = [...new Set(valid)].slice(0, 2);
       else throw Error('未返回有效英文检索式');
+      const modelIntent = intent;
+      // A planner may broaden retrieval wording, never the acceptance criteria.
+      // Fully translated dictionary/original input is the authoritative intent.
+      if (!/[\u3400-\u9fff]/.test(fallbackQuery)) intent = fallbackQuery.trim();
+      trace('planning.constraints.locked', { originalSubject: input.subject, modelIntent, intent,
+        constraintSource: /[\u3400-\u9fff]/.test(fallbackQuery) ? 'model-translation' : 'dictionary-or-original' });
       trace('planning.accepted', { originalSubject: input.subject, fallbackQuery, parsed: result, intent, queries, planningAttempts });
     }
   } catch (error) {
     trace('planning.failed', { originalSubject: input.subject, fallbackQuery, error: errorDetails(error), transportAttempts: error.transportAttempts });
     signal?.throwIfAborted();
+    intent = fallbackQuery; queries = [fallbackQuery];
     planningError = '查询规划失败，使用词表翻译：' + error.message;
     if (/[\u3400-\u9fff]/.test(fallbackQuery)) throw Error('英文查询规划失败，未发送含未翻译中文的搜索词');
     trace('planning.fallback', { intent, queries, planningError });

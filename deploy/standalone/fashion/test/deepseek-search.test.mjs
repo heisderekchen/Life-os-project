@@ -79,3 +79,16 @@ test('transient connection failures recover before translating an unmapped Chine
   assert(!/[\u3400-\u9fff]/.test(attempts[0].query));
  }finally{if(old===undefined)delete process.env.DEEPSEEK_API_KEY;else process.env.DEEPSEEK_API_KEY=old;}
 });
+
+test('query expansion cannot weaken white sneakers or ankle boots into generic shoes', async () => {
+ const old=process.env.DEEPSEEK_API_KEY;process.env.DEEPSEEK_API_KEY='fixture-not-real';
+ try {
+  for(const [subject,canonical]of [['女款小白鞋','women white sneakers'],['女款短靴','women ankle boots'],['女款冬季休闲鞋','women winter casual shoes']]){
+   const events=[];
+   const found=await deepseekDiscover({subject,domains:[]},canonical,async url=>url.endsWith('/chat/completions')
+    ? Response.json({choices:[{message:{content:'{"intent":"women white shoes","queries":["women white shoes"]}'}}]})
+    : Response.json({results:[]}),undefined,(type,data)=>events.push({type,data}));
+   assert.equal(found[0].intent,canonical);assert(events.some(e=>e.type==='planning.constraints.locked'&&e.data.intent===canonical));
+  }
+ }finally{if(old===undefined)delete process.env.DEEPSEEK_API_KEY;else process.env.DEEPSEEK_API_KEY=old}
+});

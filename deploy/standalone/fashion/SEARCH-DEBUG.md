@@ -65,3 +65,9 @@ FASHION_ROUND=production-01 FASHION_BENCHMARK_BASE=https://happyspa.studio/fashi
 ```
 
 默认覆盖女款冬季休闲鞋、小白鞋、乐福鞋、芭蕾平底鞋、凉鞋、短靴（不限时间，三类来源）。`FASHION_SUBJECTS` 可传主题 JSON 数组，`FASHION_BENCHMARK_OUT` 可指定证据目录。保存任务、逐图原图哈希/实际尺寸/近似重复检查、完整 JSONL、100 图总览及汇总；`automaticPass` 与 `visualReview` 分开，数量达标不代表视觉验收完成。生产回归使用自己的独立访客会话，不访问其他用户任务，也不修改人工核查状态。
+
+## 1.0.16 原需求约束锁定
+
+- `planning.constraints.locked` 记录模型意图与实际执行意图。词表已完整翻成英文或原需求本身为英文时，直接锁定它作为商品筛选约束；模型只扩展检索式，不能把“小白鞋/white sneakers”放宽成“white shoes”，也不能丢掉 ankle、winter、颜色、材质等原有条件。未知中文仍要求完整英文翻译，规划失败不会发送中英混杂搜索词。
+- 规划失败时同时重置检索式和筛选意图，防止部分解析后的弱条件残留。
+- 真实像素检查拒绝近乎全黑或全白的图片，记录 `imageQualityRejected` 与 `IMAGE_QUALITY`，失败视图继续补充其他商品原图。

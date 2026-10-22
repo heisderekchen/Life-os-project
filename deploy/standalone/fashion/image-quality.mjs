@@ -11,7 +11,11 @@ export async function imageFingerprint(bytes) {
       bits = (bits << 1n) | (a > b ? 1n : 0n);
     }
   }
-  return { hash: bits.toString(16).padStart(16, '0'), rgb: rgb.map(v => Math.round(v / 72)) };
+  const average = rgb.map(v => Math.round(v / 72));
+  if (average.every(v => v < 25) || average.every(v => v > 252)) {
+    const error = Error('图片主体过暗或近乎空白，未达到可用图片线索标准'); error.code = 'IMAGE_QUALITY'; throw error;
+  }
+  return { hash: bits.toString(16).padStart(16, '0'), rgb: average };
 }
 export function similarImage(a, b, { distance: maximum = 3, color = 3 } = {}) {
   if (!a?.hash || !b?.hash || !a.rgb || !b.rgb) return false;

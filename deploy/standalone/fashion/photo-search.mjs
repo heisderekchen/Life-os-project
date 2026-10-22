@@ -695,7 +695,8 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
               const image = declaredImageURL(html, product.image);
               if (!imageDeclared(html, image)) throw Error('商品图片未在来源中声明');
               productReason = 'imageUnavailable';
-              const asset = await abortable(() => readImage(image, fetcher), signal);
+              reason = 'imageUnavailable';
+            const asset = await abortable(() => readImage(image, fetcher), signal);
               const aspect = asset.width && asset.height ? asset.width / asset.height : 0;
               if (candidate.catalogue === 'adidas' && product.imageRole === 'hero' &&
                   (asset.width < 350 || asset.height < 250 || aspect < 0.5 || aspect > 2)) { productReason = 'imageAspectOrSize'; throw Error('目录主图尺寸或比例不符'); }
@@ -776,13 +777,15 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
         for (const selected of selectedPhotos) {
           if (accepted.length >= viewLimit) break;
           try {
+            reason = 'imageSourceMismatch';
             if (!imageDeclared(html, selected.image)) { reason = 'imageSourceMismatch'; throw Error('商品视图未在来源中声明'); }
             const image = declaredImageURL(html, selected.image);
+            reason = 'imageUnavailable';
             const asset = await abortable(() => readImage(image, fetcher), signal);
             const sha256 = createHash('sha256').update(asset.bytes).digest('hex');
-            if (hashes.has(sha256)) { trace('candidate.skipped', { ...evidence, sha256, reason: 'duplicateImageHash' }); continue; }
+            if (hashes.has(sha256)) { reason = 'duplicateImageHash'; trace('candidate.skipped', { ...evidence, sha256, reason }); continue; }
             if (asset.imageFingerprint && (fingerprints.some(p => similarImage(p, asset.imageFingerprint)) || accepted.some(p => similarImage(p.imageFingerprint, asset.imageFingerprint, { distance: 10, color: 12 })))) {
-              trace('candidate.skipped', { ...evidence, image, reason: 'nearDuplicateImage', fingerprint: asset.imageFingerprint }); continue;
+              reason = 'nearDuplicateImage'; trace('candidate.skipped', { ...evidence, image, reason, fingerprint: asset.imageFingerprint }); continue;
             }
             if (asset.imageFingerprint) fingerprints.push(asset.imageFingerprint);
             hashes.add(sha256);
@@ -805,6 +808,7 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
               searchIntent: subject, ...(candidate.searchProvider ? { discovery: { provider: candidate.searchProvider, query: candidate.channel.query, score: candidate.searchScore } } : {}),
               publishedAt, collectedAt: new Date().toISOString(), review: 'pending', selected: false, note: '', summary: '', ...(candidate.evidenceURL ? { evidenceURL: candidate.evidenceURL, evidenceKind: 'public-product-api' } : {}) });
           } catch (error) {
+            if (error.code === 'IMAGE_QUALITY') reason = 'imageQualityRejected';
             trace('candidate.image.rejected', { ...evidence, image: selected.image, reason, error: errorDetails(error) });
             signal?.throwIfAborted();
           }
