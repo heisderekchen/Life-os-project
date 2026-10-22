@@ -333,6 +333,7 @@ export function AppShell() {
 
         <div className="lifeos-column">
           {!focusMode && <Header />}
+          {focusMode && <FocusModeOverlay />}
           <main className="lifeos-main relative">
             {isMobile && mobileSidebarOpen ? (
             <MobileModuleDirectory category={mobileCategory} onSelect={selectMobileModule} onClose={() => setMobileSidebarOpen(false)} />
@@ -351,7 +352,6 @@ export function AppShell() {
                 </motion.div>
               </AnimatePresence>
             )}
-            {focusMode && <FocusModeOverlay />}
           </main>
         </div>
       </div>
