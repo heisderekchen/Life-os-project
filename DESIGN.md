@@ -7,6 +7,12 @@ colors:
   workspace-primary-dark: "#5eead4"
   workspace-primary-dark-foreground: "#042f2e"
 typography:
+  focus-title:
+    fontSize: "18px"
+    fontWeight: 650
+  focus-pane-title:
+    fontSize: "14px"
+    fontWeight: 600
   title:
     fontSize: "24px"
     fontWeight: 650
@@ -126,3 +132,11 @@ Controls and graph nodes use gently curved control corners; chips and inner view
 - **Don't** add decorative card grids, entrance animation, or new font assets to this workspace.
 - **Don't** treat fixture screenshots as evidence of real-account acceptance or deployment.
 - **Don't** apply this workspace composition or local accent globally.
+
+## Focus workspace refinement (2026-10-22)
+
+Focus mode uses a compact bar in the normal column flow; it never overlays the page title or intercepts task-area clicks. Keep Exit Focus and Esc available. Within the project workspace, compact headers, filter spacing and pane titles; move utility actions into the existing More disclosure and suppress redundant graph/help copy. Preserve the app's neutral/teal tokens, keyboard focus, and 44px touch targets.
+
+Focus desktop layout defaults to 32% graph / 68% task workspace, with the task list taking 70% of the list/detail split. These two ratios persist independently from normal-mode ratios and retain the existing 25–75 bounds. An idle focus inspector consumes no space. Narrow task panels adapt forms and secondary table columns using their container width, while keeping horizontal scrolling and complete task details available.
+
+Project, topic and task rows share a stable node identity and visible selection. Observe the task scroll container's size and reveal the current row between its sticky header and bottom edge after resizing or content changes. Do not change the selection or listen to manual scrolling to pull the user back.
