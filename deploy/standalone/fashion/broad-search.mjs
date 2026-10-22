@@ -10,7 +10,15 @@ export const BROAD_TARGET = 100;
 export const BROAD_TIMEOUT_MS = 12 * 60 * 1000;
 export const CATALOGUE_CACHE_BYTES = 128 * 1024 * 1024;
 const CACHE_TTL = 15 * 60 * 1000;
-export const createCatalogueCache = (maxBytes = CATALOGUE_CACHE_BYTES) => createPageLRU(64, maxBytes);
+export function createCatalogueCache(maxBytes = CATALOGUE_CACHE_BYTES) {
+  // Keep discovery's first two pages available even after a rare category scans
+  // deeper pages. Otherwise that one scan evicts every other search's entry point.
+  const primaryBytes = Math.floor(maxBytes * 0.75);
+  const primary = createPageLRU(24, primaryBytes), deeper = createPageLRU(40, maxBytes - primaryBytes);
+  const tier = key => Number(new URL(key).searchParams.get('page') || 1) <= 2 ? primary : deeper;
+  return { get: key => tier(key).get(key), set: (key, value, size) => tier(key).set(key, value, size),
+    get bytes() { return primary.bytes + deeper.bytes; }, get size() { return primary.size + deeper.size; } };
+}
 const cache = createCatalogueCache();
 export function catalogueRetryDelay(error) {
   if (error?.status !== 429 || (error.retryAfterMs || 0) > 90000) return null;

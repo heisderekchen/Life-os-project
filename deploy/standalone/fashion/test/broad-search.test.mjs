@@ -10,10 +10,12 @@ const input = { subject: '女款冬季休闲鞋', days: 0, domains: [], sourceSc
 test('catalogue cache retains the observed twelve-page working set and refreshes recently used pages', () => {
  const cache=createCatalogueCache();
  const sizes=[2629804,1293851,1760191,2990535,2325805,1450389,2085941,2005833,2396650,1397153,2110313,2781348];
- sizes.forEach((bytes,i)=>cache.set('page-'+i,{i},bytes*3));
- sizes.forEach((_,i)=>assert.equal(cache.get('page-'+i)?.i,i));
+ const key=i=>'https://brand-'+Math.floor(i/2)+'.test/products.json?page='+(i%2+1);
+ sizes.forEach((bytes,i)=>cache.set(key(i),{i},bytes*3));
+ for(let i=0;i<30;i++)cache.set('https://deep.test/products.json?page='+(i+3),{i},3*1024*1024);
+ sizes.forEach((_,i)=>assert.equal(cache.get(key(i))?.i,i));
  assert(cache.bytes <= CATALOGUE_CACHE_BYTES);
- const small=createCatalogueCache(12);small.set('a',1,4);small.set('b',2,4);small.set('c',3,4);assert.equal(small.get('a'),1);small.set('d',4,4);assert.equal(small.get('b'),undefined);assert.equal(small.get('a'),1);assert.equal(small.bytes,12);
+ const small=createCatalogueCache(16),url=k=>'https://'+k+'.test/products.json';small.set(url('a'),1,4);small.set(url('b'),2,4);small.set(url('c'),3,4);assert.equal(small.get(url('a')),1);small.set(url('d'),4,4);assert.equal(small.get(url('b')),undefined);assert.equal(small.get(url('a')),1);assert.equal(small.bytes,12);
 });
 test('catalogue 429 handling respects a one-minute retry period and preserves diagnostic status', async () => {
  const {errorDetails}=await import('../search-trace.mjs');const {getPublic}=await import('../server.mjs');
