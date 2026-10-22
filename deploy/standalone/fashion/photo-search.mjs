@@ -120,10 +120,12 @@ export function matchesPhotoProduct(subject, product) {
   if (/\bwom[ae]ns?\b/.test(requested) && /\b(?:kids?|children|girls?|boys?|junior|toddler|baby|infant)\b/i.test(product.audienceEvidence || '')) return false;
   for (const color of ['white', 'black', 'brown', 'green', 'red', 'blue', 'pink']) {
     if (!new RegExp('\\b' + color + '\\b').test(requested) || !product.colorEvidence) continue;
-    const evidence = product.colorEvidence;
+    const evidence = product.colorEvidence.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ')
+      .replace(/\b(whites|blacks|browns|greens|reds|blues|pinks|greys|grays|beiges)\b/gi, m => m.slice(0, -1))
+      .replace(/\b(?:cocoa|cacao|chocolate|espresso)\b/gi, 'brown');
     const primary = evidence.match(/\b(white|ivory|cream|ecru|blizzard|black|brown|green|red|blue|pink|grey|gray|navy|tan|beige)\b/i)?.[1]?.toLowerCase();
     const white = /^(?:white|ivory|cream|ecru|blizzard)$/;
-    if (color === 'white' ? !primary || !white.test(primary) : !new RegExp('\\b' + color + '\\b', 'i').test(evidence)) return false;
+    if (color === 'white' ? !primary || !white.test(primary) : primary !== color) return false;
   }
   return true;
 }
