@@ -2,7 +2,7 @@ import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 
-export const SEARCH_VERSION = '1.0.16';
+export const SEARCH_VERSION = '1.0.17';
 const MAX_BYTES = 16 * 1024 * 1024;
 const MAX_EVENTS = 30000;
 const DOCUMENT_BUDGET = 4 * 1024 * 1024;
