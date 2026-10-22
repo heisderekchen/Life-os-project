@@ -195,7 +195,9 @@ export async function getPublic(value, fetcher, redirects = 0, allowFeed = false
   const mime = r.headers.get("content-type") || "";
   if (!r.ok || !(mime.includes("text/html") || (allowFeed && /(?:application\/(?:rss\+xml|atom\+xml|xml)|text\/xml|application\/(?:json|javascript)|text\/javascript)/i.test(mime))))
     { const error = Error(`网页不可读（HTTP ${r.status}）`); error.status = r.status;
-      const retry = Number(r.headers.get('retry-after')); if (Number.isFinite(retry) && retry > 0) error.retryAfterMs = retry * 1000;
+      const value = r.headers.get('retry-after');
+      const retry = value && (/^\d+(?:\.\d+)?$/.test(value) ? Number(value) * 1000 : Date.parse(value) - Date.now());
+      if (Number.isFinite(retry) && retry >= 0) error.retryAfterMs = retry;
       throw error; }
   let html = "";
   const decoder = new TextDecoder();
