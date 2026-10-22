@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { abortable } from './async-control.mjs';
 import { readSourcePhotos } from './source-reader.mjs';
 import { isTargetPage } from './target-page.mjs';
-import { articleProductPhotos, structuredProductPhotos } from './article-products.mjs';
+import { articleProductPhotos, structuredProductPhotos, productPageKey } from './article-products.mjs';
 import { catalogAdapter, catalogueProductPhotos } from './source-adapters.mjs';
 import { recentSitemapCandidates } from './sitemap-discovery.mjs';
 import { deepseekDiscover } from './deepseek-search.mjs';
@@ -15,6 +15,7 @@ const translations = [
   ['芭蕾鞋', 'ballet flats'], ['乐福鞋', 'loafers'], ['高跟鞋', 'heels'],
   ['运动鞋', 'sneakers'], ['凉鞋', 'sandals'], ['短靴', 'ankle boots'], ['靴子', 'boots'],
   ['穆勒鞋', 'mules'], ['小白鞋', 'white sneakers'], ['女款', 'women'], ['女士', 'women'], ['女鞋', 'women shoes'],
+  ['休闲鞋', 'casual shoes'], ['休闲', 'casual'], ['冬季', 'winter'], ['冬款', 'winter'], ['冬天', 'winter'],
   ['漆皮', 'patent leather'], ['绒面', 'suede'], ['麂皮', 'suede'], ['真皮', 'leather'],
   ['皮革', 'leather'], ['网眼', 'mesh'], ['缎面', 'satin'], ['金属', 'metallic'],
   ['极简', 'minimalist'], ['复古', 'retro'], ['黑色', 'black'], ['棕色', 'brown'],
@@ -54,6 +55,10 @@ export function matchesIntent(subject, value, productTypeEvidence = false) {
   const terms = photoQuery(subject).toLowerCase().replace(/['’]/g, '').match(/[\p{L}\p{N}]+/gu) || [];
   const hay = photoQuery(value).toLowerCase().replace(/['’]/g, '')
     .replace(/\b(?:womens?|woman|ladies|female)\b/g, 'women');
+  // Season and casual use are often expressed as product features rather than
+  // literal title keywords. These aliases require positive product evidence.
+  const features = hay + (/\b(?:snow|insulated|thermal|winter|cold.weather|fleece.lined)\b/i.test(hay) ? ' winter' : '') +
+    (/\b(?:everyday|casual|lifestyle|sneakers?|trainers?)\b/i.test(hay) ? ' casual' : '');
   if (/\b(?:duffel|bag|handbag|backpack|shoebox|shoe bag|shoe box|storefront|logo)\b|鞋盒|手提包|鞋袋/i.test(value)) return false;
   if (apparel.test(value) && !footwear.test(value)) return false;
   if (terms.includes('leather') && /\bfaux\b|\bsynthetic\b|leather[- ]look|仿皮|人造革/i.test(value)) return false;
@@ -61,7 +66,7 @@ export function matchesIntent(subject, value, productTypeEvidence = false) {
   return terms.filter(t => !stop.has(t)).every(t => {
     if(t==='nike' && /\bAir\s+Jordan\b/i.test(value)) return true;
     const stem = t.length > 4 && t.endsWith('s') ? t.slice(0, -1) : t;
-    return hay.includes(stem);
+    return features.includes(stem);
   }) && (productTypeEvidence || knownNikeModel || footwear.test(value));
 }
 export function matchesProductIntent(subject, value, productTypeEvidence = false, verifiedBrand = '') {
@@ -81,6 +86,12 @@ export function matchesProductIntent(subject, value, productTypeEvidence = false
   if ([...evidence].some(brand => !requested.has(brand))) return false;
   if (![...requested].some(brand => found.has(brand) || evidence.has(brand))) return false;
   return matchesIntent(withoutBrands(subject, requested) || 'shoes', value, productTypeEvidence);
+}
+export function sourceProductMatches(html, pageURL, item, subject) {
+  const title = plain(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '');
+  if (matchesProductIntent(subject, title, Boolean(item.productTypeEvidence), item.verifiedBrand || '')) return true;
+  return structuredProductPhotos(html, pageURL, (name, brand, evidence) => matchesProductIntent(subject, evidence || name, true, brand))
+    .some(product => productPageKey(product.canonicalURL || product.url) === productPageKey(pageURL) && keyURL(product.image) === keyURL(item.image));
 }
 export function discoveryIntent(subject, title) {
   return matchesIntent(subject,title) || /\b(?:shoe|footwear|flat|loafer|sneaker|boot)s?\b|鞋|靴/i.test(title);
@@ -421,7 +432,7 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
           const read = await readSourcePhotos({sources:entry.sources, readDocument:url=>abortable(()=>readDocument(url,fetcher),signal),
             readPage:url=>readCached(url), isRelevant:title=>matchesIntent(input.subject,title), isDiscoveryRelevant:title=>discoveryIntent(input.subject,title),
             isPriorityRelevant:title=>matchesIntent(input.subject,title,true),
-            isProductRelevant:(title,brand)=>matchesProductIntent(input.subject,title,true,brand), signal, trace: entryTrace});
+            isProductRelevant:(title,brand,evidence)=>matchesProductIntent(input.subject,evidence||title,true,brand), signal, trace: entryTrace});
           sourceChecks.push(...read.checks);
           attempts = [{provider:'来源自身页面',results:read.results,...(read.checks.every(c=>c.status==='error')?{error:'来源文档均不可读取'}:{})}];
         } else if (entry.catalogURL) {
@@ -609,7 +620,7 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
     if (candidate.catalogURL && candidate.image && catalogCompleted.has(candidate.url + '|' + keyURL(candidate.image))) {
       trace('candidate.skipped', { candidateId: candidate.debugId, url: candidate.url, reason: 'checkpointAlreadyCompleted' }); return false;
     }
-    const key = candidate.image ? keyURL(candidate.image) : `catalog:${candidate.productCode || candidate.url}`;
+    const key = candidate.image ? keyURL(candidate.image) : `catalog:${candidate.productCode || productPageKey(candidate.url)}`;
     if (images.has(key)) { trace('candidate.skipped', { candidateId: candidate.debugId, url: candidate.url, key, reason: 'duplicateDiscovery' }); return false; }
     images.add(key); return true;
   });
@@ -684,21 +695,31 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
           }
           return accepted;
         }
-        const products = structuredProductPhotos(html, url, (title, brand) => matchesProductIntent(subject, title, true, brand))
+        const structured = structuredProductPhotos(html, url, () => true);
+        const products = structured.filter(product => matchesProductIntent(subject, product.intentEvidence || product.title, true, product.brandEvidence))
           .concat(articleProductPhotos(html,url,t=>matchesIntent(subject,t)));
-        const ownProducts = products.filter(p => keyURL(p.canonicalURL || p.url || url) === keyURL(url) && !/preview_images|\.thumbnail\./i.test(p.image));
+        const belongsToPage = product => productPageKey(product.canonicalURL || product.url || url) === productPageKey(url) && !/preview_images|\.thumbnail\./i.test(product.image);
+        const declaredOwn = structured.filter(belongsToPage);
+        const ownProducts = products.filter(belongsToPage);
         trace('candidate.page.evidence', { ...evidence, products, ownProducts: ownProducts.length,
-          unfilteredStructuredProducts: !ownProducts.length ? structuredProductPhotos(html, url, () => true) : undefined,
-          distinctProductPages: new Set(products.map(p => keyURL(p.canonicalURL || p.url || url))).size });
+          unfilteredStructuredProducts: !ownProducts.length ? structured : undefined,
+          declaredOwnProducts: declaredOwn.length,
+          distinctProductPages: new Set(products.map(p => productPageKey(p.canonicalURL || p.url || url))).size });
         reason = 'productEvidenceMissing';
-        if (!candidate.image && (!ownProducts.length || new Set(products.map(p => keyURL(p.canonicalURL || p.url || url))).size !== 1)) throw Error('未找到唯一归属于当前页面且符合需求的商品图片');
+        if (!candidate.image && !ownProducts.length) {
+          if (declaredOwn.length) reason = 'sourceIntentMismatch';
+          throw Error(declaredOwn.length ? '原页已有商品图片，但商品信息未满足检索条件' : '未提取到归属于当前页面的商品图片');
+        }
+        if (!candidate.image && new Set(ownProducts.map(p => p.title)).size > 1) { reason = 'ambiguousProductPage'; throw Error('原页存在多个不同商品，未自动选择图片'); }
         const product = (candidate.image ? products.find(p=>keyURL(p.image)===keyURL(candidate.image)) : ownProducts[0]) || (!matchesIntent(subject,pageTitle) ? products[0] : null);
         const title = product?.title || pageTitle;
         const candidateImage = product?.image || candidate.image;
+        const productEvidence = product?.intentEvidence || title;
         Object.assign(evidence, { selectedProduct: product, selectedTitle: title, selectedImage: candidateImage,
-          titleMatches: matchesProductIntent(subject, title, Boolean(product?.productTypeEvidence), product?.brandEvidence) });
+          titleMatches: matchesProductIntent(subject, title, Boolean(product?.productTypeEvidence), product?.brandEvidence),
+          productEvidence, productMatches: matchesProductIntent(subject, productEvidence, Boolean(product?.productTypeEvidence), product?.brandEvidence) });
         reason = 'sourceIntentMismatch';
-        if (!matchesProductIntent(subject, title, Boolean(product?.productTypeEvidence), product?.brandEvidence)) throw Error('原页商品信息与英文需求不符');
+        if (!matchesProductIntent(subject, productEvidence, Boolean(product?.productTypeEvidence), product?.brandEvidence)) throw Error('原页商品信息与英文需求不符');
         reason = 'imageSourceMismatch';
         if (!candidateImage || !imageDeclared(html, candidateImage)) throw Error('候选图片未在原页中找到');
         const timestamp = Date.parse(

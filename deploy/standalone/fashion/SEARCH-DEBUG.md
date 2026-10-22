@@ -34,3 +34,12 @@
 - 日志写入失败单独显示 `storageError`，不会把它解释成“没有搜索结果”。下载末行 `export.snapshot` 给出当时执行状态、采样及存储错误；不属于执行事件序列。
 - HTTP 耗时测到响应头；`document.read` / `image.read` 的耗时包含响应体读取。不同层耗时不可直接相加。
 - 日志用于解释现有搜索行为，不代表图片已经通过视觉质量判断；结果仍需人工核查。
+
+## 1.0.14 核对规则修正
+
+- 查询规划显式关闭 thinking；空正文或输出截断单独记录，词表覆盖冬季/休闲组合。
+- `ProductGroup` 与 `Product` 都可提供当前商品证据；相关性同时核对商品名称、类别、描述及性别字段，不读取全站导航作为商品证据。
+- 记录正向季节/用途表达：snow、insulated、thermal、cold weather 等支持冬季，sneaker、everyday、lifestyle 等支持休闲；品牌、材质、颜色等其他要求继续核对。
+- Shopify 的 collection/product 与 canonical product 路径按同一商品归属核对，页面里的关联推荐商品不能挤掉当前商品；多个不同的当前商品仍拒绝自动选图。
+- 原页已有商品而相关性不符，记录 `sourceIntentMismatch`；未提取到商品图才记录 `productEvidenceMissing`，多商品歧义记录 `ambiguousProductPage`。交付前重新核验使用相同规则。
+- 零结果文案区分初筛数量、实际核对数量和原因；原页访问失败仍保留 HTTP 状态/网络 cause，不推断为条件太窄。

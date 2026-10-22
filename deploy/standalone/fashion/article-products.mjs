@@ -29,8 +29,18 @@ function jsonNodes(value, out = []) {
 function absoluteURL(value, base) {
   if (typeof value === 'object' && value) value = value.url || value.contentUrl || value['@id'];
   if (typeof value !== 'string') return '';
+  // Malformed Shopify values such as "https:files/photo.jpg" are not absolute
+  // image evidence and must not resolve under the current product directory.
+  if (/^https?:(?!\/\/)/i.test(value)) return '';
   const url = abs(value, base);
   return url && /^https?:$/.test(new URL(url).protocol) ? url : '';
+}
+
+export function productPageKey(value) {
+  const u = new URL(value);
+  const product = u.pathname.match(/\/(?:collections\/[^/]+\/)?products\/([^/]+)\/?$/i);
+  const path = product ? '/products/' + product[1] : u.pathname.replace(/\/$/, '');
+  return u.hostname.toLowerCase().replace(/^www\./, '') + path;
 }
 
 export function structuredProductPhotos(html, pageURL, isRelevant) {
@@ -41,14 +51,17 @@ export function structuredProductPhotos(html, pageURL, isRelevant) {
     try { data = JSON.parse(ent(script[1]).trim()); } catch { continue; }
     for (const node of jsonNodes(data)) {
       const types = Array.isArray(node['@type']) ? node['@type'] : [node['@type']];
-      if (!types.some(type => /^Product$/i.test(String(type || '')))) continue;
+      if (!types.some(type => /^Product(?:Group)?$/i.test(String(type || '')))) continue;
       const title = copy(ent(String(node.name || node.headline || '')).trim());
       const category = copy(ent(String(node.category || '')).trim());
+      const description = copy(ent(String(node.description || '')).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 6000));
+      const gender = copy(String(node.gender || node.audience?.suggestedGender || node.audience?.audienceType || ''));
+      const intentEvidence = [title, category, description, gender].filter(Boolean).join(' · ');
       const productURL = copy(absoluteURL(node.url || node.mainEntityOfPage, pageURL) || pageURL);
       const brandEvidence = copy(typeof node.brand === 'string' ? ent(node.brand)
         : ent(String(node.brand?.name || node.brand?.legalName || '')));
       const productTypeEvidence = /\b(?:footwear|shoes?|sneakers?|trainers?|boots?|sandals?)\b|鞋|靴/i.test(category + ' ' + title);
-      if (!title || !productTypeEvidence || !isRelevant(title, brandEvidence)) continue;
+      if (!title || !productTypeEvidence || !isRelevant(title, brandEvidence, intentEvidence)) continue;
       const pathCode = (() => {
         try {
           const path = new URL(productURL).pathname;
@@ -65,9 +78,11 @@ export function structuredProductPhotos(html, pageURL, isRelevant) {
           image,
           url: productURL,
           canonicalURL: productURL,
-          productCode: copy(String(node.sku || node.mpn || pathCode)),
+          productCode: copy(String(node.sku || node.mpn || node.productGroupID || pathCode)),
           productTypeEvidence: 'footwear',
           brandEvidence,
+          intentEvidence,
+          schemaType: types.find(type => /^Product(?:Group)?$/i.test(String(type || ''))),
         });
       }
     }
