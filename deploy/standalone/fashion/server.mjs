@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { abortable } from "./async-control.mjs";
 import { runSourceQueue, SOURCE_QUEUE_READER_VERSION } from './source-queue.mjs';
 import { sourceCatalog } from "./public/source-catalog.js";
-import { searchPhotos, imageDeclared, matchesIntent, matchesProductIntent, exportHTML, countResultSources, createPageReadLimiter } from "./photo-search.mjs";
+import { searchPhotos, imageDeclared, matchesIntent, matchesProductIntent, sourceProductMatches, exportHTML, countResultSources, createPageReadLimiter } from "./photo-search.mjs";
 import { deepseekSearchReady } from './deepseek-search.mjs';
 import { SEARCH_VERSION, createSearchTrace, readSearchTrace, interruptSearchTrace, errorDetails, sanitizeTrace } from './search-trace.mjs';
 import { readFile, writeFile, mkdir, rename, unlink } from "node:fs/promises";
@@ -329,12 +329,7 @@ export function createApp({
       const bytes = await readFile(assetFile(item.imageSha256)).catch(() => { throw Error('图片缓存失效，请重新检索并核查。'); });
       if (createHash('sha256').update(bytes).digest('hex') !== item.imageSha256) throw Error('图片缓存已变化，请重新检索。');
       const { html, url } = await getPublic(item.url, fetcher);
-      if (url !== item.url || !imageDeclared(html, item.image) || !matchesProductIntent(
-        item.searchIntent || task.input.subject,
-        html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '',
-        Boolean(item.productTypeEvidence),
-        item.verifiedBrand || '',
-      ))
+      if (url !== item.url || !imageDeclared(html, item.image) || !sourceProductMatches(html, url, item, item.searchIntent || task.input.subject))
         throw Error('原始来源或图片对应关系已变化，请重新检索并核查。');
     }
   }
@@ -406,13 +401,16 @@ export function createApp({
     const matched = task.channels.reduce((n, c) => n + (c.intentMatched || 0), 0);
     if (failures.length) notes.push(`${failures.length} 个检索渠道失败，请展开渠道记录查看原因`);
     if (discovered && !matched) notes.push(`找到 ${discovered} 个候选，全部在来源或相关性筛选阶段被排除`);
-    if (matched) notes.push(`${matched} 个候选进入原网页及图片核对，未有通过结果`);
+    if (matched) notes.push(`初筛保留 ${matched} 个候选，已完成 ${task.progress?.checked || 0} 个原网页及图片核对，未有通过结果`);
+    if (rejected.productEvidenceMissing) notes.push(`${rejected.productEvidenceMissing} 条未提取到当前商品图片证据`);
+    if (rejected.sourceIntentMismatch) notes.push(`${rejected.sourceIntentMismatch} 条商品信息未满足检索条件`);
+    if (rejected.ambiguousProductPage) notes.push(`${rejected.ambiguousProductPage} 条页面包含多个商品，未自动选图`);
     if (rejected.dateUnconfirmed) notes.push(`${rejected.dateUnconfirmed} 条未能确认发布日期`);
     if (rejected.outsideDateRange) notes.push(`${rejected.outsideDateRange} 条超出近 ${task.input.days} 天`);
     if (rejected.sourceUnavailable) notes.push(`${rejected.sourceUnavailable} 条原页面暂时无法读取`);
     if (rejected.imageSourceMismatch || rejected.imageUnavailable) notes.push(`${(rejected.imageSourceMismatch || 0) + (rejected.imageUnavailable || 0)} 条图片未通过核对`);
     return '未找到符合当前条件的结果。' + (notes.length ? notes.join('；') + '。' : '') +
-      (task.input.days ? '可调整时间范围后重试；本次未放宽日期要求。' : '可调整关键词或来源范围后重试。');
+      (task.input.days ? '可调整时间范围后重试；本次未放宽日期要求。' : '可重试本任务，并在搜索调试记录中查看具体原因。');
   }
   async function start(account, task, { fresh = false } = {}) {
     const key = account + task.id;
