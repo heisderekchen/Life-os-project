@@ -88,7 +88,7 @@ test('unified workspace keeps filters, task rows and graph selection usable acro
       const row = await selected.boundingBox()
       const viewport = await page.locator('.workspace-table-scroll').boundingBox()
       const header = await page.locator('.workspace-table thead').boundingBox()
-      return Boolean(row && viewport && header && row.y >= header.y + header.height - 1 && row.y + row.height <= viewport.y + viewport.height + 1)
+      return Boolean(row && viewport && header && row.y >= viewport.y + header.height - 1 && row.y + row.height <= viewport.y + viewport.height + 1)
     }).toBe(true)
   }
   await expectSelectionVisible()
