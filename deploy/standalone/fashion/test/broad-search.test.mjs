@@ -39,6 +39,13 @@ test('M.Gemi campaign photographs cannot replace identifiable own-product views'
  assert.equal(publicProductPhotos({...p,images:[p.images[1],p.images[0]]},'https://mgemi.com')[0].imagePosition,2);
  const unknown=publicProductPhotos({...p,images:['https://cdn.test/photo1.jpg','https://cdn.test/photo2.jpg']},'https://mgemi.com');assert.equal(unknown.length,1);
 });
+test('cocoa/off-white colorways retain their declared brown family instead of qualifying as white shoes', async () => {
+ const {matchesPhotoProduct}=await import('../photo-search.mjs');
+ const p=publicProductPhotos(raw(1,{title:'Cocoa & Off White Leather Sneakers',type:'Sneakers',tags:['gender:woman','clf:browns','clr:rife cocoa & off white','color_plain:rife cocoa & off white']}),'https://alohas.com')[0];
+ assert(!matchesPhotoProduct('women white sneakers',p));assert(matchesPhotoProduct('women brown sneakers',p));
+ const white=publicProductPhotos(raw(2,{title:"Women's white leather sneakers",type:'Sneakers',tags:['gender:woman','clf:whites','clr:off white']}),'https://alohas.com')[0];assert(matchesPhotoProduct('women white sneakers',white));
+ const trim=publicProductPhotos(raw(3,{title:"Women's brown sneakers with black trim",type:'Sneakers',tags:['gender:woman','clf:browns']}),'https://alohas.com')[0];assert(!matchesPhotoProduct('women black sneakers',trim));
+});
 test('third-page official evidence precedes verification of unrelated web fallback candidates', async () => {
  const pages=[];let webReads=0;
  const f=async u=>String(u).endsWith('/chat/completions')?fetcher(String(u)):Response.json({results:[{title:'Women winter casual shoes',url:'https://unreviewed.test/products/shoe'}]});f.deepseekRelay='https://relay.example';

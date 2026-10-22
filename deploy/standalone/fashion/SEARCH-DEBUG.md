@@ -100,3 +100,5 @@ FASHION_ROUND=production-01 FASHION_BENCHMARK_BASE=https://happyspa.studio/fashi
 - 每轮JSONL增加`catalogue.source.snapshot`：真实目录原文的gzip+base64分块、URL、抓取时间和SHA。分块避免单字符串截断；每轮最多4MB编码快照，超额会明确记录`catalogue.source.snapshot.omitted`。其他事件、原文样本和原图证据仍保留。
 - 提取和校验原始目录：`node deploy/standalone/fashion/scripts/extract-catalogue-snapshots.mjs trace.jsonl [output-directory]`。输出按原文SHA命名，已有不同内容文件不会被覆盖。
 - M.Gemi商品相册包含其他鞋款/颜色的搭配照。该来源优先使用文件中明确匹配商品ID或型号的照片；没有任何可识别型号的相册只保留主图。筛除数量与规则写入目录候选记录，交付时仍复核同一来源证据。
+
+- 颜色筛选优先品牌声明的`clf`颜色家族，统一单复数、大小写和常见棕色名称；颜色条件核对主色，避免把cocoa/off-white算成白鞋，或把棕色鞋上的黑色装饰算成黑鞋。

@@ -29,7 +29,7 @@ export function publicProductPhotos(raw, base, expectedURL) {
   if (!footwear.test([classification, p.title, ...subtypeTags].join(' ')) || /\b(?:clothing|apparel|accessories|socks?|bags?|handbags?|laces?|insoles?|shoe care|cleaners?|cleaning|spray|shoehorn)\b/i.test(classification)) return [];
   const hueTags = tags.filter(t => /hue\s*=>/i.test(t));
   const singleColor = (Array.isArray(p.options) ? p.options : []).filter(o => o && /^colou?r$/i.test(o.name) && Array.isArray(o.values) && o.values.length === 1).map(o => text(o.values[0]));
-  const colorEvidence = [...tags.filter(t => /^(?:colou?r:|_filter_color\s+|color_plain:|clr:)/i.test(t)), ...singleColor, String(p.title).replace(/\([^)]*soles?[^)]*\)/gi, ''), ...(hueTags.length === 1 ? hueTags : [])].join(' · ');
+  const colorEvidence = [...tags.filter(t => /^clf:/i.test(t)), ...tags.filter(t => /^(?:colou?r:|_filter_color\s+|color_plain:|clr:)/i.test(t)), ...singleColor, String(p.title).replace(/\([^)]*soles?[^)]*\)/gi, ''), ...(hueTags.length === 1 ? hueTags : [])].join(' · ');
   const evidence = [p.title, classification, ...singleColor, text(p.body_html || p.description), ...tags.filter(t => !/^[@#*]|^(?:loafers[- /]flats|flats[- /]loafers)$|YGroup|YCRF|YBlock|^(?:cf-)?size|promo|exclude|inclusion|friendfam|gifts|^notes|^image-add|laborday|nmas|scm-|threatlevel|Zodiac:|Everyday Essentials/i.test(String(t)))].map(text).filter(Boolean).join(' · ');
   const photos = Array.isArray(p.images) ? p.images : [];
   let productPhotos = photos;
