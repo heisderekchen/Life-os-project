@@ -620,7 +620,7 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
     if (candidate.catalogURL && candidate.image && catalogCompleted.has(candidate.url + '|' + keyURL(candidate.image))) {
       trace('candidate.skipped', { candidateId: candidate.debugId, url: candidate.url, reason: 'checkpointAlreadyCompleted' }); return false;
     }
-    const key = candidate.image ? keyURL(candidate.image) : `catalog:${candidate.productCode || productPageKey(candidate.url)}`;
+    const key = candidate.image ? keyURL(candidate.image) : `catalog:${candidate.productCode || candidate.url}`;
     if (images.has(key)) { trace('candidate.skipped', { candidateId: candidate.debugId, url: candidate.url, key, reason: 'duplicateDiscovery' }); return false; }
     images.add(key); return true;
   });
