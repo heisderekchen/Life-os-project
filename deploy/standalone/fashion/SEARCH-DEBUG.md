@@ -43,3 +43,25 @@
 - Shopify 的 collection/product 与 canonical product 路径按同一商品归属核对，页面里的关联推荐商品不能挤掉当前商品；多个不同的当前商品仍拒绝自动选图。
 - 原页已有商品而相关性不符，记录 `sourceIntentMismatch`；未提取到商品图才记录 `productEvidenceMissing`，多商品歧义记录 `ambiguousProductPage`。交付前重新核验使用相同规则。
 - 零结果文案区分初筛数量、实际核对数量和原因；原页访问失败仍保留 HTTP 状态/网络 cause，不推断为条件太窄。
+
+## 1.0.15 广泛检索
+
+- 普通广泛搜索目标为 100 张真实下载、尺寸合格、归属明确、相关且去重的图片，候选预算提高到 1,200；不把搜索命中数当作已取得图片数。
+- `broad.started/intent/round.completed/round.failed/finished` 保存英文需求、目标、轮次、增量、耗时及是否达标；不足 100 时明确显示缺口，不造数据。
+- `catalogue.listing/filtered/failed/backoff/cache.hit` 保存公开品牌/零售商品目录的地址、页数、文档哈希、过滤分类与例子，以及命中商品自己的属性。目录缓存最长 15 分钟/32 MiB，仅用于发现；每张图片重新读取对应商品的公开 `.js` 数据，核对 handle、来源域名、原图声明和属性。结果保存 `evidenceURL`，交付前重新读取同一证据。
+- Gioseppo、Rieker、Steve Madden、Allbirds、Dolce Vita、Larroude、The Sports Edit 使用公开店面 JSON；允许的类型和排除域名继续生效。目录并非全部有效采集器，访问失败逐项保留。
+- 公开 JSON 使用受限 curl 兼容传输；只对已列出的公开来源、规定路径、HTTPS GET 生效。无 shell、无自动跳转、无鉴权/会话，禁用 curl 配置文件且不传环境密钥；最大 8 MiB/15 秒。执行环境需有 curl（现有部署健康检查也使用 curl）。普通网页和图片仍沿用现有 DNS/私网/重定向校验。请求日志标明 `curl-public-json`。
+- 分页补充后仍不足时，按原英文需求执行不同站点/措辞搜索，最多 14 个检索式；来源或视图失败后继续补充。每来源 1.6 秒请求间隔，429 遵守有限退避；总任务上限 12 分钟，已完成图片实时保存。
+- 每商品最多两个不同视角；检查前八张声明图片，重复或失败会继续找下一视角。SHA-256 精确去重，像素解码后使用色彩及 64 位差分指纹过滤近似图；同商品使用更严格的相似视角判定。`candidate.skipped: nearDuplicateImage` 保留跳过原因。
+- 相关性改成完整词匹配；促销/活动/关联款标签不参与属性证据，`winterpromo` 不代表冬季鞋款。冬季休闲排除露趾/细高跟等冲突类型。颜色使用当前商品的主色，白鞋底或关联白色款不能使黑鞋成为小白鞋。`loafers-flats` 等导航合并标签不作为鞋型证据；自身名称、分类及 Type/Style 字段出现冲突时拒绝串类。泛化的 WOMAN 分类可由明确鞋款名称/独立鞋型标签补足，儿童年龄分类不能仅凭 female 混入成人女鞋。
+- 全部结果仍为待人工核查，不自动标记已核查、选入或交付。自动质量检查与人工视觉判断分开。
+
+### 可复用真实网络回归
+
+```sh
+node --test deploy/standalone/fashion/test/*.test.mjs
+FASHION_ROUND=local-01 node deploy/standalone/fashion/scripts/broad-benchmark.mjs
+FASHION_ROUND=production-01 FASHION_BENCHMARK_BASE=https://happyspa.studio/fashion node deploy/standalone/fashion/scripts/broad-benchmark.mjs
+```
+
+默认覆盖女款冬季休闲鞋、小白鞋、乐福鞋、芭蕾平底鞋、凉鞋、短靴（不限时间，三类来源）。`FASHION_SUBJECTS` 可传主题 JSON 数组，`FASHION_BENCHMARK_OUT` 可指定证据目录。保存任务、逐图原图哈希/实际尺寸/近似重复检查、完整 JSONL、100 图总览及汇总；`automaticPass` 与 `visualReview` 分开，数量达标不代表视觉验收完成。生产回归使用自己的独立访客会话，不访问其他用户任务，也不修改人工核查状态。
