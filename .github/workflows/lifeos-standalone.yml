@@ -49,7 +49,14 @@ jobs:
       - run: bun run test
       - run: bun run build
       - name: Install Chromium for mobile viewport verification
-        run: bunx playwright install --with-deps chromium
+        timeout-minutes: 10
+        run: |
+          # The runner's Azure HTTP mirror can stall on font packages. Keep the
+          # same Ubuntu packages and browser checks, using the official HTTPS mirror.
+          if [[ -f /etc/apt/apt-mirrors.txt ]]; then
+            printf '%s\n' 'https://archive.ubuntu.com/ubuntu' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+          fi
+          bunx playwright install --with-deps chromium
       - name: Verify mobile task list height, scrolling, and desktop labels
         run: bunx playwright test --config=playwright.mobile.config.ts e2e/mobile-task-queue.spec.ts
       - name: Upload mobile viewport screenshots

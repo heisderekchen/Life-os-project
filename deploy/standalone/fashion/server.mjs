@@ -4,6 +4,7 @@ import { runSourceQueue, SOURCE_QUEUE_READER_VERSION } from './source-queue.mjs'
 import { sourceCatalog } from "./public/source-catalog.js";
 import { searchPhotos, imageDeclared, matchesIntent, matchesProductIntent, exportHTML, countResultSources, createPageReadLimiter } from "./photo-search.mjs";
 import { deepseekSearchReady } from './deepseek-search.mjs';
+import { SEARCH_VERSION, createSearchTrace, readSearchTrace, interruptSearchTrace, errorDetails, sanitizeTrace } from './search-trace.mjs';
 import { readFile, writeFile, mkdir, rename, unlink } from "node:fs/promises";
 import { resolve, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -307,6 +308,7 @@ export function createApp({
   const stores = new Map();
   const queues = new Map();
   const jobs = new Map();
+  const traces = new Map();
   let server;
   const file = (account) => resolve(dataDir, account + ".json");
   const sessionFile = sid => resolve(dataDir, 'sessions', createHash('sha256').update(sid).digest('hex') + '.json');
@@ -340,12 +342,20 @@ export function createApp({
     if (stores.has(account)) return stores.get(account);
     try {
       const v = JSON.parse(await readFile(file(account), "utf8"));
+      let interrupted = false;
       for (const task of v.tasks || [])
         if (task.status === "running") {
+          interrupted = true;
           task.status = "error";
           task.message = "上次检索因服务重启而中断，请重试。";
+          const run = task.debugRuns?.at(-1);
+          if (run?.status === 'running') {
+            try { await interruptSearchTrace(dataDir, account, task.id, run); }
+            catch (error) { run.storageError = sanitizeTrace(errorDetails(error)); }
+          }
         }
       stores.set(account, v);
+      if (interrupted) await save(account);
       return v;
     } catch (e) {
       if (e.code !== "ENOENT") throw e;
@@ -373,6 +383,8 @@ export function createApp({
     task.message = '';
     task.channels = [];
     task.updatedAt = now;
+    task.debugRuns ||= [];
+    task.debugRuns.push({ id: randomBytes(12).toString('hex'), startedAt: now, status: 'running', version: SEARCH_VERSION });
     const priorProgress = priorQueue ? {
       plannedSources: priorQueue.plannedSources || 0,
       queriedSources: priorQueue.queriedSources || 0,
@@ -406,12 +418,46 @@ export function createApp({
     const key = account + task.id;
     if (jobs.has(key)) throw Error("任务正在检索，请稍候。");
     const controller = new AbortController();
+    const run = task.debugRuns.at(-1);
+    const debug = createSearchTrace({ dataDir, account, taskId: task.id, run });
+    const trace = debug.emit;
+    traces.set(run.id, debug);
+    trace('run.started', { input: task.input, version: SEARCH_VERSION, fresh, previousRunId: task.debugRuns.at(-2)?.id,
+      searchTimeoutMs, photoSearch, searchProvider: deepseekSearchReady(fetcher) ? 'deepseek' : 'legacy',
+      existingResultCount: task.items.length, captureLimits: run.captureLimits });
+    const recordedFetcher = debug.wrapFetcher(fetcher);
     let timeout = setTimeout(() => controller.abort(new DOMException('检索超时', 'TimeoutError')), searchTimeoutMs);
     const clearMainTimer = () => { if (timeout) { clearTimeout(timeout); timeout = null; } };
-    const jobFetcher = (url, options = {}) => abortable(() => fetcher(url, { ...options,
+    const jobFetcher = (url, options = {}) => abortable(() => recordedFetcher(url, { ...options,
       signal: options.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal }), controller.signal);
     jobFetcher.trustedRelayHosts = fetcher.trustedRelayHosts;
     jobFetcher.deepseekRelay = fetcher.deepseekRelay;
+    const tracedRead = (reader, kind) => async (url, f) => {
+      const started = Date.now();
+      trace('document.started', { kind, url });
+      try {
+        const page = await reader(url, f);
+        debug.document(kind, url, page, Date.now() - started);
+        return page;
+      } catch (error) {
+        trace('document.failed', { kind, url, durationMs: Date.now() - started, error: errorDetails(error) });
+        throw error;
+      }
+    };
+    const readPage = tracedRead(getPublic, 'page');
+    const readDocument = tracedRead((url, f) => getPublic(url, f, 0, true), 'source-document');
+    const readImage = async (url, f) => {
+      const started = Date.now();
+      try {
+        const asset = await getImage(url, f);
+        trace('image.read', { url, durationMs: Date.now() - started, bytes: asset.bytes.length,
+          mime: asset.mime, width: asset.width, height: asset.height, sha256: createHash('sha256').update(asset.bytes).digest('hex') });
+        return asset;
+      } catch (error) {
+        trace('image.failed', { url, durationMs: Date.now() - started, error: errorDetails(error) });
+        throw error;
+      }
+    };
     const limitPageRead = createPageReadLimiter();
     const old = new Map(task.items.map(x => [x.url + ':' + x.imageSha256, x]));
     const retainReview = items => items.map(x => {
@@ -488,6 +534,8 @@ export function createApp({
           await scheduleProgressSave();
         };
         const plans = await abortable(async () => await planSources(task.input) || searchPlan(task.input), controller.signal);
+        trace('plan.created', { entries: plans.length, excludedDomains: plans.excludedDomains || [] });
+        plans.forEach((entry, index) => trace('plan.entry', { index, entry }));
         const broadScope = photoSearch && task.input.sourceScope === 2 && Array.isArray(plans) && !plans.some(p => p.deepseek) && plans.some(p => p.domains.length);
         if (broadScope) {
           clearMainTimer();
@@ -498,6 +546,7 @@ export function createApp({
           const resumeRecords = fresh ? [] : priorRecords.map(r => ({ ...r }));
           const entries = plans;
           const queueSignal = AbortSignal.any([controller.signal]);
+          const queueTraceStates = new Map();
           const result = await runSourceQueue({
             entries,
             previous: resumeRecords,
@@ -507,8 +556,9 @@ export function createApp({
             retryFailed: true,
             previousReaderVersion: Number(task.sourceQueue?.readerVersion) || 1,
             runEntry: async (entry, { signal: entrySignal, onPartial, checkpoint }) => {
+              trace('queue.entry.started', { entry, resumed: Boolean(checkpoint), checkpointProducts: checkpoint?.products?.length });
               const comboSignal = AbortSignal.any([entrySignal, controller.signal]);
-              const entryFetcher = (url, options = {}) => abortable(() => fetcher(url, { ...options,
+              const entryFetcher = (url, options = {}) => abortable(() => recordedFetcher(url, { ...options,
                 signal: options.signal ? AbortSignal.any([comboSignal, options.signal]) : comboSignal }), comboSignal);
               entryFetcher.trustedRelayHosts = fetcher.trustedRelayHosts;
               entryFetcher.deepseekRelay = fetcher.deepseekRelay;
@@ -517,15 +567,16 @@ export function createApp({
               const value = await searchPhotos({ ...task.input, sourceScope: 0, domains: [] }, {
                 fetcher: entryFetcher,
                 plans: entryPlans,
-                readPage: getPublic,
-                readDocument: (url, f) => getPublic(url, f, 0, true),
-                readImage: getImage,
+                readPage,
+                readDocument,
+                readImage,
                 saveAsset,
                 signal: comboSignal,
                 resultLimit: entry.catalogResultLimit,
                 checkpoint,
                 incrementalProgress: true,
                 limitPageRead,
+                trace: (type, data) => trace(type, { queueDomains: entry.domains, queueLabel: entry.label, ...data }),
                 onProgress: async (p) => { if (typeof onPartial === 'function') await onPartial(p); },
               });
               return value;
@@ -540,7 +591,12 @@ export function createApp({
                 await scheduleProgressSave();
               }
             },
-            onResult: async ({ entry, value }) => {
+            onResult: async ({ entry, value, partial }) => {
+              trace(partial ? 'queue.entry.progress' : 'queue.entry.completed', { domains: entry.domains, label: entry.label,
+                channels: partial ? undefined : value?.channels, sourceChecks: partial ? undefined : value?.sourceChecks,
+                stage: value?.stage, checked: value?.checked, itemCount: value?.items?.length,
+                checkpoint: !partial && value?.checkpoint ? { complete: value.checkpoint.complete, next: value.checkpoint.next,
+                  products: value.checkpoint.products?.length, discoveryFailures: value.checkpoint.discoveryFailures } : undefined });
               if (!active || controller.signal.aborted) return;
               if (value && Array.isArray(value.items) && value.items.length) {
                 mergeItems(retainReview(value.items));
@@ -553,6 +609,14 @@ export function createApp({
             onUpdate: async (snapshot) => {
               if (!active || controller.signal.aborted) return;
               const records = Array.isArray(snapshot.records) ? snapshot.records : [];
+              for (const record of records) {
+                const state = record.status + ':' + (record.error || '');
+                if (queueTraceStates.get(record.id) !== state) {
+                  queueTraceStates.set(record.id, state);
+                  trace('queue.entry.state', { id: record.id, label: record.label, domains: record.domains,
+                    status: record.status, error: record.error, sourceChecks: record.sourceChecks, matchedDomains: record.matchedDomains });
+                }
+              }
               task.sourceQueue = {
                 readerVersion: SOURCE_QUEUE_READER_VERSION,
                 records: records.map(r => ({ ...r })),
@@ -602,8 +666,8 @@ export function createApp({
           task.channels = [{ provider: '公开来源索引', query: '分批来源查询', count: task.items.length }];
         } else {
           const result = await abortable(() => photoSearch ? searchPhotos(task.input, {
-            fetcher: jobFetcher, plans, readPage: getPublic, readDocument: (url, f) => getPublic(url, f, 0, true), readImage: getImage,
-            saveAsset, signal: controller.signal, onProgress,
+            fetcher: jobFetcher, plans, readPage, readDocument, readImage,
+            saveAsset, signal: controller.signal, onProgress, trace,
           }) : runSearch(task.input, jobFetcher), controller.signal);
           task.items = retainReview(result.items);
           task.channels = result.channels;
@@ -611,6 +675,8 @@ export function createApp({
           task.message = task.items.length ? '' : noResultsMessage(task);
         }
       } catch (e) {
+        trace('run.failed', { error: errorDetails(e), aborted: controller.signal.aborted,
+          abortReason: controller.signal.aborted ? errorDetails(controller.signal.reason) : undefined });
         const timedOut = controller.signal.aborted;
         task.status = timedOut && task.progress.accepted ? 'review' : 'error';
         task.message = timedOut
@@ -621,8 +687,12 @@ export function createApp({
         clearMainTimer();
         task.progress = { ...task.progress, stage: task.status === 'error' ? 'error' : 'done', finishedAt: new Date().toISOString() };
         task.updatedAt = new Date().toISOString();
+        await debug.finish({ status: controller.signal.aborted ? 'timed-out' : task.status,
+          resultCount: task.items.length, message: task.message, progress: task.progress, channels: task.channels,
+          resultEvidence: task.items.map(i => ({ id: i.id, url: i.url, image: i.image, title: i.title, sha256: i.imageSha256 })) });
         try { await flushProgress(); }
-        catch { task.status = 'error'; task.message = '任务结果保存失败，请稍后重试。'; }
+        catch (error) { task.status = 'error'; task.message = '任务结果保存失败，请稍后重试。'; run.taskSaveError = sanitizeTrace(errorDetails(error)); }
+        traces.delete(run.id);
         jobs.delete(key);
       }
     })();
@@ -682,7 +752,7 @@ export function createApp({
           sourceCatalog,
         });
       }
-      if (u.pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "1.0.12", storage: "persistent-files", searchProvider: deepseekSearchReady(fetcher) ? 'deepseek' : 'legacy', deepseekConfigured: deepseekSearchReady(fetcher) });
+      if (u.pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: SEARCH_VERSION, storage: "persistent-files", searchProvider: deepseekSearchReady(fetcher) ? 'deepseek' : 'legacy', deepseekConfigured: deepseekSearchReady(fetcher) });
       if (u.pathname === "/api/login" && req.method === "POST") {
         if (guestPreview)
           return json(res, 405, { error: "此预览直接进入，无需登录。" });
@@ -793,10 +863,22 @@ export function createApp({
           return json(res, 201, { task });
         }
         const m = u.pathname.match(
-          /^\/api\/tasks\/([a-f0-9]+)(?:\/(retry|review|deliver|reopen|export|image-error))?$/,
+          /^\/api\/tasks\/([a-f0-9]+)(?:\/(retry|review|deliver|reopen|export|image-error|debug))?$/,
         );
         const task = m && db.tasks.find((t) => t.id === m[1]);
         if (!task) return json(res, 404, { error: "未找到任务。" });
+        if (req.method === 'GET' && m[2] === 'debug') {
+          const run = u.searchParams.has('run') ? task.debugRuns?.find(r => r.id === u.searchParams.get('run')) : task.debugRuns?.at(-1);
+          if (!run) return json(res, 404, { error: '这次执行没有详细日志；新建或重试任务后开始记录。' });
+          await traces.get(run.id)?.flush();
+          let content;
+          try { content = await readSearchTrace(dataDir, account, task.id, run); }
+          catch (error) { if (error.code !== 'ENOENT') throw error; return json(res, 404, { error: '调试日志未能写入，请检查任务的日志保存错误。', run }); }
+          const snapshot = JSON.stringify({ type: 'export.snapshot', at: new Date().toISOString(), taskId: task.id, runId: run.id, data: sanitizeTrace(run) }) + '\n';
+          res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8',
+            'content-disposition': `attachment; filename="search-${task.id}-${run.id}.jsonl"`, 'cache-control': 'private, no-store' });
+          return res.end(content + snapshot);
+        }
         if (req.method === 'GET' && m[2] === 'export') {
           if (!task.delivery) return json(res, 409, { error: '请先生成交付结果。' });
           await validateEvidence(task, task.delivery.items);

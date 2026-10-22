@@ -7,6 +7,7 @@ import { articleProductPhotos, structuredProductPhotos } from './article-product
 import { catalogAdapter, catalogueProductPhotos } from './source-adapters.mjs';
 import { recentSitemapCandidates } from './sitemap-discovery.mjs';
 import { deepseekDiscover } from './deepseek-search.mjs';
+import { errorDetails } from './search-trace.mjs';
 
 const translations = [
   ['耐克', 'Nike'], ['阿迪达斯', 'Adidas'], ['新百伦', 'New Balance'], ['彪马', 'Puma'],
@@ -251,18 +252,22 @@ export function photoQueries(subject, scope) {
   if (hasShoe) return scope === 2 ? [base, `${base} new collection`, `${base} design`] : [base];
   return scope === 2 ? [`${base} shoes`, `${base} sneakers`, `${base} footwear`, `${base} women shoes`] : [`${base} shoes`];
 }
-function eligible(candidate, subject, domains) {
+function eligibilityReason(candidate, subject, domains) {
   try {
     const u = new URL(candidate.url), image = candidate.image ? new URL(candidate.image) : null;
-    return /^https?:$/.test(u.protocol) && (!image || /^https?:$/.test(image.protocol)) && !blocked.test(u.hostname) && isTargetPage(u.href) &&
-      !/\/(search|category|categories)(\/|$)|[?&]q=/i.test(u.pathname + u.search) &&
-      (!domains.length || domains.some(d => u.hostname === d || u.hostname.endsWith('.' + d))) &&
-      !/(?:演示数据|示例商品|demo product|sample product|placeholder)/i.test(candidate.title || '') &&
-      (candidate.productTypeEvidence ? matchesProductIntent(subject, candidate.title || '', true, candidate.brandEvidence || candidate.catalogue) : discoveryIntent(subject, candidate.title || '')) &&
-      (candidate.width === undefined || Number(candidate.width) >= 350) &&
-      (candidate.height === undefined || Number(candidate.height) >= 250);
-  } catch { return false; }
+    if (!/^https?:$/.test(u.protocol) || (image && !/^https?:$/.test(image.protocol))) return 'invalidProtocol';
+    if (blocked.test(u.hostname)) return 'blockedDomain';
+    if (!isTargetPage(u.href)) return 'notTargetPage';
+    if (/\/(search|category|categories)(\/|$)|[?&]q=/i.test(u.pathname + u.search)) return 'searchOrCategoryPage';
+    if (domains.length && !domains.some(d => u.hostname === d || u.hostname.endsWith('.' + d))) return 'outsideSourceScope';
+    if (/(?:演示数据|示例商品|demo product|sample product|placeholder)/i.test(candidate.title || '')) return 'placeholder';
+    if (!(candidate.productTypeEvidence ? matchesProductIntent(subject, candidate.title || '', true, candidate.brandEvidence || candidate.catalogue) : discoveryIntent(subject, candidate.title || ''))) return 'discoveryIntentMismatch';
+    if ((candidate.width !== undefined && !(Number(candidate.width) >= 350)) ||
+        (candidate.height !== undefined && !(Number(candidate.height) >= 250))) return 'declaredImageTooSmall';
+    return null;
+  } catch { return 'invalidURL'; }
 }
+const eligible = (candidate, subject, domains) => !eligibilityReason(candidate, subject, domains);
 async function discover(entry, fetcher, subject, signal) {
   if (entry.catalogURL) return [{ provider: '品牌官网目录', results: [] }];
   const loads = [['DuckDuckGo Images', () => duckDiscover(entry.query, fetcher)],
@@ -327,7 +332,7 @@ async function discoverOpenSources(entry, fetcher, readDocument, input, signal, 
   return attempts;
 }
 
-export async function searchPhotos(input, { fetcher, plans, readPage, readDocument = readPage, readImage, saveAsset, signal, onProgress = async () => {}, resultLimit, checkpoint = null, pageCacheLimit = PAGE_CACHE_LIMIT, pageCacheByteLimit = PAGE_CACHE_BYTE_LIMIT, incrementalProgress = false, limitPageRead = task => task() } = {}) {
+export async function searchPhotos(input, { fetcher, plans, readPage, readDocument = readPage, readImage, saveAsset, signal, onProgress = async () => {}, resultLimit, checkpoint = null, pageCacheLimit = PAGE_CACHE_LIMIT, pageCacheByteLimit = PAGE_CACHE_BYTE_LIMIT, incrementalProgress = false, limitPageRead = task => task(), trace = () => {} } = {}) {
   const channels = [], buckets = [], images = new Set(), hashes = new Set();
   const limits = photoLimits(input);
   const maxResults = Number.isFinite(resultLimit) && resultLimit > 0 ? resultLimit : limits.results;
@@ -335,6 +340,7 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
   const pageCache = createPageLRU(pageCacheLimit, pageCacheByteLimit);
   const readCached = (url, f = fetcher) => {
     if (pageCache.get(url) === undefined) {
+      trace('page.cache.miss', { url });
       const pending = abortable(() => limitPageRead(() => readPage(url, f), signal), signal).then(value => {
         pageCache.set(value.url, Promise.resolve(value), estimatePageBytes(value));
         if (value.url !== url) pageCache.delete(url);
@@ -344,7 +350,7 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
         throw error;
       });
       pageCache.set(url, pending);
-    }
+    } else trace('page.cache.hit', { url });
     return pageCache.get(url);
   };
   const readCachedWithRetry = async (url, attempts = 3) => {
@@ -352,6 +358,7 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
     for (let attempt = 0; attempt < attempts; attempt++) {
       try { return await readCached(url); }
       catch (error) {
+        trace('page.retry', { url, attempt: attempt + 1, maxAttempts: attempts, error: errorDetails(error), willRetry: !signal?.aborted && attempt + 1 < attempts });
         last = error;
         signal?.throwIfAborted();
         if (attempt + 1 < attempts) await abortable(() => new Promise(resolve => setTimeout(resolve, 250 * 2 ** attempt)), signal);
@@ -380,6 +387,7 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
     ...p, sources: undefined, catalogURL: undefined, catalogue: undefined, sourceReader: false, openDiscovery: true, query: base,
   })));
   if (agentPlan) entries.unshift({ ...agentPlan, query: base, label: 'DeepSeek 商品发现' });
+  trace('discovery.started', { originalSubject: input.subject, dictionaryQuery: base, variants, limits, maxResults, entryCount: entries.length, excludedDomains: plans.excludedDomains || [] });
   let checked = 0, completed = 0;
   const items = [];
   let catalogCheckpoint = null;
@@ -400,17 +408,20 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
   await Promise.all(Array.from({ length: Math.min(entries.length, 5) }, async () => {
     while (nextEntry < entries.length) {
       const entry = entries[nextEntry++];
+      const entryId = randomBytes(8).toString('hex');
+      const entryTrace = (type, data) => trace(type, { entryId, ...data });
+      entryTrace('entry.started', { entry });
       try {
         let attempts;
         if (entry.deepseek) {
-          attempts = await deepseekDiscover(input, base, fetcher, signal);
+          attempts = await deepseekDiscover(input, base, fetcher, signal, entryTrace);
         } else if (entry.openDiscovery) {
           attempts = await discoverOpenSources(entry, fetcher, readDocument, input, signal, excluded);
         } else if (entry.sourceReader) {
           const read = await readSourcePhotos({sources:entry.sources, readDocument:url=>abortable(()=>readDocument(url,fetcher),signal),
             readPage:url=>readCached(url), isRelevant:title=>matchesIntent(input.subject,title), isDiscoveryRelevant:title=>discoveryIntent(input.subject,title),
             isPriorityRelevant:title=>matchesIntent(input.subject,title,true),
-            isProductRelevant:(title,brand)=>matchesProductIntent(input.subject,title,true,brand), signal});
+            isProductRelevant:(title,brand)=>matchesProductIntent(input.subject,title,true,brand), signal, trace: entryTrace});
           sourceChecks.push(...read.checks);
           attempts = [{provider:'来源自身页面',results:read.results,...(read.checks.every(c=>c.status==='error')?{error:'来源文档均不可读取'}:{})}];
         } else if (entry.catalogURL) {
@@ -489,6 +500,7 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
               addProducts(adapter.photos(data, entry.catalogURL));
               next = safeNext;
             } catch (error) {
+              entryTrace('catalogue.page.failed', { url: pageURL, error: errorDetails(error) });
               catalogDiscoveryError = error;
               next = pageURL;
               break;
@@ -520,6 +532,7 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
                   if (!visited.has(product.url) && !frontier.includes(product.url)) frontier.push(product.url);
                 }
               } catch (error) {
+                entryTrace('catalogue.page.failed', { url: pageURL, error: errorDetails(error) });
                 signal?.throwIfAborted();
                 discoveryFailures.push({ url: pageURL, error: error.message || String(error) });
               }
@@ -552,13 +565,23 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
         } else attempts = await discover(entry, fetcher, input.subject, signal);
         signal?.throwIfAborted();
         for (const { results: found, provider, error, query, intent, planningError, planningAttempts, transportAttempts } of attempts) {
-          const matches = found.filter(candidate => eligible(candidate, intent || input.subject, entry.domains) && !excluded(new URL(candidate.url).hostname));
+          const channelId = randomBytes(8).toString('hex');
+          const matches = [];
+          for (const candidate of found) {
+            const candidateId = randomBytes(8).toString('hex');
+            const reason = eligibilityReason(candidate, intent || input.subject, entry.domains) ||
+              (excluded(new URL(candidate.url).hostname) ? 'excludedDomain' : null);
+            entryTrace('candidate.prefilter', { channelId, candidateId, provider, query: query || entry.query,
+              intent: intent || input.subject, domains: entry.domains, candidate, decision: reason ? 'rejected' : 'retained', reason });
+            if (!reason) matches.push({ ...candidate, debugId: candidateId });
+          }
           const scopeRejected = entry.domains.length && found.length && !found.some(c=>{try{const h=new URL(c.url).hostname;return entry.domains.some(d=>h===d||h.endsWith('.'+d));}catch{return false;}});
           const channelError = error || (scopeRejected ? '检索渠道未返回指定来源内的内容，范围未确认' : null);
-          const channel = { provider, query: query || entry.query, ...(intent ? { intent } : {}), label: entry.label, domains: entry.domains, status: channelError ? 'error' : matches.length ? 'ready' : 'empty',
+          const channel = { debugId: channelId, entryId, provider, query: query || entry.query, ...(intent ? { intent } : {}), label: entry.label, domains: entry.domains, status: channelError ? 'error' : matches.length ? 'ready' : 'empty',
             ...(transportAttempts ? { transportAttempts, planningAttempts } : {}),
             count: 0, discovered: found.length, intentMatched: matches.length, prefilterRejected: found.length - matches.length, rejected: {}, ...(planningError ? { planningError } : {}), ...(channelError ? { error:channelError } : {}) };
           channels.push(channel);
+          entryTrace('channel.discovered', { channel });
           buckets.push(matches.map(candidate => ({
             ...candidate, channel, domains: entry.domains, intentSubject: intent || input.subject,
             catalogue: candidate.catalogURL
@@ -568,6 +591,7 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
           })));
         }
       } catch (error) {
+        entryTrace('entry.failed', { error: errorDetails(error), aborted: Boolean(signal?.aborted) });
         signal?.throwIfAborted();
         channels.push({ provider: entry.catalogURL ? '品牌官网目录' : '公开图片检索', query: entry.query, label: entry.label, status: 'error', count: 0, error: error.message });
       }
@@ -581,41 +605,59 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
   const candidates = [];
   for (let row = 0; buckets.some(bucket => row < bucket.length); row++)
     for (const bucket of buckets) if (bucket[row]) candidates.push(bucket[row]);
-  const unique = candidates.filter(candidate => {
-    if (candidate.catalogURL && candidate.image && catalogCompleted.has(candidate.url + '|' + keyURL(candidate.image))) return false;
+  const deduplicated = candidates.filter(candidate => {
+    if (candidate.catalogURL && candidate.image && catalogCompleted.has(candidate.url + '|' + keyURL(candidate.image))) {
+      trace('candidate.skipped', { candidateId: candidate.debugId, url: candidate.url, reason: 'checkpointAlreadyCompleted' }); return false;
+    }
     const key = candidate.image ? keyURL(candidate.image) : `catalog:${candidate.productCode || candidate.url}`;
-    if (images.has(key)) return false;
+    if (images.has(key)) { trace('candidate.skipped', { candidateId: candidate.debugId, url: candidate.url, key, reason: 'duplicateDiscovery' }); return false; }
     images.add(key); return true;
-  }).slice(0, Math.max(limits.candidates, candidates.filter(candidate => candidate.catalogURL).length));
+  });
+  const unique = deduplicated.slice(0, Math.max(limits.candidates, candidates.filter(candidate => candidate.catalogURL).length));
+  for (const candidate of deduplicated.slice(unique.length)) trace('candidate.skipped', { candidateId: candidate.debugId, url: candidate.url, reason: 'candidateBudget' });
+  trace('verification.started', { discovered: candidates.length, deduplicated: deduplicated.length, scheduled: unique.length, maxResults });
   await report('verify', unique.length);
   const verifyBatch = unique.some(candidate => candidate.catalogURL) ? 3 : 8;
   for (let index = 0; index < unique.length && items.length < maxResults; index += verifyBatch) {
     await Promise.all(unique.slice(index, index + verifyBatch).map(async candidate => {
       let reason = 'sourceUnavailable';
       const subject = candidate.intentSubject || input.subject;
+      const evidence = { candidateId: candidate.debugId, channelId: candidate.channel.debugId, url: candidate.url, image: candidate.image, subject };
+      const started = Date.now();
+      trace('candidate.verify.started', evidence);
       try {
         const { html, url } = await readCachedWithRetry(candidate.url, candidate.catalogURL ? 3 : 1);
         const source = new URL(url);
-        if (blocked.test(source.hostname) || excluded(source.hostname) || !isTargetPage(url) || (candidate.domains.length && !candidate.domains.some(d => source.hostname === d || source.hostname.endsWith('.' + d)))) throw Error();
+        evidence.finalURL = url;
+        if (blocked.test(source.hostname) || excluded(source.hostname)) { reason = 'blockedRedirectDomain'; throw Error('跳转后的来源被排除'); }
+        if (!isTargetPage(url)) { reason = 'redirectNotTargetPage'; throw Error('跳转后不是目标页面'); }
+        if (candidate.domains.length && !candidate.domains.some(d => source.hostname === d || source.hostname.endsWith('.' + d))) { reason = 'redirectOutsideSourceScope'; throw Error('跳转后不在指定来源范围'); }
         const pageTitle = plain(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '');
+        Object.assign(evidence, { finalURL: url, pageTitle });
         const catalogueProducts = candidate.catalogue
           ? catalogueProductPhotos(candidate.catalogue, html, url, title => matchesProductIntent(input.subject, title, true, candidate.catalogue))
           : [];
         if (catalogueProducts.length) {
           const selected = catalogueProducts.slice(0, Math.max(1, Number(candidate.catalogImageLimit) || 2));
+          trace('candidate.catalogue.evidence', { ...evidence, products: catalogueProducts, selectedImages: selected.length,
+            skippedByImageLimit: catalogueProducts.length - selected.length });
           const accepted = [];
           for (const product of selected) {
+            let productReason = 'imageSourceMismatch';
             try {
               const image = declaredImageURL(html, product.image);
-              if (!imageDeclared(html, image)) continue;
+              if (!imageDeclared(html, image)) throw Error('商品图片未在来源中声明');
+              productReason = 'imageUnavailable';
               const asset = await abortable(() => readImage(image, fetcher), signal);
               const aspect = asset.width && asset.height ? asset.width / asset.height : 0;
               if (candidate.catalogue === 'adidas' && product.imageRole === 'hero' &&
-                  (asset.width < 350 || asset.height < 250 || aspect < 0.5 || aspect > 2)) continue;
+                  (asset.width < 350 || asset.height < 250 || aspect < 0.5 || aspect > 2)) { productReason = 'imageAspectOrSize'; throw Error('目录主图尺寸或比例不符'); }
               const sha256 = createHash('sha256').update(asset.bytes).digest('hex');
-              if (hashes.has(sha256)) continue;
+              if (hashes.has(sha256)) { trace('candidate.image.skipped', { ...evidence, product, sha256, reason: 'duplicateImageHash' }); continue; }
               hashes.add(sha256);
+              productReason = 'assetSaveFailed';
               await abortable(() => saveAsset(sha256, asset), signal);
+              trace('candidate.image.accepted', { ...evidence, product, image, sha256, width: asset.width, height: asset.height, bytes: asset.bytes.length, mime: asset.mime });
               accepted.push({
                 id: randomBytes(8).toString('hex'), title: product.title, url,
                 canonicalURL: product.canonicalURL || url,
@@ -629,11 +671,13 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
                 publishedAt: null, collectedAt: new Date().toISOString(),
                 review: 'pending', selected: false, note: '', summary: '',
               });
-            } catch {
+            } catch (error) {
+              trace('candidate.image.rejected', { ...evidence, product, reason: productReason, error: errorDetails(error) });
               signal?.throwIfAborted();
             }
           }
-          if (!accepted.length) throw Error();
+          if (!accepted.length) { reason = 'catalogueImagesRejected'; throw Error('目录图片均未通过核对，详见 candidate.image.rejected'); }
+          trace('candidate.accepted', { ...evidence, durationMs: Date.now() - started, accepted: accepted.length });
           candidate.channel.count += accepted.length;
           for (const check of sourceChecks) if (source.hostname === check.domain || source.hostname.endsWith('.' + check.domain)) {
             check.status = 'queried'; delete check.error;
@@ -643,35 +687,44 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
         const products = structuredProductPhotos(html, url, (title, brand) => matchesProductIntent(subject, title, true, brand))
           .concat(articleProductPhotos(html,url,t=>matchesIntent(subject,t)));
         const ownProducts = products.filter(p => keyURL(p.canonicalURL || p.url || url) === keyURL(url) && !/preview_images|\.thumbnail\./i.test(p.image));
+        trace('candidate.page.evidence', { ...evidence, products, ownProducts: ownProducts.length,
+          unfilteredStructuredProducts: !ownProducts.length ? structuredProductPhotos(html, url, () => true) : undefined,
+          distinctProductPages: new Set(products.map(p => keyURL(p.canonicalURL || p.url || url))).size });
         reason = 'productEvidenceMissing';
-        if (!candidate.image && (!ownProducts.length || new Set(products.map(p => keyURL(p.canonicalURL || p.url || url))).size !== 1)) throw Error();
+        if (!candidate.image && (!ownProducts.length || new Set(products.map(p => keyURL(p.canonicalURL || p.url || url))).size !== 1)) throw Error('未找到唯一归属于当前页面且符合需求的商品图片');
         const product = (candidate.image ? products.find(p=>keyURL(p.image)===keyURL(candidate.image)) : ownProducts[0]) || (!matchesIntent(subject,pageTitle) ? products[0] : null);
         const title = product?.title || pageTitle;
         const candidateImage = product?.image || candidate.image;
+        Object.assign(evidence, { selectedProduct: product, selectedTitle: title, selectedImage: candidateImage,
+          titleMatches: matchesProductIntent(subject, title, Boolean(product?.productTypeEvidence), product?.brandEvidence) });
         reason = 'sourceIntentMismatch';
-        if (!matchesProductIntent(subject, title, Boolean(product?.productTypeEvidence), product?.brandEvidence)) throw Error();
+        if (!matchesProductIntent(subject, title, Boolean(product?.productTypeEvidence), product?.brandEvidence)) throw Error('原页商品信息与英文需求不符');
         reason = 'imageSourceMismatch';
-        if (!candidateImage || !imageDeclared(html, candidateImage)) throw Error();
+        if (!candidateImage || !imageDeclared(html, candidateImage)) throw Error('候选图片未在原页中找到');
         const timestamp = Date.parse(
           html.match(/"datePublished"\s*:\s*"([^"]+)"/)?.[1] ||
           html.match(/property=["']article:published_time["'][^>]*content=["']([^"']+)/i)?.[1] ||
           candidate.publishedAt,
         );
         const publishedAt = sourcePublishedAt(html, candidate);
+        Object.assign(evidence, { publishedAt, requestedDays: input.days, imageDeclared: Boolean(candidateImage && imageDeclared(html, candidateImage)) });
         reason = 'dateUnconfirmed';
-        if (input.days && !publishedAt) throw Error();
+        if (input.days && !publishedAt) throw Error('无法确认原页或候选的发布日期');
         reason = 'outsideDateRange';
-        if (input.days && timestamp < Date.now() - input.days * 86400000) throw Error();
+        if (input.days && timestamp < Date.now() - input.days * 86400000) throw Error('发布日期早于指定时间范围');
         reason = 'imageUnavailable';
         const image = declaredImageURL(html, candidateImage);
         const asset = await abortable(() => readImage(image, fetcher), signal);
         const sha256 = createHash('sha256').update(asset.bytes).digest('hex');
-        if (hashes.has(sha256)) return null;
+        if (hashes.has(sha256)) { trace('candidate.skipped', { ...evidence, sha256, reason: 'duplicateImageHash' }); return null; }
         hashes.add(sha256);
         signal?.throwIfAborted();
+        reason = 'assetSaveFailed';
         await abortable(() => saveAsset(sha256, asset), signal);
         signal?.throwIfAborted();
         candidate.channel.count++;
+        trace('candidate.accepted', { ...evidence, image, sha256, width: asset.width, height: asset.height,
+          bytes: asset.bytes.length, mime: asset.mime, durationMs: Date.now() - started });
         for(const check of sourceChecks)if(source.hostname===check.domain||source.hostname.endsWith('.'+check.domain)){check.status='queried';delete check.error;}
         return { id: randomBytes(8).toString('hex'), title, url, source: source.hostname.replace(/^www\./, ''),
           canonicalURL: product?.canonicalURL || candidate.canonicalURL || url, productCode: product?.productCode || candidate.productCode || '',
@@ -682,7 +735,8 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
           verifiedBrand: product?.brandEvidence || '',
           ...(candidate.searchProvider ? { searchIntent: subject, discovery: { provider: candidate.searchProvider, query: candidate.channel.query, score: candidate.searchScore } } : {}),
           publishedAt, collectedAt: new Date().toISOString(), review: 'pending', selected: false, note: '', summary: '' };
-      } catch {
+      } catch (error) {
+        trace('candidate.rejected', { ...evidence, reason, error: errorDetails(error), aborted: Boolean(signal?.aborted), durationMs: Date.now() - started });
         signal?.throwIfAborted();
         const rejects = candidate.channel.rejected;
         rejects[reason] = (rejects[reason] || 0) + 1;
@@ -708,7 +762,9 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
       await report('verify', unique.length);
     })));
   }
+  for (const candidate of unique.slice(checked)) trace('candidate.skipped', { candidateId: candidate.debugId, url: candidate.url, reason: 'resultBudget' });
   channels.forEach(c => { if (c.status !== 'error') c.status = c.count ? 'ready' : 'empty'; });
+  trace('verification.finished', { checked, acceptedBeforeResultLimit: items.length, accepted: Math.min(items.length, maxResults), channels, sourceChecks });
   if (catalogDiscoveryError) throw catalogDiscoveryError;
   if (catalogCheckpoint) {
     catalogCheckpoint = { ...catalogCheckpoint, complete: true, updatedAt: new Date().toISOString() };
