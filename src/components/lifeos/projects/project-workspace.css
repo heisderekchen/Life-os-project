@@ -209,6 +209,7 @@
 .project-workspace[data-focus-mode=true] .workspace-mobile-more button { width:100%; min-height:36px; text-align:left; padding:8px 12px; font-size:13px; }
 
 @container workspace-tasks (max-width:600px) {
+  .project-workspace[data-focus-mode=true] .workspace-inspector > div:first-child > div:first-child { flex-basis:100%; }
   .project-workspace[data-focus-mode=true] .workspace-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .project-workspace[data-focus-mode=true] .workspace-table { min-width:530px; }
   .project-workspace[data-focus-mode=true] .workspace-table th:last-child, .project-workspace[data-focus-mode=true] .workspace-table td:last-child { display:none; }
@@ -237,4 +238,8 @@
   .project-workspace[data-focus-mode=true] .workspace-table { min-width:700px; }
   .project-workspace[data-focus-mode=true] .workspace-table th:last-child,
   .project-workspace[data-focus-mode=true] .workspace-table td:last-child { display:table-cell; }
+  .project-workspace[data-focus-mode=true] .workspace-toolbar { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)) 44px; gap:6px; }
+  .project-workspace[data-focus-mode=true] .workspace-search { grid-column:1/-1; min-width:0; }
+  .project-workspace[data-focus-mode=true] .workspace-toolbar select { width:100%; min-width:0; max-width:none; padding-right:20px; text-overflow:ellipsis; }
+  .project-workspace[data-focus-mode=true] .workspace-sort { width:44px; }
 }
