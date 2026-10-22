@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useRef } from 'react'
-import { WorkspaceResizeHandle, useWorkspaceLayout } from '@/components/lifeos/projects/workspace-resize'
+import { WorkspaceResizeHandle, useWorkspaceLayout, revealWorkspaceSelection } from '@/components/lifeos/projects/workspace-resize'
 
 function Harness({ axis = 'x' as 'x' | 'y' }) {
   const { sizes, setSize } = useWorkspaceLayout()
@@ -13,6 +13,27 @@ beforeEach(() => { vi.mocked(localStorage.getItem).mockReset().mockReturnValue(n
 afterEach(() => cleanup())
 
 describe('workspace split controls', () => {
+  it('keeps a selected row between the sticky table header and resized bottom edge', () => {
+    const container = document.createElement('div')
+    container.innerHTML = '<table><thead></thead><tbody><tr data-workspace-node="project:last"><td>Last project</td></tr></tbody></table>'
+    let height = 240
+    Object.defineProperty(container, 'clientHeight', { get: () => height })
+    container.getBoundingClientRect = () => ({ top: 100 } as DOMRect)
+    container.querySelector('thead')!.getBoundingClientRect = () => ({ height: 42 } as DOMRect)
+    container.querySelector('tr')!.getBoundingClientRect = () => ({ top: 450 - container.scrollTop, bottom: 493 - container.scrollTop } as DOMRect)
+    revealWorkspaceSelection(container, 'project:last')
+    expect(container.scrollTop).toBe(153)
+    height = 120
+    revealWorkspaceSelection(container, 'project:last')
+    expect(container.scrollTop).toBe(273)
+    container.scrollTop = 320
+    revealWorkspaceSelection(container, 'project:last')
+    expect(container.scrollTop).toBe(308)
+    revealWorkspaceSelection(container, 'project:last')
+    expect(container.scrollTop).toBe(308)
+    revealWorkspaceSelection(container, 'task:missing')
+    expect(container.scrollTop).toBe(308)
+  })
   it('supports bounded keyboard resizing, axis semantics, reset, and immediate persistence', () => {
     render(<Harness />)
     const handle = screen.getByRole('separator', { name: '调整测试面板' })
@@ -24,7 +45,7 @@ describe('workspace split controls', () => {
     fireEvent.keyDown(handle, { key: 'Home' }); fireEvent.keyDown(handle, { key: 'ArrowLeft' }); expect(handle).toHaveAttribute('aria-valuenow', '25')
     fireEvent.doubleClick(handle); expect(handle).toHaveAttribute('aria-valuenow', '43')
     const saved = JSON.parse(vi.mocked(localStorage.setItem).mock.calls.at(-1)![1])
-    expect(saved).toEqual({ desktop: 43, stacked: 42, table: 60 })
+    expect(saved).toEqual({ desktop: 43, stacked: 42, table: 60, focusDesktop: 32, focusTable: 70 })
   })
   it('loads validated browser dimensions without overwriting them during hydration', async () => {
     vi.mocked(localStorage.getItem).mockReturnValue(JSON.stringify({ desktop: 61, stacked: 'bad', table: 37 }))
@@ -33,7 +54,7 @@ describe('workspace split controls', () => {
     expect(screen.getByText('37')).toBeInTheDocument()
     expect(localStorage.setItem).not.toHaveBeenCalled()
     fireEvent.keyDown(screen.getByRole('separator'), { key: 'ArrowRight' })
-    expect(JSON.parse(vi.mocked(localStorage.setItem).mock.calls.at(-1)![1])).toEqual({ desktop: 63, stacked: 42, table: 37 })
+    expect(JSON.parse(vi.mocked(localStorage.setItem).mock.calls.at(-1)![1])).toEqual({ desktop: 63, stacked: 42, table: 37, focusDesktop: 32, focusTable: 70 })
   })
   it('works when browser storage is unavailable', () => {
     vi.mocked(localStorage.getItem).mockImplementation(() => { throw new Error('blocked') })
