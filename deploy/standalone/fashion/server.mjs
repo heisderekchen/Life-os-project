@@ -328,14 +328,28 @@ export function createApp({
     await writeFile(assetFile(sha), asset.bytes, { mode: 0o600 });
   }
   async function validateEvidence(task, items) {
+    const documents = new Map();
+    const evidenceFetcher = publicFetch(fetcher);
+    const readEvidence = async url => {
+      if (!documents.has(url)) documents.set(url, getPublic(url, evidenceFetcher, 0, true).then(doc => {
+        try { doc.parsed = JSON.parse(doc.html); } catch {}
+        return doc;
+      }));
+      return documents.get(url);
+    };
     for (const item of items) {
       if (!item.imageSha256 || !item.sourceImageMatched || item.imageUnavailable || task.items.find(i => i.id === item.id)?.imageUnavailable) throw Error('有图片不可用或尚未建立来源对应关系，请重新检索并核查。');
       const bytes = await readFile(assetFile(item.imageSha256)).catch(() => { throw Error('图片缓存失效，请重新检索并核查。'); });
       if (createHash('sha256').update(bytes).digest('hex') !== item.imageSha256) throw Error('图片缓存已变化，请重新检索。');
-      const document = await getPublic(item.evidenceURL || item.url, item.evidenceURL ? publicFetch(fetcher) : fetcher, 0, Boolean(item.evidenceURL));
-      const { html } = document; const url = item.url;
-      if (document.url !== (item.evidenceURL || item.url) || !imageDeclared(html, item.image) || !sourceProductMatches(html, url, item, item.searchIntent || task.input.subject))
-        throw Error('原始来源或图片对应关系已变化，请重新检索并核查。');
+      const document = item.evidenceURL ? await readEvidence(item.evidenceURL) : await getPublic(item.url, fetcher);
+      const valid = (doc, proofURL) => doc.url === proofURL && imageDeclared(doc.html, item.image) &&
+        sourceProductMatches(doc.html, item.url, { ...item, evidenceURL: item.evidenceURL ? proofURL : undefined }, item.searchIntent || task.input.subject, doc.parsed);
+      if (!valid(document, item.evidenceURL || item.url)) {
+        // A paginated catalogue can move an existing product to another page.
+        const fallbackURL = item.url.replace(/\/$/, '') + '.js';
+        if (item.evidenceKind !== 'public-product-catalogue' || !valid(await readEvidence(fallbackURL), fallbackURL))
+          throw Error('原始来源或图片对应关系已变化，请重新检索并核查。');
+      }
     }
   }
   async function load(account) {

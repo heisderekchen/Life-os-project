@@ -16,7 +16,8 @@ export const publicFetch = (fetcher, signal, trace = () => {}) => {
     const u = new URL(url);
     if (!/deepseek|fashion-source/.test(u.hostname + u.pathname)) {
       const key = u.hostname, now = Date.now(), at = Math.max(now, nextRequest.get(key) || now);
-      nextRequest.set(key, at + (/cdn|shopify/.test(key) ? 100 : 1600));
+      const imageRequest = new Headers(options.headers).get('accept')?.startsWith('image/');
+      nextRequest.set(key, at + (imageRequest ? 100 : 1600));
       if (at > now) await abortable(() => new Promise(resolve => setTimeout(resolve, at - now)), signal);
     }
     if (u.protocol === 'https:' && PUBLIC_CATALOGUES.some(c => new URL(c.url).hostname === u.hostname) && /\/(?:products\.json|products\/[^/]+\.js)$/.test(u.pathname)) {
@@ -55,7 +56,7 @@ export async function searchBroadPhotos(input, options) {
   trace('broad.started', { target: goal, input, catalogues: eligibleCatalogues, maxCataloguePages: 6, maxSearchQueries: 14,
     criteria: { ownProductEvidence: true, downloadableImage: true, minWidth: 350, minHeight: 250, maxViewsPerProduct: 2 } });
 
-  const verify = async (buckets, label) => {
+  const verify = async (buckets, label, evidenceDocuments = new Map()) => {
     const fresh = buckets.map(bucket => ({ ...bucket, candidates: bucket.candidates.filter(c => {
       try { if (!/^https?:$/.test(new URL(c.url).protocol)) throw Error('invalid protocol'); }
       catch { trace('broad.candidate.skipped', { url: c.url, reason: 'invalidURL' }); return false; }
@@ -67,7 +68,7 @@ export async function searchBroadPhotos(input, options) {
     const roundChannels = [];
     let roundChecked = 0;
     let result;
-    try { result = await searchPhotos(input, { ...options, fetcher, knownImageHashes: [...hashes], knownImageFingerprints: items.map(i => i.imageFingerprint).filter(Boolean), plans: fresh, resultLimit: goal - items.length,
+    try { result = await searchPhotos(input, { ...options, fetcher, evidenceDocuments, knownImageHashes: [...hashes], knownImageFingerprints: items.map(i => i.imageFingerprint).filter(Boolean), plans: fresh, resultLimit: goal - items.length,
       onProgress: async p => {
         for (const item of p.items) {
           const u = new URL(item.image); const imageKey = u.hostname + u.pathname;
@@ -91,7 +92,7 @@ export async function searchBroadPhotos(input, options) {
   const listing = async (source, page) => {
     const url = source.url + '/products.json?limit=250' + (page === 1 ? '' : '&page=' + page);
     const cached = cache.get(url);
-    if (cached && Date.now() - cached.at < CACHE_TTL) { trace('catalogue.cache.hit', { url, bytes: cached.bytes, sha256: cached.sha256 }); return cached.data; }
+    if (cached && Date.now() - cached.at < CACHE_TTL) { trace('catalogue.cache.hit', { url, bytes: cached.bytes, sha256: cached.sha256 }); return { ...cached.data, document: cached.document }; }
     let doc;
     try { doc = await abortable(() => readDocument(url, fetcher), signal); }
     catch (error) {
@@ -106,16 +107,18 @@ export async function searchBroadPhotos(input, options) {
     const data = JSON.parse(doc.html);
     if (!Array.isArray(data.products)) throw Error('来源未提供公开商品目录');
     const bytes = Buffer.byteLength(doc.html), sha256 = createHash('sha256').update(doc.html).digest('hex');
-    if (cache.has(url)) { cachedBytes -= cache.get(url).bytes; cache.delete(url); }
-    if (bytes <= CACHE_BYTES) {
-      while (cache.size && cachedBytes + bytes > CACHE_BYTES) { const k = cache.keys().next().value; cachedBytes -= cache.get(k).bytes; cache.delete(k); }
-      cache.set(url, { data, bytes, sha256, at: Date.now() }); cachedBytes += bytes;
+    const document = { ...doc, parsed: data, sha256, fetchedAt: new Date().toISOString() };
+    const weight = bytes * 3; // Serialized JSON plus parsed records and source text.
+    if (cache.has(url)) { cachedBytes -= cache.get(url).weight; cache.delete(url); }
+    if (weight <= CACHE_BYTES) {
+      while (cache.size && cachedBytes + weight > CACHE_BYTES) { const k = cache.keys().next().value; cachedBytes -= cache.get(k).weight; cache.delete(k); }
+      cache.set(url, { data, document, bytes, weight, sha256, at: Date.now() }); cachedBytes += weight;
     }
     trace('catalogue.listing', { url, products: data.products.length, bytes, sha256 });
-    return data;
+    return { ...data, document };
   };
   // Plan once. Later queries can change discovery wording, never the evidence requirement.
-  let initialSearch = [];
+  let initialSearch = [], initialSearchUsed = false;
   try {
     initialSearch = await deepseekDiscover(input, intent, fetcher, signal, trace);
     intent = initialSearch.find(a => a.intent)?.intent || intent;
@@ -124,7 +127,7 @@ export async function searchBroadPhotos(input, options) {
   trace('broad.intent', { originalSubject: input.subject, intent });
   for (let page = 1; page <= 6 && eligibleCatalogues.length && items.length < goal; page++) {
     round++;
-    const buckets = [];
+    const buckets = [], evidenceDocuments = new Map();
     // Sequential per domain pages and bounded independent domains avoid hammering storefronts.
     let next = 0;
     await Promise.all(Array.from({ length: Math.min(3, eligibleCatalogues.length) }, async () => {
@@ -133,6 +136,7 @@ export async function searchBroadPhotos(input, options) {
         if (stopped.has(source.url)) continue;
         try {
           const data = await listing(source, page);
+          evidenceDocuments.set(data.document.url, data.document);
           if (data.products.length < 250) stopped.add(source.url);
           const retained = [], reasons = {}, examples = [];
           for (const raw of data.products) {
@@ -140,7 +144,7 @@ export async function searchBroadPhotos(input, options) {
             const first = photos[0];
             const reason = !first ? 'notFootwearOrMissingImages' : !matchesPhotoProduct(intent, first) ? 'productIntentMismatch' : null;
             if (reason) { reasons[reason] = (reasons[reason] || 0) + 1; if (examples.length < 10) examples.push({ title: raw.title, reason }); continue; }
-            retained.push({ ...first, image: undefined, evidenceURL: first.url + '.js', viewLimit: 2 });
+            retained.push({ ...first, image: undefined, evidenceURL: data.document.url, evidenceKind: 'public-product-catalogue', evidenceFetchedAt: data.document.fetchedAt, viewLimit: 2 });
           }
           trace('catalogue.filtered', { source: source.name, url: source.url, page, discovered: data.products.length, retained: retained.length, reasons, examples,
             products: retained.map(p => ({ url: p.url, title: p.title, productCode: p.productCode, intentEvidence: p.intentEvidence })) });
@@ -154,9 +158,9 @@ export async function searchBroadPhotos(input, options) {
         }
       }
     }));
-    await verify(buckets, 'catalogue-page-' + page);
-    if (page === 1 && items.length < goal && initialSearch.length) {
-      round++; await verify(initialSearch.map(a => ({ candidates: a.results.map(c => ({ ...c, viewLimit: 2 })), domains, intent,
+    await verify(buckets, 'catalogue-page-' + page, evidenceDocuments);
+    if ((page === 2 || stopped.size >= eligibleCatalogues.length) && !initialSearchUsed && items.length < goal && initialSearch.length) {
+      initialSearchUsed = true; round++; await verify(initialSearch.map(a => ({ candidates: a.results.map(c => ({ ...c, viewLimit: 2 })), domains, intent,
         provider: a.provider, label: 'DeepSeek · 英文检索', ...(a.error ? { error: a.error } : {}) })), 'initial-web-search');
     }
     if (stopped.size >= eligibleCatalogues.length) break;

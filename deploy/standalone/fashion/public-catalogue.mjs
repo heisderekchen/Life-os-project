@@ -35,10 +35,21 @@ export function publicProductPhotos(raw, base, expectedURL) {
       publishedAt: p.published_at || null, schemaType: 'ShopifyProduct' };
   }).filter(Boolean);
 }
-export function productAPIPhotos(body, documentURL, productURL) {
+export function productAPIPhotos(body, documentURL, productURL, productCode = '', parsed) {
   const api = new URL(documentURL), page = new URL(productURL);
-  if (api.origin !== page.origin || api.search || api.hash || api.pathname !== page.pathname.replace(/\/$/, '') + '.js') return [];
-  let data; try { data = JSON.parse(body); } catch { return []; }
+  if (api.origin !== page.origin || api.hash) return [];
+  let data; try { data = parsed ?? JSON.parse(body); } catch { return []; }
+  if (/\/products\.json$/.test(api.pathname)) {
+    if (!productCode || !Array.isArray(data.products) || [...api.searchParams.keys()].some(k => !['page', 'limit'].includes(k))) return [];
+    for (const key of ['page', 'limit']) if (api.searchParams.has(key) && !/^[1-9]\d{0,2}$/.test(api.searchParams.get(key))) return [];
+    const matches = data.products.filter(p => String(p.id) === String(productCode));
+    if (matches.length !== 1) return [];
+    const base = api.origin + api.pathname.slice(0, -'products.json'.length);
+    return publicProductPhotos(matches[0], base, productURL);
+  }
+  if (api.search || api.pathname !== page.pathname.replace(/\/$/, '') + '.js') return [];
+  const product = data.product || data;
+  if (productCode && String(product.id) !== String(productCode)) return [];
   const base = page.origin + page.pathname.slice(0, page.pathname.lastIndexOf('/products/') + 1);
-  return publicProductPhotos(data, base, productURL);
+  return publicProductPhotos(product, base, productURL);
 }

@@ -111,8 +111,8 @@ export function matchesPhotoProduct(subject, product) {
   }
   return true;
 }
-export function sourceProductMatches(html, pageURL, item, subject) {
-  if (item.evidenceURL) return productAPIPhotos(html, item.evidenceURL, pageURL).some(p =>
+export function sourceProductMatches(html, pageURL, item, subject, parsedEvidence) {
+  if (item.evidenceURL) return productAPIPhotos(html, item.evidenceURL, pageURL, item.productCode, parsedEvidence).some(p =>
     matchesPhotoProduct(subject, p) && keyURL(p.image) === keyURL(item.image));
   const title = plain(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '');
   if (matchesProductIntent(subject, title, Boolean(item.productTypeEvidence), item.verifiedBrand || '')) return true;
@@ -369,8 +369,9 @@ async function discoverOpenSources(entry, fetcher, readDocument, input, signal, 
   return attempts;
 }
 
-export async function searchPhotos(input, { fetcher, plans, readPage, readDocument = readPage, readImage, saveAsset, signal, onProgress = async () => {}, resultLimit, checkpoint = null, pageCacheLimit = PAGE_CACHE_LIMIT, pageCacheByteLimit = PAGE_CACHE_BYTE_LIMIT, incrementalProgress = false, knownImageHashes = [], knownImageFingerprints = [], limitPageRead = task => task(), trace = () => {} } = {}) {
+export async function searchPhotos(input, { fetcher, plans, readPage, readDocument = readPage, readImage, saveAsset, signal, onProgress = async () => {}, resultLimit, checkpoint = null, pageCacheLimit = PAGE_CACHE_LIMIT, pageCacheByteLimit = PAGE_CACHE_BYTE_LIMIT, incrementalProgress = false, knownImageHashes = [], knownImageFingerprints = [], evidenceDocuments = new Map(), limitPageRead = task => task(), trace = () => {} } = {}) {
   const fingerprints = [...knownImageFingerprints];
+  const parsedDocuments = new WeakMap();
   const channels = [], buckets = [], images = new Set(), hashes = new Set(knownImageHashes);
   const limits = photoLimits(input);
   const maxResults = Number.isFinite(resultLimit) && resultLimit > 0 ? resultLimit : limits.results;
@@ -668,12 +669,15 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
       trace('candidate.verify.started', evidence);
       try {
         const document = candidate.evidenceURL
-          ? await abortable(() => limitPageRead(() => readDocument(candidate.evidenceURL, fetcher), signal), signal)
+          ? evidenceDocuments.get(candidate.evidenceURL) || await abortable(() => limitPageRead(() => readDocument(candidate.evidenceURL, fetcher), signal), signal)
           : await readCachedWithRetry(candidate.url, candidate.catalogURL ? 3 : 1);
         const { html } = document;
         const url = candidate.evidenceURL ? candidate.url : document.url;
         if (candidate.evidenceURL && document.url !== candidate.evidenceURL) throw Error('商品数据地址发生跳转');
         evidence.evidenceURL = candidate.evidenceURL;
+        evidence.evidenceKind = candidate.evidenceKind;
+        evidence.evidenceFetchedAt = document.fetchedAt || candidate.evidenceFetchedAt;
+        evidence.sourceDocumentSHA256 = document.sha256;
         const source = new URL(url);
         evidence.finalURL = url;
         if (blocked.test(source.hostname) || excluded(source.hostname)) { reason = 'blockedRedirectDomain'; throw Error('跳转后的来源被排除'); }
@@ -732,7 +736,10 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
           }
           return accepted;
         }
-        const structured = candidate.evidenceURL ? productAPIPhotos(html, candidate.evidenceURL, url) : structuredProductPhotos(html, url, () => true);
+        if (candidate.evidenceURL && !parsedDocuments.has(document)) {
+          try { parsedDocuments.set(document, document.parsed || JSON.parse(html)); } catch { parsedDocuments.set(document, null); }
+        }
+        const structured = candidate.evidenceURL ? productAPIPhotos(html, candidate.evidenceURL, url, candidate.productCode, parsedDocuments.get(document)) : structuredProductPhotos(html, url, () => true);
         const products = structured.filter(product => matchesPhotoProduct(subject, product))
           .concat(articleProductPhotos(html,url,t=>matchesIntent(subject,t)));
         const belongsToPage = product => productPageKey(product.canonicalURL || product.url || url) === productPageKey(url) && !/preview_images|\.thumbnail\./i.test(product.image);
@@ -806,7 +813,7 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
               productTypeEvidence: Boolean(product?.productTypeEvidence),
               verifiedBrand: product?.brandEvidence || '',
               searchIntent: subject, ...(candidate.searchProvider ? { discovery: { provider: candidate.searchProvider, query: candidate.channel.query, score: candidate.searchScore } } : {}),
-              publishedAt, collectedAt: new Date().toISOString(), review: 'pending', selected: false, note: '', summary: '', ...(candidate.evidenceURL ? { evidenceURL: candidate.evidenceURL, evidenceKind: 'public-product-api' } : {}) });
+              publishedAt, collectedAt: new Date().toISOString(), review: 'pending', selected: false, note: '', summary: '', ...(candidate.evidenceURL ? { evidenceURL: candidate.evidenceURL, evidenceKind: candidate.evidenceKind || 'public-product-api', ...(candidate.evidenceFetchedAt ? { evidenceFetchedAt: candidate.evidenceFetchedAt, sourceDocumentSHA256: document.sha256 } : {}) } : {}) });
           } catch (error) {
             if (error.code === 'IMAGE_QUALITY') reason = 'imageQualityRejected';
             trace('candidate.image.rejected', { ...evidence, image: selected.image, reason, error: errorDetails(error) });
@@ -855,5 +862,5 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 export function exportHTML(task, assets) {
-  return `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>${esc(task.input.subject)} · 图片与来源</title><style>body{font:16px/1.6 system-ui;max-width:1000px;margin:40px auto;padding:20px;color:#11141a}article{border-top:1px solid #ccd3dc;padding:24px 0;break-inside:avoid}img{width:100%;max-height:520px;object-fit:contain}a,code{overflow-wrap:anywhere}p{margin:8px 0}a{color:#154bea}</style><h1>${esc(task.input.subject)}</h1><p>交付时间 ${esc(task.delivery.createdAt)} · ${task.delivery.items.length} 张图片</p><p>图片已嵌入本文件，可离线查看。原始来源与图片地址逐张保留。来源可追溯不代表获得商用授权。</p>${task.delivery.items.map((i, n) => `<article data-image-id="${esc(i.id)}"><h2>${n + 1}. ${esc(i.title)}</h2><img src="data:${i.imageMime};base64,${assets[n].toString('base64')}" alt="${esc(i.title)}"><p>图片编号：${esc(i.id)}</p><p><a href="${esc(i.url)}">打开原始来源：${esc(i.url)}</a></p><p><a href="${esc(i.image)}">原始图片：${esc(i.image)}</a></p><p>核查依据：${esc(i.note)}</p><p>来源核对时间：${esc(i.sourceCheckedAt)} · 发布日期：${esc(i.publishedAt || '未确认')}</p><p>SHA-256：<code>${esc(i.imageSha256)}</code></p></article>`).join('')}</html>`;
+  return `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>${esc(task.input.subject)} · 图片与来源</title><style>body{font:16px/1.6 system-ui;max-width:1000px;margin:40px auto;padding:20px;color:#11141a}article{border-top:1px solid #ccd3dc;padding:24px 0;break-inside:avoid}img{width:100%;max-height:520px;object-fit:contain}a,code{overflow-wrap:anywhere}p{margin:8px 0}a{color:#154bea}</style><h1>${esc(task.input.subject)}</h1><p>交付时间 ${esc(task.delivery.createdAt)} · ${task.delivery.items.length} 张图片</p><p>图片已嵌入本文件，可离线查看。原始来源与图片地址逐张保留。来源可追溯不代表获得商用授权。</p>${task.delivery.items.map((i, n) => `<article data-image-id="${esc(i.id)}"><h2>${n + 1}. ${esc(i.title)}</h2><img src="data:${i.imageMime};base64,${assets[n].toString('base64')}" alt="${esc(i.title)}"><p>图片编号：${esc(i.id)}</p><p><a href="${esc(i.url)}">打开原始来源：${esc(i.url)}</a></p><p><a href="${esc(i.image)}">原始图片：${esc(i.image)}</a></p>${i.evidenceURL ? `<p><a href="${esc(i.evidenceURL)}">来源数据证据</a> · 商品编号：${esc(i.productCode || "")}</p>` : ""}<p>核查依据：${esc(i.note)}</p><p>来源核对时间：${esc(i.sourceCheckedAt)} · 发布日期：${esc(i.publishedAt || '未确认')}</p><p>SHA-256：<code>${esc(i.imageSha256)}</code></p></article>`).join('')}</html>`;
 }
