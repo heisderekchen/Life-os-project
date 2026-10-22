@@ -2,11 +2,28 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { publicProductPhotos, productAPIPhotos } from '../public-catalogue.mjs';
 import { searchPhotos, sourceProductMatches, photoLimits, matchesIntent } from '../photo-search.mjs';
-import { searchBroadPhotos } from '../broad-search.mjs';
+import { searchBroadPhotos, createCatalogueCache, CATALOGUE_CACHE_BYTES, catalogueRetryDelay } from '../broad-search.mjs';
 const raw = (i, extra = {}) => ({ id: i + 1, handle: 'shoe-' + i, title: "Women's winter casual sneakers " + i,
   type: 'Shoes', vendor: 'Fixture', tags: ['Winter', 'female'], description: 'Insulated winter casual footwear.',
   images: [`https://cdn.example/shoe-${i}-side.jpg`, `https://cdn.example/shoe-${i}-top.jpg`], ...extra });
 const input = { subject: '女款冬季休闲鞋', days: 0, domains: [], sourceScope: 2, sources: ['official', 'retail', 'media'] };
+test('catalogue cache retains the observed twelve-page working set and refreshes recently used pages', () => {
+ const cache=createCatalogueCache();
+ const sizes=[2629804,1293851,1760191,2990535,2325805,1450389,2085941,2005833,2396650,1397153,2110313,2781348];
+ sizes.forEach((bytes,i)=>cache.set('page-'+i,{i},bytes*3));
+ sizes.forEach((_,i)=>assert.equal(cache.get('page-'+i)?.i,i));
+ assert(cache.bytes <= CATALOGUE_CACHE_BYTES);
+ const small=createCatalogueCache(12);small.set('a',1,4);small.set('b',2,4);small.set('c',3,4);assert.equal(small.get('a'),1);small.set('d',4,4);assert.equal(small.get('b'),undefined);assert.equal(small.get('a'),1);assert.equal(small.bytes,12);
+});
+test('catalogue 429 handling respects a one-minute retry period and preserves diagnostic status', async () => {
+ const {errorDetails}=await import('../search-trace.mjs');const {getPublic}=await import('../server.mjs');
+ const f=async()=>new Response('Rate limited',{status:429,headers:{'retry-after':'60'}});f.trustedRelayHosts=new Set(['catalogue-retry.test']);
+ let caught;try{await getPublic('https://catalogue-retry.test/products.json',f,0,true);}catch(e){caught=e;}
+ assert.equal(caught.status,429);assert.equal(catalogueRetryDelay(caught),60000);assert.equal(errorDetails(caught).retryAfterMs,60000);
+ assert.equal(catalogueRetryDelay({status:429,retryAfterMs:120000}),null);assert.equal(catalogueRetryDelay({status:403}),null);
+ const at=Date.now()+60000;const dated=async()=>new Response('Rate limited',{status:429,headers:{'retry-after':new Date(at).toUTCString()}});dated.trustedRelayHosts=f.trustedRelayHosts;
+ await assert.rejects(getPublic('https://catalogue-retry.test/products.json',dated,0,true),e=>e.retryAfterMs>58000&&e.retryAfterMs<=60000);
+});
 const fetcher = async url => url.endsWith('/chat/completions')
   ? Response.json({ choices: [{ message: { content: '{"intent":"women winter casual shoes","queries":["women winter casual shoes"]}' } }] })
   : Response.json({ results: [] });

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { searchPhotos, photoQuery, matchesPhotoProduct, countResultSources } from './photo-search.mjs';
+import { searchPhotos, photoQuery, matchesPhotoProduct, countResultSources, createPageLRU } from './photo-search.mjs';
 import { deepseekDiscover } from './deepseek-search.mjs';
 import { PUBLIC_CATALOGUES, publicProductPhotos } from './public-catalogue.mjs';
 import { abortable } from './async-control.mjs';
@@ -8,8 +8,14 @@ import { publicJSONResponse } from './public-http.mjs';
 
 export const BROAD_TARGET = 100;
 export const BROAD_TIMEOUT_MS = 12 * 60 * 1000;
-const CACHE_BYTES = 32 * 1024 * 1024, CACHE_TTL = 15 * 60 * 1000;
-const cache = new Map(); let cachedBytes = 0;
+export const CATALOGUE_CACHE_BYTES = 128 * 1024 * 1024;
+const CACHE_TTL = 15 * 60 * 1000;
+export const createCatalogueCache = (maxBytes = CATALOGUE_CACHE_BYTES) => createPageLRU(64, maxBytes);
+const cache = createCatalogueCache();
+export function catalogueRetryDelay(error) {
+  if (error?.status !== 429 || (error.retryAfterMs || 0) > 90000) return null;
+  return error.retryAfterMs || 3000;
+}
 const nextRequest = new Map();
 export const publicFetch = (fetcher, signal, trace = () => {}) => {
   const wrapped = async (url, options = {}) => {
@@ -25,7 +31,7 @@ export const publicFetch = (fetcher, signal, trace = () => {}) => {
       const started = Date.now();
       try {
         const response = await publicJSONResponse(u, options.signal);
-        trace('http.response', { url: u.href, status: response.status, mime: response.headers.get('content-type'), durationMs: Date.now() - started, transport: 'curl-public-json' });
+        trace('http.response', { url: u.href, status: response.status, mime: response.headers.get('content-type'), retryAfter: response.headers.get('retry-after'), server: response.headers.get('server'), durationMs: Date.now() - started, transport: 'curl-public-json' });
         return response;
       } catch (error) { trace('http.error', { url: u.href, transport: 'curl-public-json', error: errorDetails(error) }); throw error; }
     }
@@ -97,8 +103,8 @@ export async function searchBroadPhotos(input, options) {
     try { doc = await abortable(() => readDocument(url, fetcher), signal); }
     catch (error) {
       signal?.throwIfAborted();
-      if (error.status !== 429 || (error.retryAfterMs || 0) > 15000) throw error;
-      const delay = error.retryAfterMs || 3000;
+      const delay = catalogueRetryDelay(error);
+      if (delay === null) throw error;
       trace('catalogue.backoff', { url, status: 429, waitMs: delay, maxAttempts: 2 });
       await abortable(() => new Promise(resolve => setTimeout(resolve, delay)), signal);
       doc = await abortable(() => readDocument(url, fetcher), signal);
@@ -109,12 +115,8 @@ export async function searchBroadPhotos(input, options) {
     const bytes = Buffer.byteLength(doc.html), sha256 = createHash('sha256').update(doc.html).digest('hex');
     const document = { ...doc, parsed: data, sha256, fetchedAt: new Date().toISOString() };
     const weight = bytes * 3; // Serialized JSON plus parsed records and source text.
-    if (cache.has(url)) { cachedBytes -= cache.get(url).weight; cache.delete(url); }
-    if (weight <= CACHE_BYTES) {
-      while (cache.size && cachedBytes + weight > CACHE_BYTES) { const k = cache.keys().next().value; cachedBytes -= cache.get(k).weight; cache.delete(k); }
-      cache.set(url, { data, document, bytes, weight, sha256, at: Date.now() }); cachedBytes += weight;
-    }
-    trace('catalogue.listing', { url, products: data.products.length, bytes, sha256 });
+    cache.set(url, { data, document, bytes, weight, sha256, at: Date.now() }, weight);
+    trace('catalogue.listing', { url, products: data.products.length, bytes, sha256, cacheBytes: cache.bytes, cacheLimitBytes: CATALOGUE_CACHE_BYTES });
     return { ...data, document };
   };
   // Plan once. Later queries can change discovery wording, never the evidence requirement.

@@ -2,7 +2,7 @@ import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 
-export const SEARCH_VERSION = '1.0.17';
+export const SEARCH_VERSION = '1.0.18';
 const MAX_BYTES = 16 * 1024 * 1024;
 const MAX_EVENTS = 30000;
 const DOCUMENT_BUDGET = 4 * 1024 * 1024;
@@ -11,6 +11,8 @@ const SENSITIVE = /^(?:authorization|proxy-authorization|cookie|set-cookie|heade
 export function errorDetails(error) {
   return { name: error?.name || 'Error', message: error?.message || String(error),
     ...(error?.code ? { code: error.code } : {}),
+    ...(Number.isFinite(error?.status) ? { status: error.status } : {}),
+    ...(Number.isFinite(error?.retryAfterMs) ? { retryAfterMs: error.retryAfterMs } : {}),
     ...(error?.cause ? { cause: { name: error.cause.name, message: error.cause.message, code: error.cause.code } } : {}) };
 }
 
