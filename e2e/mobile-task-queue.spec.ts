@@ -10,6 +10,16 @@ const fixtureTasks = Array.from({ length: 10 }, (_, index) => ({
 }))
 test('unified workspace keeps filters, task rows and graph selection usable across phone and desktop widths', async ({ page }) => {
   const captureFocus = async (name: string) => {
+    const graph = page.locator('.react-flow')
+    if (await graph.count()) {
+      await expect.poll(() => graph.evaluate(element => {
+        const frame = element.getBoundingClientRect()
+        return Array.from(element.querySelectorAll('.react-flow__node')).every(node => {
+          const rect = node.getBoundingClientRect()
+          return rect.left >= frame.left - 1 && rect.right <= frame.right + 1 && rect.top >= frame.top - 1 && rect.bottom <= frame.bottom + 1
+        })
+      })).toBe(true)
+    }
     const screenshot = await page.screenshot({ path: `test-results/project-workspace-focus-${name}.png` })
     // Keep the synthetic visual evidence inspectable when artifact downloads are unavailable.
     if (process.env.CI) {
