@@ -179,7 +179,7 @@ export async function searchBroadPhotos(input, options) {
             retained.push({ ...first, image: undefined, evidenceURL: data.document.url, evidenceKind: 'public-product-catalogue', evidenceFetchedAt: data.document.fetchedAt, viewLimit: 2 });
           }
           trace('catalogue.filtered', { source: source.name, url: source.url, page, discovered: data.products.length, retained: retained.length, reasons, examples,
-            products: retained.map(p => ({ url: p.url, title: p.title, productCode: p.productCode, intentEvidence: p.intentEvidence, imageSelectionEvidence: p.imageSelectionEvidence, excludedGalleryImages: p.excludedGalleryImages })) });
+            products: retained.map(p => ({ url: p.url, title: p.title, productCode: p.productCode, intentEvidence: p.intentEvidence, urlColorEvidence: p.urlColorEvidence, imageSelectionEvidence: p.imageSelectionEvidence, excludedGalleryImages: p.excludedGalleryImages })) });
           sources.push({ domain: host(source.url), page, status: 'queried', retained: retained.length });
           buckets.push({ candidates: retained, domains: [new URL(source.url).hostname], intent, label: source.name + ' · 公开商品目录', provider: '公开商品目录' });
         } catch (error) {
