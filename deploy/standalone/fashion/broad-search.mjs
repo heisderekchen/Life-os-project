@@ -57,6 +57,8 @@ export async function searchBroadPhotos(input, options) {
 
   const verify = async (buckets, label) => {
     const fresh = buckets.map(bucket => ({ ...bucket, candidates: bucket.candidates.filter(c => {
+      try { if (!/^https?:$/.test(new URL(c.url).protocol)) throw Error('invalid protocol'); }
+      catch { trace('broad.candidate.skipped', { url: c.url, reason: 'invalidURL' }); return false; }
       if (pages.has(c.url) || excluded(c.url)) { trace('broad.candidate.skipped', { url: c.url, reason: 'previouslyCheckedOrExcluded' }); return false; }
       pages.add(c.url); return true;
     }) })).filter(bucket => bucket.candidates.length || bucket.error);

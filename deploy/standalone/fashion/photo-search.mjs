@@ -113,7 +113,7 @@ export function sourceProductMatches(html, pageURL, item, subject) {
 export function discoveryIntent(subject, title) {
   return matchesIntent(subject,title) || /\b(?:shoe|footwear|flat|loafer|sneaker|boot)s?\b|鞋|靴/i.test(title);
 }
-const blocked = /(?:pinterest|etsy|ebay|1stdibs|ufonomore|fashionphile|stockx|goat\.|therealreal|vestiairecollective|grailed|carousell|amazon|walmart|poshmark|depop|mercari|aliexpress|temu|storage\.googleapis|lyst\.|joom\.|grandado\.|dhgate\.|lazada\.|flipkart\.|alibaba\.|aliexpress\.|shopee\.|meesho\.|gihut\.com|dashangu\.com|wenmiyuan\.com)/i;
+const blocked = /(?:pinterest|etsy|ebay|1stdibs|ufonomore|fashionphile|stockx|goat\.|therealreal|vestiairecollective|grailed|carousell|amazon|walmart|poshmark|depop|mercari|aliexpress|temu|storage\.googleapis|lyst\.|smartcloset\.|modesens\.|shopstyle\.|goxip\.|joom\.|grandado\.|dhgate\.|lazada\.|flipkart\.|alibaba\.|aliexpress\.|shopee\.|meesho\.|gihut\.com|dashangu\.com|wenmiyuan\.com)/i;
 const decode = s => s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&ndash;/g, '–').replace(/&mdash;/g, '—').replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&#x([a-f\d]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));
 const plain = s => decode(s.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
 const copyString = value => typeof value === 'string' ? Buffer.from(value, 'utf8').toString('utf8') : value;

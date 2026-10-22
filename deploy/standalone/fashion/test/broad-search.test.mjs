@@ -86,3 +86,10 @@ test('a white outsole and related white color tags do not turn a black shoe into
  const white=publicProductPhotos(raw(3,{title:"Women's Tree Runner - White",tags:['allbirds::hue => white'],description:'Women white sneakers.'}),'https://brand.example')[0];
  assert(matchesPhotoProduct('women white sneakers',white));
 });
+
+test('a malformed retrieved URL is recorded and cannot abort replenishment', async () => {
+ const f=async url=>url.endsWith('/chat/completions')?Response.json({choices:[{message:{content:'{"intent":"women winter casual shoes","queries":["women winter casual shoes"]}'}}]}):Response.json({results:[{title:'Women winter casual shoes',url:'not-a-url'}]});
+ f.deepseekRelay='https://relay.example';const plans=[{deepseek:true,domains:[]}];plans.excludedDomains=['excluded.example'];const events=[];
+ const result=await searchBroadPhotos(input,{fetcher:f,plans,catalogues:[],trace:(type,data)=>events.push({type,data}),readDocument:async()=>{throw Error('unexpected read')},readImage:async()=>{throw Error('unexpected image')},saveAsset:async()=>{}});
+ assert.equal(result.items.length,0);assert(events.some(e=>e.data.reason==='invalidURL'));
+});
