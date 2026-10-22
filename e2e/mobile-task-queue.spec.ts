@@ -80,6 +80,7 @@ test('unified workspace keeps filters, task rows and graph selection usable acro
   expect(list!.height).toBeGreaterThan(960 * 0.65)
   const split = page.getByRole('separator', { name: 'Resize task list and details' })
   await expect(split).toHaveAttribute('aria-valuenow', '70')
+  await captureFocus('desktop')
   await split.focus(); await page.keyboard.press('Home')
   const selected = page.locator('[data-workspace-node="task:mobile-fixture-10"]')
   const expectSelectionVisible = async () => {
@@ -91,7 +92,6 @@ test('unified workspace keeps filters, task rows and graph selection usable acro
     }).toBe(true)
   }
   await expectSelectionVisible()
-  await captureFocus('desktop')
   await page.setViewportSize({ width: 1024, height: 650 })
   await expectSelectionVisible()
   await captureFocus('resized')
@@ -99,6 +99,9 @@ test('unified workspace keeps filters, task rows and graph selection usable acro
   await page.setViewportSize({ width: 390, height: 844 })
   await expectSelectionVisible()
   await expect(selected).toBeInViewport()
+  await split.dblclick()
+  await expect(split).toHaveAttribute('aria-valuenow', '70')
+  await expectSelectionVisible()
   await expect(page.getByRole('button', { name: /Exit Focus/ })).toBeVisible()
   await captureFocus('phone')
   await page.getByRole('button', { name: /Exit Focus/ }).click()
