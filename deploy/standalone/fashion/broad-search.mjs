@@ -5,9 +5,11 @@ import { PUBLIC_CATALOGUES, publicProductPhotos } from './public-catalogue.mjs';
 import { abortable } from './async-control.mjs';
 import { errorDetails } from './search-trace.mjs';
 import { publicJSONResponse } from './public-http.mjs';
+import { packCatalogueDocument, restoreCatalogueDocument, catalogueSnapshotEvent } from './catalogue-cache.mjs';
 
 export const BROAD_TARGET = 100;
 export const BROAD_TIMEOUT_MS = 12 * 60 * 1000;
+const CATALOGUE_PAGES = 8;
 export const CATALOGUE_CACHE_BYTES = 128 * 1024 * 1024;
 const CACHE_TTL = 15 * 60 * 1000;
 export function createCatalogueCache(maxBytes = CATALOGUE_CACHE_BYTES) {
@@ -51,6 +53,9 @@ export const publicFetch = (fetcher, signal, trace = () => {}) => {
 };
 const host = value => new URL(value).hostname.replace(/^www\./, '');
 const inScope = (url, domains) => !domains?.length || domains.some(d => host(url) === d.replace(/^www\./, '') || host(url).endsWith('.' + d.replace(/^www\./, '')));
+export const broadBackfillQueries = (intent, catalogues) => [intent + ' product', intent + ' new collection',
+  ...['clarks.com', 'camper.com', 'ecco.com', 'nordstrom.com'].map(d => intent + ' site:' + d),
+  ...catalogues.map(c => intent + ' site:' + host(c.url))].slice(0, 12);
 export async function searchBroadPhotos(input, options) {
   const { readDocument, signal, trace = () => {}, onProgress = async () => {}, plans,
     catalogues = PUBLIC_CATALOGUES, target = BROAD_TARGET } = options;
@@ -58,6 +63,18 @@ export async function searchBroadPhotos(input, options) {
   const goal = Math.min(BROAD_TARGET, Math.max(1, target));
   const items = [], channels = [], hashes = new Set(), pages = new Set(), imageKeys = new Set();
   const sources = [], stopped = new Set();
+  const captured = new Set(), snapshotLimit = 4 * 1024 * 1024;
+  let snapshotBytes = 0, snapshotsOmitted = 0;
+  const snapshot = record => {
+    if (captured.has(record.url)) return;
+    captured.add(record.url);
+    const encodedBytes = Math.ceil(record.compressed.length / 3) * 4;
+    if (snapshotBytes + encodedBytes > snapshotLimit) {
+      snapshotsOmitted++; trace('catalogue.source.snapshot.omitted', { url: record.url, sha256: record.sha256, reason: 'encodedSnapshotBudget', limit: snapshotLimit }); return;
+    }
+    snapshotBytes += encodedBytes;
+    trace('catalogue.source.snapshot', catalogueSnapshotEvent(record));
+  };
   let checked = 0, candidates = 0, round = 0, intent = photoQuery(input.subject);
   const excluded = url => (plans.excludedDomains || []).some(d => inScope(url, [d]));
   const selected = new Set(input.sources || ['official', 'media', 'retail']);
@@ -67,7 +84,7 @@ export async function searchBroadPhotos(input, options) {
     accepted: items.length, checked, candidates, resultLimit: goal, channelsDone: channels.length,
     totalChannels: channels.length, matchedSources: countResultSources(items),
     items: [...items], channels: [...channels], sourceChecks: [...sources], ...extra });
-  trace('broad.started', { target: goal, input, catalogues: eligibleCatalogues, maxCataloguePages: 6, maxSearchQueries: 14,
+  trace('broad.started', { target: goal, input, catalogues: eligibleCatalogues, maxCataloguePages: CATALOGUE_PAGES, maxSearchQueries: 14,
     criteria: { ownProductEvidence: true, downloadableImage: true, minWidth: 350, minHeight: 250, maxViewsPerProduct: 2 } });
 
   const verify = async (buckets, label, evidenceDocuments = new Map()) => {
@@ -106,7 +123,11 @@ export async function searchBroadPhotos(input, options) {
   const listing = async (source, page) => {
     const url = source.url + '/products.json?limit=250' + (page === 1 ? '' : '&page=' + page);
     const cached = cache.get(url);
-    if (cached && Date.now() - cached.at < CACHE_TTL) { trace('catalogue.cache.hit', { url, bytes: cached.bytes, sha256: cached.sha256 }); return { ...cached.data, document: cached.document }; }
+    if (cached && Date.now() - cached.at < CACHE_TTL) {
+      const document = restoreCatalogueDocument(cached); snapshot(cached);
+      trace('catalogue.cache.hit', { url, bytes: cached.bytes, compressedBytes: cached.compressed.length, sha256: cached.sha256 });
+      return { ...document.parsed, document };
+    }
     let doc;
     try { doc = await abortable(() => readDocument(url, fetcher), signal); }
     catch (error) {
@@ -122,9 +143,10 @@ export async function searchBroadPhotos(input, options) {
     if (!Array.isArray(data.products)) throw Error('来源未提供公开商品目录');
     const bytes = Buffer.byteLength(doc.html), sha256 = createHash('sha256').update(doc.html).digest('hex');
     const document = { ...doc, parsed: data, sha256, fetchedAt: new Date().toISOString() };
-    const weight = bytes * 3; // Serialized JSON plus parsed records and source text.
-    cache.set(url, { data, document, bytes, weight, sha256, at: Date.now() }, weight);
-    trace('catalogue.listing', { url, products: data.products.length, bytes, sha256, cacheBytes: cache.bytes, cacheLimitBytes: CATALOGUE_CACHE_BYTES });
+    const packed = packCatalogueDocument(document);
+    const weight = packed.compressed.length * 3;
+    cache.set(url, { ...packed, at: Date.now() }, weight); snapshot(packed);
+    trace('catalogue.listing', { url, products: data.products.length, bytes, compressedBytes: packed.compressed.length, sha256, cacheBytes: cache.bytes, cacheLimitBytes: CATALOGUE_CACHE_BYTES });
     return { ...data, document };
   };
   // Plan once. Later queries can change discovery wording, never the evidence requirement.
@@ -135,7 +157,7 @@ export async function searchBroadPhotos(input, options) {
   } catch (error) { signal?.throwIfAborted(); trace('broad.planning.failed', { error: errorDetails(error) }); }
   if (/[\u3400-\u9fff]/.test(intent)) throw Error('英文需求翻译失败，未发送不完整检索词');
   trace('broad.intent', { originalSubject: input.subject, intent });
-  for (let page = 1; page <= 6 && eligibleCatalogues.length && items.length < goal; page++) {
+  for (let page = 1; page <= CATALOGUE_PAGES && eligibleCatalogues.length && items.length < goal; page++) {
     round++;
     const buckets = [], evidenceDocuments = new Map();
     // Sequential per domain pages and bounded independent domains avoid hammering storefronts.
@@ -157,7 +179,7 @@ export async function searchBroadPhotos(input, options) {
             retained.push({ ...first, image: undefined, evidenceURL: data.document.url, evidenceKind: 'public-product-catalogue', evidenceFetchedAt: data.document.fetchedAt, viewLimit: 2 });
           }
           trace('catalogue.filtered', { source: source.name, url: source.url, page, discovered: data.products.length, retained: retained.length, reasons, examples,
-            products: retained.map(p => ({ url: p.url, title: p.title, productCode: p.productCode, intentEvidence: p.intentEvidence })) });
+            products: retained.map(p => ({ url: p.url, title: p.title, productCode: p.productCode, intentEvidence: p.intentEvidence, imageSelectionEvidence: p.imageSelectionEvidence, excludedGalleryImages: p.excludedGalleryImages })) });
           sources.push({ domain: host(source.url), page, status: 'queried', retained: retained.length });
           buckets.push({ candidates: retained, domains: [new URL(source.url).hostname], intent, label: source.name + ' · 公开商品目录', provider: '公开商品目录' });
         } catch (error) {
@@ -169,7 +191,7 @@ export async function searchBroadPhotos(input, options) {
       }
     }));
     await verify(buckets, 'catalogue-page-' + page, evidenceDocuments);
-    if ((page === 2 || stopped.size >= eligibleCatalogues.length) && !initialSearchUsed && items.length < goal && initialSearch.length) {
+    if ((page === CATALOGUE_PAGES || stopped.size >= eligibleCatalogues.length) && !initialSearchUsed && items.length < goal && initialSearch.length) {
       initialSearchUsed = true; round++; await verify(initialSearch.map(a => ({ candidates: a.results.map(c => ({ ...c, viewLimit: 2 })), domains, intent,
         provider: a.provider, label: 'DeepSeek · 英文检索', ...(a.error ? { error: a.error } : {}) })), 'initial-web-search');
     }
@@ -181,9 +203,8 @@ export async function searchBroadPhotos(input, options) {
   }
   const seenQueries = new Set(initialSearch.map(a => a.query));
   // Explicit domain searches supply new products instead of repeatedly requesting the same global top 20.
-  const bases = [intent + ' product', intent + ' new collection', ...eligibleCatalogues.map(c => intent + ' site:' + host(c.url)),
-    intent + ' site:clarks.com', intent + ' site:camper.com', intent + ' site:ecco.com', intent + ' site:nordstrom.com'];
-  for (const query of bases.slice(0, 12)) {
+  const bases = broadBackfillQueries(intent, eligibleCatalogues);
+  for (const query of bases) {
     if (items.length >= goal) break;
     if (seenQueries.has(query) || [...query].length > 128) continue;
     seenQueries.add(query); round++;
@@ -192,6 +213,7 @@ export async function searchBroadPhotos(input, options) {
       provider: a.provider, ...(a.error ? { error: a.error } : {}), label: 'DeepSeek · 补充检索' })), 'web-backfill');
   }
   trace('broad.finished', { accepted: items.length, target: goal, targetReached: items.length >= goal, rounds: round, checked,
+    sourceSnapshots: { captured: captured.size - snapshotsOmitted, omitted: snapshotsOmitted, encodedBytes: snapshotBytes, limit: snapshotLimit },
     distinctProducts: new Set(items.map(i => i.clueKey)).size, matchedSources: countResultSources(items), stoppedCatalogues: [...stopped] });
   await progress('done', { targetReached: items.length >= goal });
   return { items, channels, sourceChecks: sources, targetReached: items.length >= goal,

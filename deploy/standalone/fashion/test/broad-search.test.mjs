@@ -2,11 +2,50 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { publicProductPhotos, productAPIPhotos } from '../public-catalogue.mjs';
 import { searchPhotos, sourceProductMatches, photoLimits, matchesIntent } from '../photo-search.mjs';
-import { searchBroadPhotos, createCatalogueCache, CATALOGUE_CACHE_BYTES, catalogueRetryDelay } from '../broad-search.mjs';
+import { searchBroadPhotos, createCatalogueCache, CATALOGUE_CACHE_BYTES, catalogueRetryDelay, broadBackfillQueries } from '../broad-search.mjs';
+import { packCatalogueDocument, restoreCatalogueDocument, catalogueSnapshotEvent } from '../catalogue-cache.mjs';
 const raw = (i, extra = {}) => ({ id: i + 1, handle: 'shoe-' + i, title: "Women's winter casual sneakers " + i,
   type: 'Shoes', vendor: 'Fixture', tags: ['Winter', 'female'], description: 'Insulated winter casual footwear.',
   images: [`https://cdn.example/shoe-${i}-side.jpg`, `https://cdn.example/shoe-${i}-top.jpg`], ...extra });
 const input = { subject: '女款冬季休闲鞋', days: 0, domains: [], sourceScope: 2, sources: ['official', 'retail', 'media'] };
+test('additional catalogue adapters cannot crowd external publishers out of the bounded backfill plan', () => {
+ const queries=broadBackfillQueries('women black loafers',Array.from({length:15},(_,i)=>({url:'https://brand'+i+'.test'})));
+ assert.equal(queries.length,12);
+ for(const domain of ['clarks.com','camper.com','ecco.com','nordstrom.com'])assert(queries.includes('women black loafers site:'+domain));
+});
+test('compressed catalogue cache and chunked debug snapshots restore exact source bytes', async () => {
+ const {randomBytes}=await import('node:crypto');const {gunzipSync}=await import('node:zlib');
+ const html=JSON.stringify({products:[raw(1,{body_html:randomBytes(100000).toString('hex')})]});
+ const packed=packCatalogueDocument({url:'https://brand.test/products.json',html,fetchedAt:'2026-10-23T00:00:00.000Z'});
+ assert.equal(packed.html,undefined);assert.equal(packed.parsed,undefined);assert.equal(packed.data,undefined);
+ assert.equal(restoreCatalogueDocument(packed).html,html);assert.equal(restoreCatalogueDocument(packed).parsed.products[0].id,2);
+ const snapshot=catalogueSnapshotEvent(packed);assert(snapshot.chunks.length>1);assert(snapshot.chunks.every(s=>s.length<=32768));
+ assert.equal(gunzipSync(Buffer.from(snapshot.chunks.join(''),'base64')).toString(),html);
+ assert.throws(()=>restoreCatalogueDocument({...packed,sha256:'0'.repeat(64)}),/校验失败/);
+});
+test('explicit storefront category and one-color options qualify their own product, not other variants', async () => {
+ const {matchesPhotoProduct}=await import('../photo-search.mjs');
+ const p=publicProductPhotos(raw(1,{title:'The Una',type:'',description:'Leather penny loafer',tags:['_filter_category Loafer','_filter_super_category Shoes','_filter_gender Women','_filter_color Black'],options:[{name:'Color',values:['Black Nappa']}]}),'https://brand.test')[0];
+ assert(p);assert(matchesPhotoProduct('women black loafers',p));
+ const mixed=publicProductPhotos(raw(2,{title:"Women's penny loafer",type:'Loafers',description:'Classic leather loafers',tags:['female'],options:[{name:'Color',values:['Black','Tan']}]}),'https://brand.test')[0];
+ assert(!matchesPhotoProduct('women black loafers',mixed));
+ assert.equal(publicProductPhotos(raw(3,{title:'Loafer printed top',type:'',tags:['_filter_super_category Clothing','_filter_category Top']}),'https://brand.test').length,0);
+});
+test('M.Gemi campaign photographs cannot replace identifiable own-product views', () => {
+ const p=raw(20,{title:'The Una (Sample Sale)',images:['https://cdn.test/123_TheUna_Black_Nappa.jpg','https://cdn.test/TT18609-campaign.jpg']});
+ const photos=publicProductPhotos(p,'https://mgemi.com');
+ assert.equal(photos.length,1);assert(photos[0].image.includes('TheUna'));assert.equal(photos[0].excludedGalleryImages,1);
+ assert.equal(publicProductPhotos(p,'https://another-brand.test').length,2);
+ const unknown=publicProductPhotos({...p,images:['https://cdn.test/photo1.jpg','https://cdn.test/photo2.jpg']},'https://mgemi.com');assert.equal(unknown.length,1);
+});
+test('third-page official evidence precedes verification of unrelated web fallback candidates', async () => {
+ const pages=[];let webReads=0;
+ const f=async u=>String(u).endsWith('/chat/completions')?fetcher(String(u)):Response.json({results:[{title:'Women winter casual shoes',url:'https://unreviewed.test/products/shoe'}]});f.deepseekRelay='https://relay.example';
+ const result=await searchBroadPhotos(input,{fetcher:f,plans:[{deepseek:true,domains:[]}],target:5,catalogues:[{url:'https://pages.test',name:'Pages',category:'official'}],
+  readDocument:async url=>{const page=Number(new URL(url).searchParams.get('page')||1);pages.push(page);const rows=[raw(1000+page)];if(page<3)for(let i=0;i<249;i++)rows.push(raw(2000+i,{type:'Clothing',title:'Top'}));return{url,html:JSON.stringify({products:rows})};},
+  readPage:async()=>{webReads++;throw Error('unexpected web fallback')},readImage:async url=>({bytes:Buffer.from(url),mime:'image/jpeg',width:800,height:800}),saveAsset:async()=>{}});
+ assert.equal(result.items.length,5);assert.deepEqual(pages,[1,2,3]);assert.equal(webReads,0);
+});
 test('catalogue cache retains the observed twelve-page working set and refreshes recently used pages', () => {
  const cache=createCatalogueCache();
  const sizes=[2629804,1293851,1760191,2990535,2325805,1450389,2085941,2005833,2396650,1397153,2110313,2781348];

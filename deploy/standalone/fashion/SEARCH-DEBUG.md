@@ -90,3 +90,13 @@ FASHION_ROUND=production-01 FASHION_BENCHMARK_BASE=https://happyspa.studio/fashi
 - 一次有界429重试支持最多90秒的服务端等待要求；更长等待仍停止该来源，保留原因。Retry-After支持秒数和HTTP日期。
 - 原始HTTP日志增加Retry-After和公开服务器标识；错误记录保留status/retryAfterMs。目录读取日志记录缓存占用和容量。
 - 新增复现生产12份目录工作集的回归，以及LRU、60秒限流、HTTP日期、长等待拒绝和诊断字段回归。图片与来源核对要求不变。
+
+## 1.0.19 来源覆盖、原始快照与图片身份
+
+- 新增已实读公开目录的ALOHAS、Dear Frances、M.Gemi、G.H.BASS，共11个具体目录适配器。Miista、Aeyde、Labucq等探查结果不等同于有效接入。
+- 读取品牌明确的`_filter_category`、`_filter_super_category`、`_filter_color`和唯一颜色选项；多颜色选项不广播给每张图片。
+- 官方目录优先补足100张，最多读取每来源8页，然后才核对网页补搜结果。扩大适配器列表不会挤掉Clarks、Camper、Ecco、Nordstrom的补搜席位。
+- 目录缓存保存完整原文的gzip字节，复用时解压、核对原文SHA并重新解析。缓存不再长期保留整份解析对象和文本，仍受128MB估算容量与15分钟有效期限制。
+- 每轮JSONL增加`catalogue.source.snapshot`：真实目录原文的gzip+base64分块、URL、抓取时间和SHA。分块避免单字符串截断；每轮最多4MB编码快照，超额会明确记录`catalogue.source.snapshot.omitted`。其他事件、原文样本和原图证据仍保留。
+- 提取和校验原始目录：`node deploy/standalone/fashion/scripts/extract-catalogue-snapshots.mjs trace.jsonl [output-directory]`。输出按原文SHA命名，已有不同内容文件不会被覆盖。
+- M.Gemi商品相册包含其他鞋款/颜色的搭配照。该来源优先使用文件中明确匹配商品ID或型号的照片；没有任何可识别型号的相册只保留主图。筛除数量与规则写入目录候选记录，交付时仍复核同一来源证据。
