@@ -56,7 +56,7 @@ export function structuredProductPhotos(html, pageURL, isRelevant) {
       const category = copy(ent(String(node.category || '')).trim());
       const description = copy(ent(String(node.description || '')).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 6000));
       const gender = copy(String(node.gender || node.audience?.suggestedGender || node.audience?.audienceType || ''));
-      const intentEvidence = [title, category, description, gender].filter(Boolean).join(' · ');
+      const intentEvidence = [title, category, description, gender, node.color || '', node.material || ''].filter(Boolean).join(' · ');
       const productURL = copy(absoluteURL(node.url || node.mainEntityOfPage, pageURL) || pageURL);
       const brandEvidence = copy(typeof node.brand === 'string' ? ent(node.brand)
         : ent(String(node.brand?.name || node.brand?.legalName || '')));
@@ -82,6 +82,7 @@ export function structuredProductPhotos(html, pageURL, isRelevant) {
           productTypeEvidence: 'footwear',
           brandEvidence,
           intentEvidence,
+          colorEvidence: [node.color || '', title.replace(/\([^)]*soles?[^)]*\)/gi, '')].join(' · '),
           schemaType: types.find(type => /^Product(?:Group)?$/i.test(String(type || ''))),
         });
       }

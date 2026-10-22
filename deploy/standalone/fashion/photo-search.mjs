@@ -1,3 +1,4 @@
+import { similarImage } from './image-quality.mjs';
 import { bingImages, commonsPhotoCandidates } from './legacy-search.mjs';
 import { createHash, randomBytes } from 'node:crypto';
 import { abortable } from './async-control.mjs';
@@ -8,6 +9,7 @@ import { catalogAdapter, catalogueProductPhotos } from './source-adapters.mjs';
 import { recentSitemapCandidates } from './sitemap-discovery.mjs';
 import { deepseekDiscover } from './deepseek-search.mjs';
 import { errorDetails } from './search-trace.mjs';
+import { productAPIPhotos } from './public-catalogue.mjs';
 
 const translations = [
   ['耐克', 'Nike'], ['阿迪达斯', 'Adidas'], ['新百伦', 'New Balance'], ['彪马', 'Puma'],
@@ -52,7 +54,7 @@ const withoutBrands = (value, brands) => {
 const compactBrand = value => String(value || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
 const escapeRegExp = value => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 export function matchesIntent(subject, value, productTypeEvidence = false) {
-  const terms = photoQuery(subject).toLowerCase().replace(/['’]/g, '').match(/[\p{L}\p{N}]+/gu) || [];
+  const terms = photoQuery(subject).toLowerCase().replace(/['’]/g, '').replace(/\b(?:womens?|woman|ladies|female)\b/g, 'women').match(/[\p{L}\p{N}]+/gu) || [];
   const hay = photoQuery(value).toLowerCase().replace(/['’]/g, '')
     .replace(/\b(?:womens?|woman|ladies|female)\b/g, 'women');
   // Season and casual use are often expressed as product features rather than
@@ -62,11 +64,12 @@ export function matchesIntent(subject, value, productTypeEvidence = false) {
   if (/\b(?:duffel|bag|handbag|backpack|shoebox|shoe bag|shoe box|storefront|logo)\b|鞋盒|手提包|鞋袋/i.test(value)) return false;
   if (apparel.test(value) && !footwear.test(value)) return false;
   if (terms.includes('leather') && /\bfaux\b|\bsynthetic\b|leather[- ]look|仿皮|人造革/i.test(value)) return false;
+  if (terms.includes('winter') && terms.includes('casual') && /\b(?:sandals?|stilettos?|pumps?|strappy|open.toe|jelly)\b/i.test(value)) return false;
   const knownNikeModel = /\b(?:Nike\s+(?:Dunk|Mind\s+00[12]|Air|Shox|Vomero|Pegasus|Sabrina\s+\d+)|Air\s+(?:Jordan|Max|Force))\b/i.test(value);
   return terms.filter(t => !stop.has(t)).every(t => {
     if(t==='nike' && /\bAir\s+Jordan\b/i.test(value)) return true;
     const stem = t.length > 4 && t.endsWith('s') ? t.slice(0, -1) : t;
-    return features.includes(stem);
+    return new RegExp('\\b' + escapeRegExp(stem) + 's?\\b', 'i').test(features);
   }) && (productTypeEvidence || knownNikeModel || footwear.test(value));
 }
 export function matchesProductIntent(subject, value, productTypeEvidence = false, verifiedBrand = '') {
@@ -87,16 +90,30 @@ export function matchesProductIntent(subject, value, productTypeEvidence = false
   if (![...requested].some(brand => found.has(brand) || evidence.has(brand))) return false;
   return matchesIntent(withoutBrands(subject, requested) || 'shoes', value, productTypeEvidence);
 }
+export function matchesPhotoProduct(subject, product) {
+  if (!matchesProductIntent(subject, product.intentEvidence || product.title, Boolean(product.productTypeEvidence), product.brandEvidence)) return false;
+  const requested = photoQuery(subject).toLowerCase();
+  for (const color of ['white', 'black', 'brown', 'green', 'red', 'blue', 'pink']) {
+    if (!new RegExp('\\b' + color + '\\b').test(requested) || !product.colorEvidence) continue;
+    const evidence = product.colorEvidence;
+    const primary = evidence.match(/\b(white|ivory|cream|ecru|blizzard|black|brown|green|red|blue|pink|grey|gray|navy|tan|beige)\b/i)?.[1]?.toLowerCase();
+    const white = /^(?:white|ivory|cream|ecru|blizzard)$/;
+    if (color === 'white' ? !primary || !white.test(primary) : !new RegExp('\\b' + color + '\\b', 'i').test(evidence)) return false;
+  }
+  return true;
+}
 export function sourceProductMatches(html, pageURL, item, subject) {
+  if (item.evidenceURL) return productAPIPhotos(html, item.evidenceURL, pageURL).some(p =>
+    matchesPhotoProduct(subject, p) && keyURL(p.image) === keyURL(item.image));
   const title = plain(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '');
   if (matchesProductIntent(subject, title, Boolean(item.productTypeEvidence), item.verifiedBrand || '')) return true;
-  return structuredProductPhotos(html, pageURL, (name, brand, evidence) => matchesProductIntent(subject, evidence || name, true, brand))
-    .some(product => productPageKey(product.canonicalURL || product.url) === productPageKey(pageURL) && keyURL(product.image) === keyURL(item.image));
+  return structuredProductPhotos(html, pageURL, () => true)
+    .some(product => matchesPhotoProduct(subject, product) && productPageKey(product.canonicalURL || product.url) === productPageKey(pageURL) && keyURL(product.image) === keyURL(item.image));
 }
 export function discoveryIntent(subject, title) {
   return matchesIntent(subject,title) || /\b(?:shoe|footwear|flat|loafer|sneaker|boot)s?\b|鞋|靴/i.test(title);
 }
-const blocked = /(?:pinterest|etsy|ebay|1stdibs|ufonomore|fashionphile|stockx|goat\.|therealreal|vestiairecollective|grailed|carousell|amazon|walmart|poshmark|depop|mercari|aliexpress|temu|storage\.googleapis|lyst\.|gihut\.com|dashangu\.com|wenmiyuan\.com)/i;
+const blocked = /(?:pinterest|etsy|ebay|1stdibs|ufonomore|fashionphile|stockx|goat\.|therealreal|vestiairecollective|grailed|carousell|amazon|walmart|poshmark|depop|mercari|aliexpress|temu|storage\.googleapis|lyst\.|joom\.|grandado\.|dhgate\.|lazada\.|flipkart\.|alibaba\.|aliexpress\.|shopee\.|meesho\.|gihut\.com|dashangu\.com|wenmiyuan\.com)/i;
 const decode = s => s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&ndash;/g, '–').replace(/&mdash;/g, '—').replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&#x([a-f\d]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));
 const plain = s => decode(s.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
 const copyString = value => typeof value === 'string' ? Buffer.from(value, 'utf8').toString('utf8') : value;
@@ -255,7 +272,7 @@ async function duckDiscover(query, fetcher) {
 }
 
 export function photoLimits(input) {
-  return input.sourceScope === 2 ? { candidates: 192, results: 48 } : input.sourceScope === 1 ? { candidates: 128, results: 24 } : { candidates: 64, results: 16 };
+  return input.sourceScope === 2 ? { candidates: 1200, results: 100 } : input.sourceScope === 1 ? { candidates: 128, results: 24 } : { candidates: 64, results: 16 };
 }
 export function photoQueries(subject, scope) {
   const base = photoQuery(subject);
@@ -272,7 +289,7 @@ function eligibilityReason(candidate, subject, domains) {
     if (/\/(search|category|categories)(\/|$)|[?&]q=/i.test(u.pathname + u.search)) return 'searchOrCategoryPage';
     if (domains.length && !domains.some(d => u.hostname === d || u.hostname.endsWith('.' + d))) return 'outsideSourceScope';
     if (/(?:演示数据|示例商品|demo product|sample product|placeholder)/i.test(candidate.title || '')) return 'placeholder';
-    if (!(candidate.productTypeEvidence ? matchesProductIntent(subject, candidate.title || '', true, candidate.brandEvidence || candidate.catalogue) : discoveryIntent(subject, candidate.title || ''))) return 'discoveryIntentMismatch';
+    if (!(candidate.productTypeEvidence ? matchesPhotoProduct(subject, { ...candidate, brandEvidence: candidate.brandEvidence || candidate.catalogue }) : discoveryIntent(subject, candidate.title || ''))) return 'discoveryIntentMismatch';
     if ((candidate.width !== undefined && !(Number(candidate.width) >= 350)) ||
         (candidate.height !== undefined && !(Number(candidate.height) >= 250))) return 'declaredImageTooSmall';
     return null;
@@ -343,8 +360,9 @@ async function discoverOpenSources(entry, fetcher, readDocument, input, signal, 
   return attempts;
 }
 
-export async function searchPhotos(input, { fetcher, plans, readPage, readDocument = readPage, readImage, saveAsset, signal, onProgress = async () => {}, resultLimit, checkpoint = null, pageCacheLimit = PAGE_CACHE_LIMIT, pageCacheByteLimit = PAGE_CACHE_BYTE_LIMIT, incrementalProgress = false, limitPageRead = task => task(), trace = () => {} } = {}) {
-  const channels = [], buckets = [], images = new Set(), hashes = new Set();
+export async function searchPhotos(input, { fetcher, plans, readPage, readDocument = readPage, readImage, saveAsset, signal, onProgress = async () => {}, resultLimit, checkpoint = null, pageCacheLimit = PAGE_CACHE_LIMIT, pageCacheByteLimit = PAGE_CACHE_BYTE_LIMIT, incrementalProgress = false, knownImageHashes = [], knownImageFingerprints = [], limitPageRead = task => task(), trace = () => {} } = {}) {
+  const fingerprints = [...knownImageFingerprints];
+  const channels = [], buckets = [], images = new Set(), hashes = new Set(knownImageHashes);
   const limits = photoLimits(input);
   const maxResults = Number.isFinite(resultLimit) && resultLimit > 0 ? resultLimit : limits.results;
   const sourceChecks = [];
@@ -380,10 +398,10 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
   const excluded = host => (plans.excludedDomains || []).some(d => host === d || host.endsWith('.' + d));
   const variants = photoQueries(input.subject, input.sourceScope);
   const base = variants[0];
-  const entries = plans.filter(x => x.domains.length && !x.deepseek && !x.catalogURL && !x.sources?.length)
+  const entries = plans.filter(x => x.domains.length && !x.deepseek && !x.catalogURL && !x.sources?.length && !x.candidates)
     .map(x => ({ ...x, query: `${base} (${x.domains.map(d => `site:${d}`).join(' OR ')})` }));
   const agentPlan = plans.find(p => p.deepseek);
-  if (!agentPlan && input.sourceScope !== 0 && (input.sourceScope !== undefined || !input.domains.length)) {
+  if (!agentPlan && !plans.some(p => p.candidates) && input.sourceScope !== 0 && (input.sourceScope !== undefined || !input.domains.length)) {
     entries.unshift(...variants.map(query => ({ query, domains: [], label: '公开图片' })));
     if (input.sourceScope === 2) entries.push({ query: base, domains: [], label: '公开图片 · 后续页', offset: 60 });
   }
@@ -397,6 +415,7 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
   entries.unshift(...plans.filter(p => p.openDiscovery).map(p => ({
     ...p, sources: undefined, catalogURL: undefined, catalogue: undefined, sourceReader: false, openDiscovery: true, query: base,
   })));
+  entries.unshift(...plans.filter(p => p.candidates).map(p => ({ ...p, query: p.query || p.intent || base, label: p.label || '补充商品候选' })));
   if (agentPlan) entries.unshift({ ...agentPlan, query: base, label: 'DeepSeek 商品发现' });
   trace('discovery.started', { originalSubject: input.subject, dictionaryQuery: base, variants, limits, maxResults, entryCount: entries.length, excludedDomains: plans.excludedDomains || [] });
   let checked = 0, completed = 0;
@@ -424,7 +443,9 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
       entryTrace('entry.started', { entry });
       try {
         let attempts;
-        if (entry.deepseek) {
+        if (entry.candidates) {
+          attempts = [{ provider: entry.provider || '公开商品目录', results: entry.candidates, intent: entry.intent || input.subject, query: entry.query, ...(entry.error ? { error: entry.error } : {}) }];
+        } else if (entry.deepseek) {
           attempts = await deepseekDiscover(input, base, fetcher, signal, entryTrace);
         } else if (entry.openDiscovery) {
           attempts = await discoverOpenSources(entry, fetcher, readDocument, input, signal, excluded);
@@ -620,7 +641,7 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
     if (candidate.catalogURL && candidate.image && catalogCompleted.has(candidate.url + '|' + keyURL(candidate.image))) {
       trace('candidate.skipped', { candidateId: candidate.debugId, url: candidate.url, reason: 'checkpointAlreadyCompleted' }); return false;
     }
-    const key = candidate.image ? keyURL(candidate.image) : `catalog:${candidate.productCode || candidate.url}`;
+    const key = candidate.image ? keyURL(candidate.image) : `page:${candidate.url}`;
     if (images.has(key)) { trace('candidate.skipped', { candidateId: candidate.debugId, url: candidate.url, key, reason: 'duplicateDiscovery' }); return false; }
     images.add(key); return true;
   });
@@ -637,7 +658,13 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
       const started = Date.now();
       trace('candidate.verify.started', evidence);
       try {
-        const { html, url } = await readCachedWithRetry(candidate.url, candidate.catalogURL ? 3 : 1);
+        const document = candidate.evidenceURL
+          ? await abortable(() => limitPageRead(() => readDocument(candidate.evidenceURL, fetcher), signal), signal)
+          : await readCachedWithRetry(candidate.url, candidate.catalogURL ? 3 : 1);
+        const { html } = document;
+        const url = candidate.evidenceURL ? candidate.url : document.url;
+        if (candidate.evidenceURL && document.url !== candidate.evidenceURL) throw Error('商品数据地址发生跳转');
+        evidence.evidenceURL = candidate.evidenceURL;
         const source = new URL(url);
         evidence.finalURL = url;
         if (blocked.test(source.hostname) || excluded(source.hostname)) { reason = 'blockedRedirectDomain'; throw Error('跳转后的来源被排除'); }
@@ -695,8 +722,8 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
           }
           return accepted;
         }
-        const structured = structuredProductPhotos(html, url, () => true);
-        const products = structured.filter(product => matchesProductIntent(subject, product.intentEvidence || product.title, true, product.brandEvidence))
+        const structured = candidate.evidenceURL ? productAPIPhotos(html, candidate.evidenceURL, url) : structuredProductPhotos(html, url, () => true);
+        const products = structured.filter(product => matchesPhotoProduct(subject, product))
           .concat(articleProductPhotos(html,url,t=>matchesIntent(subject,t)));
         const belongsToPage = product => productPageKey(product.canonicalURL || product.url || url) === productPageKey(url) && !/preview_images|\.thumbnail\./i.test(product.image);
         const declaredOwn = structured.filter(belongsToPage);
@@ -725,37 +752,56 @@ export async function searchPhotos(input, { fetcher, plans, readPage, readDocume
         const timestamp = Date.parse(
           html.match(/"datePublished"\s*:\s*"([^"]+)"/)?.[1] ||
           html.match(/property=["']article:published_time["'][^>]*content=["']([^"']+)/i)?.[1] ||
-          candidate.publishedAt,
+          (candidate.evidenceURL ? product?.publishedAt : candidate.publishedAt),
         );
-        const publishedAt = sourcePublishedAt(html, candidate);
+        const publishedAt = sourcePublishedAt(html, candidate.evidenceURL ? { ...candidate, publishedAt: product?.publishedAt } : candidate);
         Object.assign(evidence, { publishedAt, requestedDays: input.days, imageDeclared: Boolean(candidateImage && imageDeclared(html, candidateImage)) });
         reason = 'dateUnconfirmed';
         if (input.days && !publishedAt) throw Error('无法确认原页或候选的发布日期');
         reason = 'outsideDateRange';
         if (input.days && timestamp < Date.now() - input.days * 86400000) throw Error('发布日期早于指定时间范围');
         reason = 'imageUnavailable';
-        const image = declaredImageURL(html, candidateImage);
-        const asset = await abortable(() => readImage(image, fetcher), signal);
-        const sha256 = createHash('sha256').update(asset.bytes).digest('hex');
-        if (hashes.has(sha256)) { trace('candidate.skipped', { ...evidence, sha256, reason: 'duplicateImageHash' }); return null; }
-        hashes.add(sha256);
-        signal?.throwIfAborted();
-        reason = 'assetSaveFailed';
-        await abortable(() => saveAsset(sha256, asset), signal);
-        signal?.throwIfAborted();
-        candidate.channel.count++;
-        trace('candidate.accepted', { ...evidence, image, sha256, width: asset.width, height: asset.height,
-          bytes: asset.bytes.length, mime: asset.mime, durationMs: Date.now() - started });
-        for(const check of sourceChecks)if(source.hostname===check.domain||source.hostname.endsWith('.'+check.domain)){check.status='queried';delete check.error;}
-        return { id: randomBytes(8).toString('hex'), title, url, source: source.hostname.replace(/^www\./, ''),
-          canonicalURL: product?.canonicalURL || candidate.canonicalURL || url, productCode: product?.productCode || candidate.productCode || '',
-          clueKey: (product?.productCode || candidate.productCode) ? `product:${source.hostname.toLowerCase()}:${product?.productCode || candidate.productCode}` : `page:${source.hostname.toLowerCase()}${source.pathname}`,
-          image, imageKind: 'source-matched', imageSha256: sha256, imageMime: asset.mime,
-          sourceCheckedAt: new Date().toISOString(), sourceImageMatched: true,
-          productTypeEvidence: Boolean(product?.productTypeEvidence),
-          verifiedBrand: product?.brandEvidence || '',
-          ...(candidate.searchProvider ? { searchIntent: subject, discovery: { provider: candidate.searchProvider, query: candidate.channel.query, score: candidate.searchScore } } : {}),
-          publishedAt, collectedAt: new Date().toISOString(), review: 'pending', selected: false, note: '', summary: '' };
+        const accepted = [];
+        const viewLimit = Math.max(1, Math.min(2, Number(candidate.viewLimit) || 1));
+        const selectedPhotos = candidate.image ? [{ image: candidateImage }] : ownProducts.slice(0, viewLimit > 1 ? 8 : 1);
+        for (const selected of selectedPhotos) {
+          if (accepted.length >= viewLimit) break;
+          try {
+            if (!imageDeclared(html, selected.image)) { reason = 'imageSourceMismatch'; throw Error('商品视图未在来源中声明'); }
+            const image = declaredImageURL(html, selected.image);
+            const asset = await abortable(() => readImage(image, fetcher), signal);
+            const sha256 = createHash('sha256').update(asset.bytes).digest('hex');
+            if (hashes.has(sha256)) { trace('candidate.skipped', { ...evidence, sha256, reason: 'duplicateImageHash' }); continue; }
+            if (asset.imageFingerprint && (fingerprints.some(p => similarImage(p, asset.imageFingerprint)) || accepted.some(p => similarImage(p.imageFingerprint, asset.imageFingerprint, { distance: 10, color: 12 })))) {
+              trace('candidate.skipped', { ...evidence, image, reason: 'nearDuplicateImage', fingerprint: asset.imageFingerprint }); continue;
+            }
+            if (asset.imageFingerprint) fingerprints.push(asset.imageFingerprint);
+            hashes.add(sha256);
+            signal?.throwIfAborted();
+            reason = 'assetSaveFailed';
+            await abortable(() => saveAsset(sha256, asset), signal);
+            signal?.throwIfAborted();
+            candidate.channel.count++;
+            trace('candidate.accepted', { ...evidence, image, sha256, width: asset.width, height: asset.height,
+              bytes: asset.bytes.length, mime: asset.mime, durationMs: Date.now() - started });
+            for(const check of sourceChecks)if(source.hostname===check.domain||source.hostname.endsWith('.'+check.domain)){check.status='queried';delete check.error;}
+            accepted.push({ id: randomBytes(8).toString('hex'), title, url, source: source.hostname.replace(/^www\./, ''),
+              canonicalURL: product?.canonicalURL || candidate.canonicalURL || url, productCode: product?.productCode || candidate.productCode || '',
+              clueKey: (product?.productCode || candidate.productCode) ? `product:${source.hostname.toLowerCase()}:${product?.productCode || candidate.productCode}` : `page:${source.hostname.toLowerCase()}${source.pathname}`,
+              image, imageKind: 'source-matched', imageSha256: sha256, imageMime: asset.mime,
+              ...(asset.imageFingerprint ? { imageFingerprint: asset.imageFingerprint } : {}),
+              sourceCheckedAt: new Date().toISOString(), sourceImageMatched: true,
+              productTypeEvidence: Boolean(product?.productTypeEvidence),
+              verifiedBrand: product?.brandEvidence || '',
+              searchIntent: subject, ...(candidate.searchProvider ? { discovery: { provider: candidate.searchProvider, query: candidate.channel.query, score: candidate.searchScore } } : {}),
+              publishedAt, collectedAt: new Date().toISOString(), review: 'pending', selected: false, note: '', summary: '', ...(candidate.evidenceURL ? { evidenceURL: candidate.evidenceURL, evidenceKind: 'public-product-api' } : {}) });
+          } catch (error) {
+            trace('candidate.image.rejected', { ...evidence, image: selected.image, reason, error: errorDetails(error) });
+            signal?.throwIfAborted();
+          }
+        }
+        if (!accepted.length) throw Error('本商品图片均未通过核对');
+        return accepted;
       } catch (error) {
         trace('candidate.rejected', { ...evidence, reason, error: errorDetails(error), aborted: Boolean(signal?.aborted), durationMs: Date.now() - started });
         signal?.throwIfAborted();

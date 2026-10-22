@@ -1,3 +1,5 @@
+import { imageFingerprint } from './image-quality.mjs';
+import { searchBroadPhotos, publicFetch, BROAD_TIMEOUT_MS } from './broad-search.mjs';
 import { createServer } from "node:http";
 import { abortable } from "./async-control.mjs";
 import { runSourceQueue, SOURCE_QUEUE_READER_VERSION } from './source-queue.mjs';
@@ -177,9 +179,9 @@ async function publicURL(value, fetcher) {
 export async function getPublic(value, fetcher, redirects = 0, allowFeed = false) {
   const u = await publicURL(value, fetcher);
   const r = await fetcher(u, {
-    signal: AbortSignal.timeout(7000),
+    signal: AbortSignal.timeout(allowFeed ? 18000 : 7000),
     redirect: "manual",
-    headers: { "user-agent": "Mozilla/5.0", accept: "text/html" },
+    headers: { "user-agent": "Mozilla/5.0", accept: allowFeed ? "text/html,application/json,application/javascript,application/xml" : "text/html" },
   });
   if (r.status >= 300 && r.status < 400) {
     if (redirects >= 3) throw Error("跳转过多");
@@ -191,8 +193,10 @@ export async function getPublic(value, fetcher, redirects = 0, allowFeed = false
     );
   }
   const mime = r.headers.get("content-type") || "";
-  if (!r.ok || !(mime.includes("text/html") || (allowFeed && /(?:application\/(?:rss\+xml|atom\+xml|xml)|text\/xml)/i.test(mime))))
-    throw Error("网页不可读");
+  if (!r.ok || !(mime.includes("text/html") || (allowFeed && /(?:application\/(?:rss\+xml|atom\+xml|xml)|text\/xml|application\/(?:json|javascript)|text\/javascript)/i.test(mime))))
+    { const error = Error(`网页不可读（HTTP ${r.status}）`); error.status = r.status;
+      const retry = Number(r.headers.get('retry-after')); if (Number.isFinite(retry) && retry > 0) error.retryAfterMs = retry * 1000;
+      throw error; }
   let html = "";
   const decoder = new TextDecoder();
   const reader = r.body.getReader();
@@ -200,7 +204,7 @@ export async function getPublic(value, fetcher, redirects = 0, allowFeed = false
     const { done, value } = await reader.read();
     if (done) break;
     html += decoder.decode(value, {stream:true});
-    if (html.length > 2000000) {
+    if (html.length > (allowFeed && /json|javascript/.test(mime) ? 8 * 1024 * 1024 : 2000000)) {
       await reader.cancel();
       break;
     }
@@ -328,8 +332,9 @@ export function createApp({
       if (!item.imageSha256 || !item.sourceImageMatched || item.imageUnavailable || task.items.find(i => i.id === item.id)?.imageUnavailable) throw Error('有图片不可用或尚未建立来源对应关系，请重新检索并核查。');
       const bytes = await readFile(assetFile(item.imageSha256)).catch(() => { throw Error('图片缓存失效，请重新检索并核查。'); });
       if (createHash('sha256').update(bytes).digest('hex') !== item.imageSha256) throw Error('图片缓存已变化，请重新检索。');
-      const { html, url } = await getPublic(item.url, fetcher);
-      if (url !== item.url || !imageDeclared(html, item.image) || !sourceProductMatches(html, url, item, item.searchIntent || task.input.subject))
+      const document = await getPublic(item.evidenceURL || item.url, item.evidenceURL ? publicFetch(fetcher) : fetcher, 0, Boolean(item.evidenceURL));
+      const { html } = document; const url = item.url;
+      if (document.url !== (item.evidenceURL || item.url) || !imageDeclared(html, item.image) || !sourceProductMatches(html, url, item, item.searchIntent || task.input.subject))
         throw Error('原始来源或图片对应关系已变化，请重新检索并核查。');
     }
   }
@@ -444,10 +449,12 @@ export function createApp({
     };
     const readPage = tracedRead(getPublic, 'page');
     const readDocument = tracedRead((url, f) => getPublic(url, f, 0, true), 'source-document');
+    let measureVisuals = false;
     const readImage = async (url, f) => {
       const started = Date.now();
       try {
         const asset = await getImage(url, f);
+        if (measureVisuals) asset.imageFingerprint = await imageFingerprint(asset.bytes);
         trace('image.read', { url, durationMs: Date.now() - started, bytes: asset.bytes.length,
           mime: asset.mime, width: asset.width, height: asset.height, sha256: createHash('sha256').update(asset.bytes).digest('hex') });
         return asset;
@@ -534,6 +541,13 @@ export function createApp({
         const plans = await abortable(async () => await planSources(task.input) || searchPlan(task.input), controller.signal);
         trace('plan.created', { entries: plans.length, excludedDomains: plans.excludedDomains || [] });
         plans.forEach((entry, index) => trace('plan.entry', { index, entry }));
+        const broadAgent = photoSearch && task.input.sourceScope === 2 && plans.some(p => p.deepseek);
+        measureVisuals = broadAgent;
+        if (broadAgent) {
+          clearMainTimer();
+          timeout = setTimeout(() => controller.abort(new DOMException('广泛检索超时', 'TimeoutError')), BROAD_TIMEOUT_MS);
+          task.progress.deadlineAt = new Date(Date.now() + BROAD_TIMEOUT_MS).toISOString();
+        }
         const broadScope = photoSearch && task.input.sourceScope === 2 && Array.isArray(plans) && !plans.some(p => p.deepseek) && plans.some(p => p.domains.length);
         if (broadScope) {
           clearMainTimer();
@@ -663,14 +677,14 @@ export function createApp({
           }
           task.channels = [{ provider: '公开来源索引', query: '分批来源查询', count: task.items.length }];
         } else {
-          const result = await abortable(() => photoSearch ? searchPhotos(task.input, {
+          const result = await abortable(() => photoSearch ? (broadAgent ? searchBroadPhotos : searchPhotos)(task.input, {
             fetcher: jobFetcher, plans, readPage, readDocument, readImage,
             saveAsset, signal: controller.signal, onProgress, trace,
           }) : runSearch(task.input, jobFetcher), controller.signal);
           task.items = retainReview(result.items);
           task.channels = result.channels;
           task.status = 'review';
-          task.message = task.items.length ? '' : noResultsMessage(task);
+          task.message = result.message || (task.items.length ? '' : noResultsMessage(task));
         }
       } catch (e) {
         trace('run.failed', { error: errorDetails(e), aborted: controller.signal.aborted,
@@ -678,7 +692,7 @@ export function createApp({
         const timedOut = controller.signal.aborted;
         task.status = timedOut && task.progress.accepted ? 'review' : 'error';
         task.message = timedOut
-          ? `本次检索已达到 ${Math.ceil(searchTimeoutMs / 1000)} 秒时限。${task.progress.accepted ? `已保留 ${task.items.length} 条通过来源核对的结果，可继续核查或重新检索。` : '部分来源未响应，请重试或调整条件。'}`
+          ? `本次检索已达到 ${Math.ceil((task.input.sourceScope === 2 && deepseekSearchReady(fetcher) ? BROAD_TIMEOUT_MS : searchTimeoutMs) / 1000)} 秒时限。${task.progress.accepted ? `已保留 ${task.items.length} 条通过来源核对的结果，可继续核查或重新检索。` : '部分来源未响应，请重试或调整条件。'}`
           : (e && e.message) || '检索失败';
       } finally {
         active = false;

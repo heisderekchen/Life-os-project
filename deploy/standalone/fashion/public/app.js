@@ -286,6 +286,11 @@ function searchStatus(t) {
     const clock = `已保留 ${p.accepted || 0} 条素材`;
     return { heading, counts, clock };
   }
+  if (p.targetResults) return {
+    heading: p.stage === 'verify' ? '正在核对商品与原图' : '正在补充图片线索',
+    counts: `已保留 ${p.accepted || 0} / ${p.targetResults} 条图片线索 · 已核对 ${p.checked || 0} 个商品候选`,
+    clock: `已用时 ${elapsed} 秒 · 第 ${p.round || 1} 轮检索`,
+  };
   const limit = p.deadlineAt ? Math.ceil((Date.parse(p.deadlineAt) - Date.parse(p.startedAt)) / 1000) : 90;
   const heading = p.stage === 'verify' ? '正在核对原始来源与图片' : '正在检索公开来源';
   const counts = p.stage === 'verify' ? `已核对 ${p.checked || 0} / ${p.candidates || 0} 条候选 · 已保留 ${p.accepted || 0} 条`
