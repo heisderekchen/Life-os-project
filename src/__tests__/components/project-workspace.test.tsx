@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { http, HttpResponse } from 'msw'
@@ -27,9 +27,45 @@ function setup(failPatch = false, failTopics = false, initialTasks?: Record<stri
   return { patch: () => patch, created: () => created }
 }
 beforeAll(() => Object.defineProperty(Element.prototype, 'scrollIntoView', { value: vi.fn(), configurable: true }))
-beforeEach(() => { vi.mocked(localStorage.getItem).mockReset().mockReturnValue(null); vi.mocked(localStorage.setItem).mockReset(); localStorage.clear() })
-afterEach(() => cleanup())
+beforeEach(() => { useAppStore.setState({ focusMode: false }); vi.mocked(localStorage.getItem).mockReset().mockReturnValue(null); vi.mocked(localStorage.setItem).mockReset(); localStorage.clear() })
+afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 describe('project workspace', () => {
+  it('uses independent, task-first splits in focus mode', async () => {
+    useAppStore.setState({ focusMode: true }); setup()
+    await screen.findByRole('region', { name: '任务列表' })
+    expect(screen.getByTestId('project-workspace')).toHaveAttribute('data-focus-mode', 'true')
+    expect(screen.getByRole('separator', { name: '调整关系图与列表宽度' })).toHaveAttribute('aria-valuenow', '32')
+    expect(screen.getByRole('separator', { name: '调整任务列表与详情高度' })).toHaveAttribute('aria-valuenow', '70')
+    fireEvent.keyDown(screen.getByRole('separator', { name: '调整任务列表与详情高度' }), { key: 'ArrowDown' })
+    act(() => useAppStore.setState({ focusMode: false }))
+    expect(screen.getByRole('separator', { name: '调整任务列表与详情高度' })).toHaveAttribute('aria-valuenow', '60')
+    act(() => useAppStore.setState({ focusMode: true }))
+    expect(screen.getByRole('separator', { name: '调整任务列表与详情高度' })).toHaveAttribute('aria-valuenow', '72')
+  })
+  it('follows a selected project when the task panel shrinks without trapping manual scrolling', async () => {
+    let resize = () => {}
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(private callback: ResizeObserverCallback) {}
+      observe(element: HTMLElement) { if (element.classList.contains('workspace-table-scroll')) resize = () => this.callback([], this as unknown as ResizeObserver) }
+      disconnect() {}
+    })
+    setup(); const user = userEvent.setup()
+    const list = await screen.findByRole('region', { name: '任务列表' })
+    await user.click(within(list).getByRole('button', { name: /^项目 B/ }))
+    const container = list.querySelector<HTMLElement>('.workspace-table-scroll')!
+    const row = container.querySelector<HTMLElement>('[data-workspace-node="project:project-b"]')!
+    let height = 240
+    Object.defineProperty(container, 'clientHeight', { get: () => height })
+    container.getBoundingClientRect = () => ({ top: 100 } as DOMRect)
+    container.querySelector('thead')!.getBoundingClientRect = () => ({ height: 42 } as DOMRect)
+    row.getBoundingClientRect = () => ({ top: 450 - container.scrollTop, bottom: 493 - container.scrollTop } as DOMRect)
+    act(() => resize()); expect(container.scrollTop).toBe(153)
+    height = 120
+    act(() => resize()); expect(container.scrollTop).toBe(273)
+    expect(row).toHaveAttribute('aria-selected', 'true')
+    container.scrollTop = 5; fireEvent.scroll(container)
+    expect(container.scrollTop).toBe(5)
+  })
   it('keeps the working project through filtering, collapsing and clearing filters', async () => {
     setup(); const user = userEvent.setup()
     const list = await screen.findByRole('region', { name: '任务列表' })

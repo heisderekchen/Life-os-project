@@ -9,6 +9,24 @@ const fixtureTasks = Array.from({ length: 10 }, (_, index) => ({
   sourceType: index === 0 ? 'Ongoing' : null, parentTaskId: null, tags: [], subtasks: [],
 }))
 test('unified workspace keeps filters, task rows and graph selection usable across phone and desktop widths', async ({ page }) => {
+  const captureFocus = async (name: string) => {
+    const graph = page.locator('.react-flow')
+    if (await graph.count()) {
+      await expect.poll(() => graph.evaluate(element => {
+        const frame = element.getBoundingClientRect()
+        return Array.from(element.querySelectorAll('.react-flow__node')).every(node => {
+          const rect = node.getBoundingClientRect()
+          return rect.left >= frame.left - 1 && rect.right <= frame.right + 1 && rect.top >= frame.top - 1 && rect.bottom <= frame.bottom + 1
+        })
+      })).toBe(true)
+    }
+    const screenshot = await page.screenshot({ path: `test-results/project-workspace-focus-${name}.png` })
+    // Keep the synthetic visual evidence inspectable when artifact downloads are unavailable.
+    if (process.env.CI) {
+      const encoded = screenshot.toString('base64')
+      for (let index = 0; index < encoded.length; index += 4096) console.log(`FOCUS_CAPTURE ${name} ${index} ${encoded.slice(index, index + 4096)}`)
+    }
+  }
   const state = { initialized: true, appInitialized: true, preferencesVersion: true, hasLifeOsData: true, setupComplete: true, revision: 'visual-fixture', preferences: { setupComplete: true, language: 'en', enabledModules: ['dashboard','tasks','projects','notes','calendar','settings'], animationsEnabled: false } }
   const project = { id: 'fixture-project', name: 'Fixture project', color: '#0f766e', status: 'active', createdAt: timestamp, updatedAt: timestamp }
   const topic = { id: 'fixture-topic', projectId: project.id, name: 'Fixture topic', createdAt: timestamp, updatedAt: timestamp }
@@ -17,7 +35,7 @@ test('unified workspace keeps filters, task rows and graph selection usable acro
     const original = window.fetch.bind(window)
     window.fetch = (input, init) => {
       const path = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, location.origin).pathname
-      const data = path.endsWith('/api/app-state') ? state : path.endsWith('/api/tasks') ? tasks : path.endsWith('/api/projects') ? [project] : path.endsWith('/api/topics') ? [topic] : path.endsWith('/api/recurring-tasks') ? { series: [], activeCount: 0, schedulerEnabled: false } : path.endsWith('/api/notifications') ? [] : path.endsWith('/api/profile') ? {} : path.endsWith('/api/platform/session') ? { principal: { role: 'user' } } : path.endsWith('/api/platform/workspaces') ? [] : undefined
+      const data = path.endsWith('/api/app-state') ? state : /\/api\/tasks\/[^/]+\/notes$/.test(path) ? { notes: [], nextCursor: null } : path.endsWith('/api/tasks') ? tasks : path.endsWith('/api/projects') ? [project] : path.endsWith('/api/topics') ? [topic] : path.endsWith('/api/recurring-tasks') ? { series: [], activeCount: 0, schedulerEnabled: false } : path.endsWith('/api/notifications') ? [] : path.endsWith('/api/profile') ? {} : path.endsWith('/api/platform/session') ? { principal: { role: 'user' } } : path.endsWith('/api/platform/workspaces') ? [] : undefined
       return data !== undefined ? Promise.resolve(new Response(JSON.stringify(data), { headers: { 'content-type': 'application/json' } })) : original(input, init)
     }
   }, { state, tasks: fixtureTasks, project, topic })
@@ -57,4 +75,49 @@ test('unified workspace keeps filters, task rows and graph selection usable acro
   await page.getByRole('region', { name: 'Task list' }).getByRole('button', { name: /^Mobile fixture task 01/ }).click()
   await expect(page.locator('.react-flow__node.selected')).toHaveCount(1)
   await page.screenshot({ path: 'test-results/project-workspace-desktop-linked.png' })
+
+  await page.getByRole('region', { name: 'Task list' }).getByRole('button', { name: /^Mobile fixture task 10/ }).click()
+  await page.keyboard.press('F11')
+  const workspace = page.getByTestId('project-workspace')
+  await expect(workspace).toHaveAttribute('data-focus-mode', 'true')
+  const focusControls = page.getByRole('toolbar', { name: 'Focus Mode', exact: true })
+  await expect(focusControls).toBeVisible()
+  const frame = await workspace.boundingBox(), controls = await focusControls.boundingBox()
+  expect(controls!.y + controls!.height).toBeLessThanOrEqual(frame!.y + 1)
+  const graph = await page.getByRole('region', { name: 'Relationship graph', exact: true }).boundingBox()
+  const list = await page.getByRole('region', { name: 'Task list' }).boundingBox()
+  expect(list!.width).toBeGreaterThan(graph!.width * 1.5)
+  expect(list!.height).toBeGreaterThan(960 * 0.65)
+  const split = page.getByRole('separator', { name: 'Resize task list and details' })
+  await expect(split).toHaveAttribute('aria-valuenow', '70')
+  await captureFocus('desktop')
+  await split.focus(); await page.keyboard.press('Home')
+  const selected = page.locator('[data-workspace-node="task:mobile-fixture-10"]')
+  const expectSelectionVisible = async () => {
+    await expect.poll(async () => {
+      const row = await selected.boundingBox()
+      const viewport = await page.locator('.workspace-table-scroll').boundingBox()
+      const header = await page.locator('.workspace-table thead').boundingBox()
+      return Boolean(row && viewport && header && row.y >= viewport.y + header.height - 1 && row.y + row.height <= viewport.y + viewport.height + 1)
+    }).toBe(true)
+  }
+  await expectSelectionVisible()
+  await page.setViewportSize({ width: 1024, height: 650 })
+  await expectSelectionVisible()
+  await captureFocus('resized')
+  await page.getByRole('group', { name: 'Workspace view' }).getByRole('button', { name: 'List', exact: true }).click()
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expectSelectionVisible()
+  await expect(selected).toBeInViewport()
+  const sortField = await page.locator('.workspace-toolbar select').last().boundingBox()
+  const sortDirection = await page.locator('.workspace-sort').boundingBox()
+  expect(Math.abs(sortField!.y - sortDirection!.y)).toBeLessThanOrEqual(1)
+  await split.dblclick()
+  await expect(split).toHaveAttribute('aria-valuenow', '70')
+  await expectSelectionVisible()
+  await expect(page.getByRole('button', { name: /Exit Focus/ })).toBeVisible()
+  await captureFocus('phone')
+  await page.getByRole('button', { name: /Exit Focus/ }).click()
+  await expect(workspace).not.toHaveAttribute('data-focus-mode', 'true')
+  await expect(split).toHaveAttribute('aria-valuenow', '60')
 })

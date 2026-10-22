@@ -3,14 +3,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, RefObject } from 'react'
 
-export type WorkspaceSplitKey = 'desktop' | 'stacked' | 'table'
+export type WorkspaceSplitKey = 'desktop' | 'stacked' | 'table' | 'focusDesktop' | 'focusTable'
 type WorkspaceSizes = Record<WorkspaceSplitKey, number>
 
 const STORAGE_KEY = 'myos-workspace-layout-v1'
 const MIN = 25
 const MAX = 75
-const DEFAULTS: WorkspaceSizes = { desktop: 43, stacked: 42, table: 60 }
-const KEYS: WorkspaceSplitKey[] = ['desktop', 'stacked', 'table']
+const DEFAULTS: WorkspaceSizes = { desktop: 43, stacked: 42, table: 60, focusDesktop: 32, focusTable: 70 }
+const KEYS: WorkspaceSplitKey[] = ['desktop', 'stacked', 'table', 'focusDesktop', 'focusTable']
+
+export function revealWorkspaceSelection(container: HTMLElement, key: string) {
+ const row = Array.from(container.querySelectorAll<HTMLElement>('[data-workspace-node]')).find(row => row.dataset.workspaceNode === key)
+ if (!row || !container.clientHeight) return
+ const bounds = container.getBoundingClientRect(), target = row.getBoundingClientRect()
+ const top = bounds.top + container.clientTop + (container.querySelector('thead')?.getBoundingClientRect().height || 0)
+ const bottom = bounds.top + container.clientTop + container.clientHeight
+ if (target.top < top) container.scrollTop += target.top - top
+ else if (target.bottom > bottom) container.scrollTop += target.bottom - bottom
+}
 
 function clampSize(value: number) {
  if (!Number.isFinite(value)) return MIN
