@@ -33,7 +33,7 @@ export function FocusModeOverlay() {
         <span className="shrink-0 font-medium">{uiText('Focus Mode')}</span>
         <span className="truncate text-muted-foreground">{uiText(moduleLabels[activeModule] || 'Dashboard')}</span>
       </div>
-      <Button variant="ghost" size="sm" onClick={toggleFocusMode} className="h-8 min-h-11 shrink-0 sm:min-h-8 gap-1.5 text-xs" title={`${uiText('Exit Focus')} (Esc)`}>
+      <Button variant="ghost" size="sm" onClick={toggleFocusMode} className="h-8 min-h-11 shrink-0 sm:min-h-8 [@media(pointer:coarse)]:min-h-11 gap-1.5 text-xs" title={`${uiText('Exit Focus')} (Esc)`}>
         <Minimize2 className="h-3.5 w-3.5" aria-hidden="true" />
         {uiText('Exit Focus')}
         <kbd className="ml-1 hidden text-xs text-muted-foreground sm:inline">Esc</kbd>
