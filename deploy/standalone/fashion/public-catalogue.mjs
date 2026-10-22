@@ -29,8 +29,13 @@ export function publicProductPhotos(raw, base, expectedURL) {
   if (!footwear.test([classification, p.title, ...subtypeTags].join(' ')) || /\b(?:clothing|apparel|accessories|socks?|bags?|handbags?|laces?|insoles?|shoe care|cleaners?|cleaning|spray|shoehorn)\b/i.test(classification)) return [];
   const hueTags = tags.filter(t => /hue\s*=>/i.test(t));
   const singleColor = (Array.isArray(p.options) ? p.options : []).filter(o => o && /^colou?r$/i.test(o.name) && Array.isArray(o.values) && o.values.length === 1).map(o => text(o.values[0]));
-  const colorEvidence = [...tags.filter(t => /^clf:/i.test(t)), ...tags.filter(t => /^(?:colou?r:|_filter_color\s+|color_plain:|clr:)/i.test(t)), ...singleColor, String(p.title).replace(/\([^)]*soles?[^)]*\)/gi, ''), ...(hueTags.length === 1 ? hueTags : [])].join(' · ');
-  const evidence = [p.title, classification, ...singleColor, text(p.body_html || p.description), ...tags.filter(t => !/^[@#*]|^(?:loafers[- /]flats|flats[- /]loafers)$|YGroup|YCRF|YBlock|^(?:cf-)?size|promo|exclude|inclusion|friendfam|gifts|^notes|^image-add|laborday|nmas|scm-|threatlevel|Zodiac:|Everyday Essentials/i.test(String(t)))].map(text).filter(Boolean).join(' · ');
+  // G.H.BASS publishes separate colorways with the same title, no Color option,
+  // and an explicit color suffix in its own canonical product handle. This is
+  // source-specific evidence; arbitrary URL words cannot label other sources.
+  const urlColor = new URL(base).hostname.replace(/^www\./, '') === 'ghbass.com'
+    ? p.handle.match(/-(?:(?:other|light|dark)-)?(black|white|cream|brown|navy|blue|green|red|pink|grey|gray|tan|beige)$/i)?.[1]?.toLowerCase() || '' : '';
+  const colorEvidence = [...tags.filter(t => /^clf:/i.test(t)), ...tags.filter(t => /^(?:colou?r:|_filter_color\s+|color_plain:|clr:)/i.test(t)), ...singleColor, String(p.title).replace(/\([^)]*soles?[^)]*\)/gi, ''), ...(hueTags.length === 1 ? hueTags : []), urlColor].join(' · ');
+  const evidence = [p.title, classification, ...singleColor, text(p.body_html || p.description), ...tags.filter(t => !/^[@#*]|^(?:loafers[- /]flats|flats[- /]loafers)$|YGroup|YCRF|YBlock|^(?:cf-)?size|promo|exclude|inclusion|friendfam|gifts|^notes|^image-add|laborday|nmas|scm-|threatlevel|Zodiac:|Everyday Essentials/i.test(String(t))), urlColor].map(text).filter(Boolean).join(' · ');
   const photos = Array.isArray(p.images) ? p.images : [];
   let productPhotos = photos;
   let imageSelectionEvidence;
@@ -51,6 +56,7 @@ export function publicProductPhotos(raw, base, expectedURL) {
     return { title: text(p.title), image, url, canonicalURL: url, productCode: String(p.id),
       productTypeEvidence: 'footwear', primaryTypeEvidence: [p.title, classification, ...tags.filter(t => /^(?:Type|Style):/i.test(t))].join(' '), brandEvidence: text(p.vendor), intentEvidence: evidence,
       imagePosition: photos.indexOf(im) + 1, colorEvidence, audienceEvidence: [type, ...tags.filter(t => /^(?:kids?|children|girls?|boys?|junior|toddler|baby|infant|woman|women|man|men|female|male)$/i.test(t))].join(' '), ...(im?.width ? { width: im.width, height: im.height } : {}),
+      ...(urlColor ? { urlColorEvidence: { color: urlColor, url, rule: 'ghbass-canonical-color-suffix' } } : {}),
       ...(imageSelectionEvidence ? { imageSelectionEvidence, excludedGalleryImages: photos.length - productPhotos.length } : {}),
       publishedAt: p.published_at || null, schemaType: 'ShopifyProduct' };
   }).filter(Boolean);

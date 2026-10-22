@@ -8,6 +8,17 @@ const raw = (i, extra = {}) => ({ id: i + 1, handle: 'shoe-' + i, title: "Women'
   type: 'Shoes', vendor: 'Fixture', tags: ['Winter', 'female'], description: 'Insulated winter casual footwear.',
   images: [`https://cdn.example/shoe-${i}-side.jpg`, `https://cdn.example/shoe-${i}-top.jpg`], ...extra });
 const input = { subject: '女款冬季休闲鞋', days: 0, domains: [], sourceScope: 2, sources: ['official', 'retail', 'media'] };
+test('G.H.BASS canonical color suffix qualifies its exact colorway without weakening primary colors or audience', async () => {
+ const {matchesPhotoProduct}=await import('../photo-search.mjs');
+ const p=raw(1,{title:"Women's Verity Penny Loafer",handle:'women-verity-penny-loafer-black',type:'FOOTWEAR',tags:['smooth leather','us-new'],description:'Leather penny loafer',options:[{name:'Size',values:['5','6']}]});
+ const parsed=publicProductPhotos(p,'https://www.ghbass.com')[0];
+ assert(matchesPhotoProduct('women black loafers',parsed));assert.equal(parsed.urlColorEvidence.color,'black');assert.equal(parsed.urlColorEvidence.url,parsed.canonicalURL);
+ assert(!matchesPhotoProduct('women black loafers',publicProductPhotos(p,'https://unrelated.test')[0]));
+ assert(!matchesPhotoProduct('women black loafers',publicProductPhotos({...p,handle:'women-verity-penny-loafer-cream'},'https://www.ghbass.com')[0]));
+ assert(!matchesPhotoProduct('women black loafers',publicProductPhotos({...p,tags:['color:brown']},'https://www.ghbass.com')[0]));
+ assert(!matchesPhotoProduct('women black loafers',publicProductPhotos({...p,title:"Men's Verity Penny Loafer",handle:'men-verity-penny-loafer-black'},'https://www.ghbass.com')[0]));
+ assert.equal(productAPIPhotos(JSON.stringify({products:[p]}),'https://www.ghbass.com/products.json?limit=250',parsed.canonicalURL,p.id)[0].urlColorEvidence.color,'black');
+});
 test('additional catalogue adapters cannot crowd external publishers out of the bounded backfill plan', () => {
  const queries=broadBackfillQueries('women black loafers',Array.from({length:15},(_,i)=>({url:'https://brand'+i+'.test'})));
  assert.equal(queries.length,12);
