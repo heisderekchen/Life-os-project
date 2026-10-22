@@ -59,6 +59,7 @@ export function createSearchTrace({ dataDir, account, taskId, run }) {
   };
   const emit = (type, data = {}, force = false) => {
     if (closed) return;
+    if (!force && (run.events >= MAX_EVENTS || run.bytes >= MAX_BYTES - 65536)) { run.droppedEvents++; return; }
     const event = { schemaVersion: 1, runId: run.id, taskId, seq: run.events + 1,
       at: new Date().toISOString(), elapsedMs: Date.now() - Date.parse(run.startedAt), type, data: sanitizeTrace(data) };
     const line = JSON.stringify(event) + '\n', size = Buffer.byteLength(line);
@@ -69,6 +70,7 @@ export function createSearchTrace({ dataDir, account, taskId, run }) {
     else if (!timer) { timer = setTimeout(() => { void flush(); }, 100); timer.unref?.(); }
   };
   const document = (kind, requestedURL, page, durationMs) => {
+    if (closed) return;
     const html = page.html || '';
     // Public source snapshots: omit executable scripts and form values. Keep JSON-LD,
     // source metadata, markup and a content hash to diagnose parser/anti-bot failures.
@@ -144,6 +146,7 @@ export async function interruptSearchTrace(dataDir, account, taskId, run) {
   }
   run.events = lastSequence + 1;
   const line = (existing && !existing.endsWith('\n') ? '\n' : '') + JSON.stringify({ schemaVersion: 1, taskId, runId: run.id, seq: run.events,
-    at: run.finishedAt, type: 'run.interrupted', data: { reason: 'serviceRestart', lastPersistedEvents: run.events || 0 } }) + '\n';
+    at: run.finishedAt, elapsedMs: Date.now() - Date.parse(run.startedAt), type: 'run.interrupted',
+    data: { reason: 'serviceRestart', lastPersistedEvents: lastSequence } }) + '\n';
   await appendFile(path, line, { mode: 0o600 });
 }
