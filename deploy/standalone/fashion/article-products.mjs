@@ -80,6 +80,7 @@ export function structuredProductPhotos(html, pageURL, isRelevant) {
           canonicalURL: productURL,
           productCode: copy(String(node.sku || node.mpn || node.productGroupID || pathCode)),
           productTypeEvidence: 'footwear',
+          primaryTypeEvidence: [title, category].join(' '),
           brandEvidence,
           intentEvidence,
           colorEvidence: [node.color || '', title.replace(/\([^)]*soles?[^)]*\)/gi, '')].join(' · '),

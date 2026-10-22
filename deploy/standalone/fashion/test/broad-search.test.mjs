@@ -93,3 +93,16 @@ test('a malformed retrieved URL is recorded and cannot abort replenishment', asy
  const result=await searchBroadPhotos(input,{fetcher:f,plans,catalogues:[],trace:(type,data)=>events.push({type,data}),readDocument:async()=>{throw Error('unexpected read')},readImage:async()=>{throw Error('unexpected image')},saveAsset:async()=>{}});
  assert.equal(result.items.length,0);assert(events.some(e=>e.data.reason==='invalidURL'));
 });
+
+test('combined flat/loafer navigation tags are excluded; generic audience category can still carry explicit footwear', async () => {
+ const {matchesPhotoProduct}=await import('../photo-search.mjs');
+ const flat=publicProductPhotos(raw(1,{title:'GROVE GREEN',type:"Women's Shoes",description:'A mesh ballet flat for everyday wear.',tags:["women's",'loafers-flats','Type:Flats','Style:Ballet']}),'https://brand.example')[0];
+ assert(!matchesPhotoProduct('women loafers',flat));
+ assert(matchesPhotoProduct('women ballet flats',flat));
+ const loafer=publicProductPhotos(raw(2,{title:"Women's leather loafers",type:'WOMAN',description:'Penny loafers',tags:['Woman','Loafers']}),'https://brand.example')[0];
+ assert(loafer);assert(matchesPhotoProduct('women loafers',loafer));
+ const kids=publicProductPhotos(raw(3,{title:'Girls winter casual sneakers',type:'Shoes',tags:['female','Girls','Winter']}),'https://brand.example')[0];
+ assert(!matchesPhotoProduct('women winter casual shoes',kids));
+ const boot=publicProductPhotos(raw(4,{title:"Women's ankle boots",type:'Boots',description:'Ballet flats inspired shoes',tags:['female']}),'https://brand.example')[0];
+ assert(!matchesPhotoProduct('women ballet flats',boot));
+});

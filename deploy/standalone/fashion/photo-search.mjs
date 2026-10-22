@@ -93,6 +93,15 @@ export function matchesProductIntent(subject, value, productTypeEvidence = false
 export function matchesPhotoProduct(subject, product) {
   if (!matchesProductIntent(subject, product.intentEvidence || product.title, Boolean(product.productTypeEvidence), product.brandEvidence)) return false;
   const requested = photoQuery(subject).toLowerCase();
+  const primary = product.primaryTypeEvidence || '';
+  const typeRules = [
+    [/\bloafers?\b/, /\bloafers?\b/i, /\b(?:ballet|ballerinas?|mary.jane|boots?|sneakers?|sandals?)\b/i],
+    [/\bballet\b/, /\b(?:ballet|ballerinas?)\b/i, /\b(?:loafers?|boots?|sneakers?|sandals?)\b/i],
+    [/\bsandals?\b/, /\bsandals?\b/i, /\b(?:ballet|ballerinas?|loafers?|boots?|sneakers?)\b/i],
+    [/\b(?:sneakers?|trainers?)\b/, /\b(?:sneakers?|trainers?)\b/i, /\b(?:ballet|loafers?|sandals?|boots?)\b/i],
+  ];
+  if (typeRules.some(([wanted, positive, conflict]) => wanted.test(requested) && !positive.test(primary) && conflict.test(primary))) return false;
+  if (/\bwom[ae]ns?\b/.test(requested) && /\b(?:kids?|children|girls?|boys?|junior|toddler|baby|infant)\b/i.test(product.audienceEvidence || '')) return false;
   for (const color of ['white', 'black', 'brown', 'green', 'red', 'blue', 'pink']) {
     if (!new RegExp('\\b' + color + '\\b').test(requested) || !product.colorEvidence) continue;
     const evidence = product.colorEvidence;

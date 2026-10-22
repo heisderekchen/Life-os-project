@@ -17,20 +17,21 @@ export function publicProductPhotos(raw, base, expectedURL) {
   const url = new URL('products/' + p.handle, base.replace(/\/?$/, '/')).href;
   if (expectedURL && productPageKey(url) !== productPageKey(expectedURL)) return [];
   const type = text(p.product_type || p.type);
-  // A clothing item mentioning a matching shoe is not footwear evidence.
-  if (!footwear.test(type || p.title) || /\b(?:clothing|apparel|accessories|socks?|bags?|handbags?)\b/i.test(type)) return [];
   const tags = Array.isArray(p.tags) ? p.tags : String(p.tags || '').split(',');
+  const subtypeTags = tags.filter(t => /^(?:shoes?|footwear|sneakers?|trainers?|loafers?|flats?|sandals?|boots?|heels?|pumps?|mules?|slippers?|ballerinas?)$/i.test(t));
+  // A clothing item mentioning a matching shoe is not footwear evidence.
+  if (!footwear.test([type, p.title, ...subtypeTags].join(' ')) || /\b(?:clothing|apparel|accessories|socks?|bags?|handbags?|laces?|insoles?|shoe care|cleaners?|cleaning|spray|shoehorn)\b/i.test(type)) return [];
   const hueTags = tags.filter(t => /hue\s*=>/i.test(t));
   const colorEvidence = [...tags.filter(t => /^colou?r:/i.test(t)), String(p.title).replace(/\([^)]*soles?[^)]*\)/gi, ''), ...(hueTags.length === 1 ? hueTags : [])].join(' · ');
-  const evidence = [p.title, type, text(p.body_html || p.description), ...tags.filter(t => !/^[@#*]|YGroup|YCRF|YBlock|^(?:cf-)?size|promo|exclude|inclusion|friendfam|gifts|^notes|^image-add|laborday|nmas|scm-|threatlevel|Zodiac:|Everyday Essentials/i.test(String(t)))].map(text).filter(Boolean).join(' · ');
+  const evidence = [p.title, type, text(p.body_html || p.description), ...tags.filter(t => !/^[@#*]|^(?:loafers[- /]flats|flats[- /]loafers)$|YGroup|YCRF|YBlock|^(?:cf-)?size|promo|exclude|inclusion|friendfam|gifts|^notes|^image-add|laborday|nmas|scm-|threatlevel|Zodiac:|Everyday Essentials/i.test(String(t)))].map(text).filter(Boolean).join(' · ');
   const photos = Array.isArray(p.images) ? p.images : [];
   return photos.map((im, index) => {
     const rawURL = typeof im === 'string' ? im : im?.src;
     let image; try { image = new URL(rawURL, base).href; } catch { return null; }
     if (!rawURL || !/^https?:/.test(image)) return null;
     return { title: text(p.title), image, url, canonicalURL: url, productCode: String(p.id),
-      productTypeEvidence: 'footwear', brandEvidence: text(p.vendor), intentEvidence: evidence,
-      imagePosition: index + 1, colorEvidence, ...(im?.width ? { width: im.width, height: im.height } : {}),
+      productTypeEvidence: 'footwear', primaryTypeEvidence: [p.title, type, ...tags.filter(t => /^(?:Type|Style):/i.test(t))].join(' '), brandEvidence: text(p.vendor), intentEvidence: evidence,
+      imagePosition: index + 1, colorEvidence, audienceEvidence: [type, ...tags.filter(t => /^(?:kids?|children|girls?|boys?|junior|toddler|baby|infant|woman|women|man|men|female|male)$/i.test(t))].join(' '), ...(im?.width ? { width: im.width, height: im.height } : {}),
       publishedAt: p.published_at || null, schemaType: 'ShopifyProduct' };
   }).filter(Boolean);
 }
