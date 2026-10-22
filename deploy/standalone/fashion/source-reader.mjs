@@ -1,7 +1,15 @@
 import { articleProductPhotos, structuredProductPhotos } from './article-products.mjs';
-export async function readSourcePhotos({sources,readDocument,readPage,isRelevant,isDiscoveryRelevant=isRelevant,isPriorityRelevant=isRelevant,isProductRelevant=isRelevant,signal}) {
+import { errorDetails } from './search-trace.mjs';
+export async function readSourcePhotos({sources,readDocument,readPage,isRelevant,isDiscoveryRelevant=isRelevant,isPriorityRelevant=isRelevant,isProductRelevant=isRelevant,signal,trace=()=>{}}) {
   const results = [];
   const checks = [];
+  const parseFilters = new Map();
+  const filtered = (domain, reason, title, url) => {
+    const key = domain + ':' + reason;
+    if (!parseFilters.has(key)) parseFilters.set(key, { domain, reason, count: 0, examples: [] });
+    const record = parseFilters.get(key); record.count++;
+    if (record.examples.length < 10) record.examples.push({ title, url });
+  };
   if (signal && signal.aborted) throw signal.reason;
   const normHost = (h) => h.toLowerCase().replace(/^www\./,'');
   const hostOf = (u) => { try { return normHost(new URL(u).hostname); } catch { return ''; } };
@@ -61,7 +69,7 @@ export async function readSourcePhotos({sources,readDocument,readPage,isRelevant
     for (const {body, type} of blocks) {
       const tMatch = body.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i);
       const title = tMatch ? stripTags(tMatch[1]) : '';
-      if (!title || !isDiscoveryRelevant(title)) continue;
+      if (!title || !isDiscoveryRelevant(title)) { filtered(domain, 'feedTitleIntentMismatch', title); continue; }
       let link = '';
       if (type === 'rss') {
         const lMatch = body.match(/<link\b[^>]*>([\s\S]*?)<\/link>/i);
@@ -102,7 +110,7 @@ export async function readSourcePhotos({sources,readDocument,readPage,isRelevant
         const u = new URL(url);
         if (u.pathname === '/' || u.pathname === '') return;
       } catch { return; }
-      if (!isDiscoveryRelevant(title)) return;
+      if (!isDiscoveryRelevant(title)) { filtered(domain, 'linkTitleIntentMismatch', title, url); return; }
       const key = url;
       if (seen.has(key)) return;
       seen.add(key);
@@ -192,6 +200,7 @@ export async function readSourcePhotos({sources,readDocument,readPage,isRelevant
     } catch (e) {
       if (signal && signal.aborted) throw signal.reason;
       sourceError = e;
+      trace('source.document.failed', { domain, url: sourceDoc, error: errorDetails(e), fallback: src.url || `https://${domain}/` });
       firstDoc = null;
     }
     if (firstDoc) {
@@ -211,6 +220,7 @@ export async function readSourcePhotos({sources,readDocument,readPage,isRelevant
           distinct.push(it);
           if (distinct.length >= 6) break;
         }
+        trace('source.document.parsed', { domain, url: firstURL, parsedCandidates: items.length, retained: distinct, limit: 6, omittedByLimit: Math.max(0, items.length - distinct.length) });
         return {items: distinct, documentURL: firstURL, error: null};
       }
     }
@@ -232,6 +242,7 @@ export async function readSourcePhotos({sources,readDocument,readPage,isRelevant
             distinct.push(it);
             if (distinct.length >= 6) break;
           }
+          trace('source.document.parsed', { domain, url: homeURL, fallback: true, parsedCandidates: items.length, retained: distinct, limit: 6 });
           return {items: distinct, documentURL: homeURL, error: null};
         } catch (e2) {
           if (signal && signal.aborted) throw signal.reason;
@@ -254,6 +265,7 @@ export async function readSourcePhotos({sources,readDocument,readPage,isRelevant
             distinct.push(it);
             if (distinct.length >= 6) break;
           }
+          trace('source.document.parsed', { domain, url: homeURL, fallback: true, parsedCandidates: items.length, retained: distinct, limit: 6 });
           return {items: distinct, documentURL: homeURL, error: null};
         } catch (e2) {
           if (signal && signal.aborted) throw signal.reason;
@@ -271,6 +283,9 @@ export async function readSourcePhotos({sources,readDocument,readPage,isRelevant
     if (signal && signal.aborted) throw signal.reason;
     const domain = s.domain;
     const srcResult = await processSource(s);
+    trace('source.completed', { domain, documentURL: srcResult.documentURL, candidates: srcResult.items,
+      error: srcResult.error ? errorDetails(srcResult.error) : undefined,
+      parseFilters: [...parseFilters.values()].filter(r => r.domain === domain) });
     if (srcResult.error) {
       checks.push({domain, status: 'error', error: srcResult.error && srcResult.error.message ? srcResult.error.message : String(srcResult.error)});
       return;
@@ -284,18 +299,23 @@ export async function readSourcePhotos({sources,readDocument,readPage,isRelevant
       try {
         page = await readPage(c.url);
       } catch (e) {
+        trace('source.candidate.rejected', { domain, candidate: c, reason: 'sourceUnavailable', error: errorDetails(e) });
         if (signal && signal.aborted) throw signal.reason;
         return null;
       }
-      if (!page) return null;
+      if (!page) { trace('source.candidate.rejected', { domain, candidate: c, reason: 'emptyPage' }); return null; }
       const finalURL = (page.url) || c.url;
       const html = getText(page);
-      if (!html) return null;
-      if (!sameDomain(finalURL, s.domain)) return null;
+      if (!html) { trace('source.candidate.rejected', { domain, candidate: c, reason: 'emptyDocument', finalURL }); return null; }
+      if (!sameDomain(finalURL, s.domain)) { trace('source.candidate.rejected', { domain, candidate: c, reason: 'redirectOutsideDomain', finalURL }); return null; }
       const {actualTitle, image} = extractPage(html, finalURL);
       const products = structuredProductPhotos(html,finalURL,isProductRelevant)
         .concat(articleProductPhotos(html,finalURL,isRelevant));
-      if (!products.length && (!actualTitle || !image || !isRelevant(actualTitle))) return null;
+      trace('source.candidate.evidence', { domain, candidate: c, finalURL, actualTitle, image, products,
+        titleRelevant: isRelevant(actualTitle) });
+      if (!products.length && (!actualTitle || !image || !isRelevant(actualTitle))) {
+        trace('source.candidate.rejected', { domain, candidate: c, finalURL, reason: 'noRelevantProductOrImage' }); return null;
+      }
       return (products.length ? products : [{ title: actualTitle, image }]).map(product => ({
         ...product, url: finalURL, sourceDocument: srcResult.documentURL || c.sourceDocument,
         ...(c.publishedAt ? { publishedAt: c.publishedAt } : {}),
@@ -317,4 +337,3 @@ export async function readSourcePhotos({sources,readDocument,readPage,isRelevant
 
   return {results, checks};
 }
-

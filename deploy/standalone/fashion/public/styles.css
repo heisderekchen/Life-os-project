@@ -679,6 +679,9 @@ img {
   padding-left: 18px;
   overflow-wrap: anywhere;
 }
+.debug-log li { margin-block: 18px; overflow-wrap: anywhere; }
+.debug-log li p { margin-block: 6px; }
+.debug-log a { display: inline-block; }
 .login {
   min-height: 90dvh;
   display: grid;
