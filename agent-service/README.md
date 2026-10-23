@@ -89,10 +89,10 @@ the bridge and service secret stores; do not send it to the browser or include
 it in run data. This contract has not yet been wired to a Life OS bridge or
 deployed configuration.
 
-As checked on 2026-10-10, DeepSeek's official peak cache-miss rate for
+As checked on 2026-10-23, DeepSeek's official peak cache-miss rate for
 `deepseek-flash` is USD 0.30 per million input tokens and USD 1.20 per million
-output tokens; off-peak rates are lower. Set the operator price variables to
-the current official rates for the chosen model and service period. The app's
+output tokens; off-peak rates are lower. See the [official pricing table](https://api-docs.deepseek.com/quick_start/pricing/).
+Set the operator price variables to the current official rates for the chosen model and service period. The app's
 budget estimate is not an upstream provider hard cap; provider billing remains
 authoritative.
 
