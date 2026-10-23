@@ -32,6 +32,7 @@ export function createWorkspaceSubjectHeaders({
 export function mapAgentTarget(pathname, search = '', basePath = '/workbench') {
   const prefix = basePath + '/api/agent'
   if (pathname === prefix + '/health') return '/v1/health' + search
+  if (pathname === prefix + '/fitness-coach' && !search) return '/v1/fitness-coach'
   if (!pathname.startsWith(prefix + '/runs')) return null
   const suffix = pathname.slice(prefix.length)
   if (!/^\/runs(?:\/[0-9a-f-]+(?:\/(?:approve|cancel|events))?)?$/i.test(suffix)) return null

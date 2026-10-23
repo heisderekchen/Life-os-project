@@ -57,12 +57,13 @@ function fakeStore({ workerReady = false } = {}) {
 
 const subjectSigningSecret = 'test-only-subject-signing-secret'
 
-async function withService(fn, { signingSecret = subjectSigningSecret, extraEnv = {} } = {}) {
+async function withService(fn, { signingSecret = subjectSigningSecret, extraEnv = {}, fetchImpl } = {}) {
   const store = fakeStore({ workerReady: extraEnv.AGENT_TASK_TRIGGER === 'approved_worker' })
   const handler = createHttpHandler({
     store, serviceToken: 'test-only-server-token', maxBudgetUsd: 0.5,
     env: { DEEPSEEK_API_KEY: '', OPENAI_API_KEY: '', ...extraEnv },
     subjectSigningSecret: signingSecret,
+    ...(fetchImpl ? { fetchImpl } : {}),
   })
   const invoke = async (url, { method = 'GET', headers: requestHeaders = {}, body = '', autoSign = true } = {}) => {
     const signedHeaders = { ...requestHeaders }
@@ -112,6 +113,49 @@ test('unauthenticated request cannot create a run; health reveals no credentials
       status: 'ok', persistence: 'postgres', taskTrigger: 'not_configured',
       providers: { deepseek: false, openai: false },
     })
+  })
+})
+
+test('fitness coach requires explicit consent, sends only bounded summaries, and caps its one-shot output', async () => {
+  let upstreamBody
+  await withService(async (invoke) => {
+    const summary = { periodDays: 30, workouts: [{ source: 'apple_health', activity: 'Running',
+      startedAt: '2026-10-20T10:00:00.000Z', durationMinutes: 35, distanceKm: 5.1,
+      activeEnergyKcal: 280, averageHeartRateBpm: 145, peakHeartRateBpm: 171 }] }
+    const denied = await invoke('/v1/fitness-coach', {
+      method: 'POST', headers, body: JSON.stringify({ consent: false, summary }),
+    })
+    assert.equal(denied.status, 400)
+    assert.equal(denied.json().error, 'EXPLICIT_CONSENT_REQUIRED')
+
+    const result = await invoke('/v1/fitness-coach', {
+      method: 'POST', headers: { ...headers, 'idempotency-key': 'coach-once' },
+      body: JSON.stringify({ consent: true, summary }),
+    })
+    assert.equal(result.status, 200)
+    assert.match(result.json().advice, /What I notice/)
+    assert.equal(result.json().provider, 'deepseek')
+    assert.ok(upstreamBody.max_tokens <= 500)
+    const userMessage = upstreamBody.messages.find(message => message.role === 'user').content
+    assert.match(userMessage, /apple_health/)
+    assert.doesNotMatch(userMessage, /owner-test|private-owner/)
+    assert.equal((await invoke('/v1/fitness-coach', {
+      method: 'POST', headers: { ...headers, 'idempotency-key': 'coach-again' },
+      body: JSON.stringify({ consent: true, summary }),
+    })).status, 429)
+  }, {
+    extraEnv: {
+      DEEPSEEK_API_KEY: 'test-only-provider-key',
+      DEEPSEEK_INPUT_USD_PER_MILLION: '0.3',
+      DEEPSEEK_OUTPUT_USD_PER_MILLION: '1.2',
+    },
+    fetchImpl: async (_url, options) => {
+      upstreamBody = JSON.parse(options.body)
+      return new Response(JSON.stringify({
+        id: 'test-run', choices: [{ message: { content: 'What I notice\nYour weekly sessions are consistent.' } }],
+        usage: { prompt_tokens: 200, completion_tokens: 30, total_tokens: 230 },
+      }), { status: 200, headers: { 'content-type': 'application/json' } })
+    },
   })
 })
 

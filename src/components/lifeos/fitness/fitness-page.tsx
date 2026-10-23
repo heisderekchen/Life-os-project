@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { ModulePageHeader } from '@/components/lifeos/shared/module-page-header'
+import { FitnessIntegrations } from '@/components/lifeos/fitness/fitness-integrations'
 import { uiText, useInterfaceLanguage } from '@/lib/i18n/interface-copy'
 import { useTranslation } from '@/lib/i18n'
 import { showToast } from '@/lib/toast'
@@ -78,6 +79,8 @@ export function FitnessPage() {
         </div>
       })}</CardContent>
     </Card>}
+
+    <FitnessIntegrations sessions={completed} />
 
     <div className="grid items-start gap-5 lg:grid-cols-[0.85fr_1.15fr]">
       <Card className="border-border/70"><CardHeader><CardTitle>{uiText('Create a training plan')}</CardTitle><CardDescription>{uiText('Add exercise names on separate lines or split them with commas.')}</CardDescription></CardHeader><CardContent className="space-y-3"><Input className={fieldClass} value={planName} onChange={event => setPlanName(event.target.value)} placeholder={uiText('Plan name')} aria-label={uiText('Plan name')} /><label htmlFor="fitness-exercises" className="sr-only">{uiText('Exercises')}</label><textarea id="fitness-exercises" className="min-h-28 w-full resize-y rounded-xl border border-border/70 bg-background/80 p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" value={exerciseText} onChange={event => setExerciseText(event.target.value)} placeholder={uiText('Squat\nBench press\nRow')} /><Button className="min-h-11 w-full rounded-xl" disabled={!planName.trim() || !exerciseText.trim() || createPlan.isPending} onClick={create}>{createPlan.isPending ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}{uiText('Save plan')}</Button></CardContent></Card>
