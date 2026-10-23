@@ -18,6 +18,21 @@ type HealthKitReply = {
 }
 type HealthKitEvent = CustomEvent<HealthKitReply>
 
+function healthKitErrorMessage(code?: string) {
+  switch (code) {
+    case 'HEALTH_BRIDGE_ORIGIN_REJECTED':
+      return uiText('This MyOS page could not verify its iPhone HealthKit connection. Reopen it in the MyOS iPhone app.')
+    case 'HEALTH_AUTHORIZATION_FAILED':
+      return uiText('Apple Health permission could not be requested. Check Health access in iOS Settings.')
+    case 'HEALTH_QUERY_FAILED':
+      return uiText('Apple Health workout query failed. Try again.')
+    case 'HEALTH_BRIDGE_TIMEOUT':
+      return uiText('MyOS did not receive a response from HealthKit. Reopen the app and try again.')
+    default:
+      return uiText('Could not read Apple Health workouts. Try again.')
+  }
+}
+
 function volume(session: FitnessSession) {
   return session.exercises.reduce((sum, exercise) => sum + exercise.sets.reduce((sets, set) => sets + set.reps * set.weightKg, 0), 0)
 }
@@ -53,9 +68,7 @@ export function FitnessIntegrations({ sessions }: { sessions: FitnessSession[] }
         setHealthKitError(workouts.length ? '' : uiText('No workout summaries returned. Check Health access in iOS Settings, or try another date range.'))
         setIncludeAppleHealth(false)
       } else {
-        setHealthKitError(detail.error === 'HEALTH_DATA_UNAVAILABLE'
-          ? uiText('Could not read Apple Health workouts. Try again.')
-          : uiText('Could not read Apple Health workouts. Try again.'))
+        setHealthKitError(healthKitErrorMessage(detail.error))
       }
     }
     window.addEventListener('myos:healthkit-result', receive)
@@ -80,7 +93,7 @@ export function FitnessIntegrations({ sessions }: { sessions: FitnessSession[] }
       pendingRequestId.current = ''
       requestTimeout.current = null
       setHealthKitLoading(false)
-      setHealthKitError(uiText('Could not read Apple Health workouts. Try again.'))
+      setHealthKitError(healthKitErrorMessage('HEALTH_BRIDGE_TIMEOUT'))
     }, 60_000)
   }
 
