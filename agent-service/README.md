@@ -20,6 +20,44 @@ a separate opt-in before sending Apple Health summaries. The feature stays
 unavailable until this service, its database, bridge secrets, DeepSeek key, and
 current price settings are configured.
 
+## Selected deployment shape
+
+Keep the existing Life OS web app on its current Node + SQLite deployment. Run
+the fitness coach API and its PostgreSQL database as a private container sidecar
+on a container-capable host. Do not expose PostgreSQL or port 8080 publicly;
+the service is reachable only over the private `lifeos-agent` network. Start
+the compose `coach` profile for this feature alone. The separate task worker
+remains off because the fitness coach is a synchronous, one-off suggestion and
+does not require queued task execution.
+
+The current standalone production release pipeline deploys the Node + SQLite
+bundle through a fixed SSH command and does not provision Docker services or
+PostgreSQL. Therefore this configuration is deployable but is not yet connected
+to the current production host. A host administrator must provision the private
+container runtime and persistent PostgreSQL volume, then authorize a constrained
+deployment path for the sidecar. Until that is done, keep the Life OS bridge
+unset and the coach unavailable. Do not place provider or bridge secrets in the
+repository or pass them through a browser.
+
+For a reviewed host with Docker Compose available, load the app and agent images
+from the same verified release artifact, provide the required values through the
+host's secret store, and start only the coach profile:
+
+```sh
+docker compose --profile coach up -d agent-db agent-service
+```
+
+The Compose setup binds the service to host loopback at port 18080 by default
+(`AGENT_SERVICE_HOST_PORT` can change the port). For the current host-run Node
+app, set `AGENT_SERVICE_URL=http://127.0.0.1:18080`. If both services run in
+Compose, use `http://agent-service:8080` instead. For a separately hosted
+sidecar, use its private service DNS name and private connectivity.
+`AGENT_SERVICE_TOKEN` and
+`WORKSPACE_SUBJECT_SIGNING_SECRET` must match on both sides of the bridge.
+Configure the two price values from the provider's current official pricing
+before enabling calls. The existing per-request budget cap remains USD 0.01;
+provider billing is still authoritative.
+
 ## Runtime configuration
 
 Required: `DATABASE_URL`, `AGENT_SERVICE_TOKEN`, `WORKSPACE_SUBJECT_SIGNING_SECRET`, `DEEPSEEK_API_KEY`, and current

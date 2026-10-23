@@ -72,12 +72,12 @@ services:
 
   agent-db:
     image: postgres:17-alpine
-    profiles: [ai]
+    profiles: [coach, ai]
     restart: unless-stopped
     environment:
       POSTGRES_DB: lifeos_agent
       POSTGRES_USER: lifeos_agent
-      POSTGRES_PASSWORD: ${AGENT_DB_PASSWORD:-}
+      POSTGRES_PASSWORD: ${AGENT_DB_PASSWORD:?Set AGENT_DB_PASSWORD from the approved secret source}
     volumes:
       - agent-data:/var/lib/postgresql/data
     healthcheck:
@@ -92,18 +92,18 @@ services:
     build:
       context: ../../agent-service
       dockerfile: Dockerfile
-    profiles: [ai]
+    profiles: [coach, ai]
     restart: unless-stopped
     environment: &agent-env
       NODE_ENV: production
       PORT: "8080"
-      DATABASE_URL: postgres://lifeos_agent:${AGENT_DB_PASSWORD:-}@agent-db:5432/lifeos_agent
-      AGENT_SERVICE_TOKEN: ${AGENT_SERVICE_TOKEN:-}
-      WORKSPACE_SUBJECT_SIGNING_SECRET: ${WORKSPACE_SUBJECT_SIGNING_SECRET:-}
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DATABASE_URL: postgres://lifeos_agent:${AGENT_DB_PASSWORD:?Set AGENT_DB_PASSWORD from the approved secret source}@agent-db:5432/lifeos_agent
+      AGENT_SERVICE_TOKEN: ${AGENT_SERVICE_TOKEN:?Set AGENT_SERVICE_TOKEN from the approved secret source}
+      WORKSPACE_SUBJECT_SIGNING_SECRET: ${WORKSPACE_SUBJECT_SIGNING_SECRET:?Set WORKSPACE_SUBJECT_SIGNING_SECRET from the approved secret source}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:?Set DEEPSEEK_API_KEY from the approved provider secret source}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-flash}
-      DEEPSEEK_INPUT_USD_PER_MILLION: ${DEEPSEEK_INPUT_USD_PER_MILLION:-}
-      DEEPSEEK_OUTPUT_USD_PER_MILLION: ${DEEPSEEK_OUTPUT_USD_PER_MILLION:-}
+      DEEPSEEK_INPUT_USD_PER_MILLION: ${DEEPSEEK_INPUT_USD_PER_MILLION:?Set current provider input price}
+      DEEPSEEK_OUTPUT_USD_PER_MILLION: ${DEEPSEEK_OUTPUT_USD_PER_MILLION:?Set current provider output price}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
       OPENAI_INPUT_USD_PER_MILLION: ${OPENAI_INPUT_USD_PER_MILLION:-}
@@ -114,6 +114,9 @@ services:
       agent-db:
         condition: service_healthy
     expose: ["8080"]
+    # The production Life OS process runs on the host, outside this Compose
+    # network. Keep the bridge private to the host instead of publishing it.
+    ports: ["127.0.0.1:${AGENT_SERVICE_HOST_PORT:-18080}:8080"]
     networks: [lifeos-agent]
 
   agent-worker:
