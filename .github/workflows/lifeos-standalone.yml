@@ -107,6 +107,13 @@ jobs:
       - run: node deploy/standalone/scripts/test-agent-bridge.mjs
       - run: bash deploy/standalone/scripts/test-deploy-node-release.sh
       - name: Validate deployment Compose configuration
+        env:
+          AGENT_DB_PASSWORD: ci-only-validation-password
+          AGENT_SERVICE_TOKEN: ci-only-validation-token
+          WORKSPACE_SUBJECT_SIGNING_SECRET: ci-only-validation-signing-secret
+          DEEPSEEK_API_KEY: ci-only-validation-provider-key
+          DEEPSEEK_INPUT_USD_PER_MILLION: "0.30"
+          DEEPSEEK_OUTPUT_USD_PER_MILLION: "1.20"
         run: docker compose -f deploy/standalone/docker-compose.yml config --quiet
       - run: npm ci --prefix agent-service
       - run: npm test --prefix agent-service
