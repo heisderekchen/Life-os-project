@@ -61,4 +61,18 @@ describe('fitness coach and Apple Health consent flow', () => {
     expect((requests[1].summary as { workouts: Array<{ source: string }> }).workouts.map(workout => workout.source)).toEqual(['myos', 'apple_health'])
     expect(await screen.findByText('Keep the next session easy.')).toBeInTheDocument()
   })
+
+  it('shows a specific native bridge failure and allows another attempt', async () => {
+    const postMessage = vi.fn()
+    Object.defineProperty(window, 'webkit', { configurable: true, value: { messageHandlers: { myosHealthKit: { postMessage } } } })
+    setup()
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Connect Apple Health' }))
+    const requestId = postMessage.mock.calls[0][0].requestId as string
+    act(() => window.__myosHealthKitReceive?.({ requestId, ok: false, error: 'HEALTH_BRIDGE_ORIGIN_REJECTED' }))
+
+    expect(await screen.findByText('This MyOS page could not verify its iPhone HealthKit connection. Reopen it in the MyOS iPhone app.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Connect Apple Health' })).toBeEnabled()
+  })
 })

@@ -117,14 +117,22 @@ private struct HealthWebView: UIViewRepresentable {
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-            guard message.name == "myosHealthKit", message.frameInfo.isMainFrame,
-                  message.frameInfo.securityOrigin.protocol == "https",
-                  message.frameInfo.securityOrigin.host.lowercased() == allowedHost.lowercased(),
-                  message.frameInfo.securityOrigin.port == allowedPort,
+            guard message.name == "myosHealthKit",
                   let body = message.body as? [String: Any],
                   body["action"] as? String == "readSummary",
                   let requestId = body["requestId"] as? String,
                   UUID(uuidString: requestId) != nil else { return }
+
+            let origin = message.frameInfo.securityOrigin
+            let originPort = origin.port == 0 && origin.protocol.lowercased() == "https" ? 443 : origin.port
+            guard message.frameInfo.isMainFrame,
+                  origin.protocol.lowercased() == "https",
+                  origin.host.lowercased() == allowedHost.lowercased(),
+                  originPort == allowedPort else {
+                send(["requestId": requestId, "ok": false, "error": "HEALTH_BRIDGE_ORIGIN_REJECTED"])
+                return
+            }
+
             let daysBack = min(max(body["daysBack"] as? Int ?? 30, 1), 30)
             Task {
                 do {
@@ -132,7 +140,7 @@ private struct HealthWebView: UIViewRepresentable {
                     send(["requestId": requestId, "ok": true,
                           "summary": ["periodDays": daysBack, "workouts": workouts]])
                 } catch {
-                    let code = (error as? MyOSHealthKitError) == .unavailable ? "HEALTH_DATA_UNAVAILABLE" : "HEALTH_READ_FAILED"
+                    let code = (error as? MyOSHealthKitError)?.responseCode ?? "HEALTH_READ_FAILED"
                     send(["requestId": requestId, "ok": false, "error": code])
                 }
             }
@@ -146,7 +154,19 @@ private struct HealthWebView: UIViewRepresentable {
     }
 }
 
-private enum MyOSHealthKitError: Error { case unavailable }
+private enum MyOSHealthKitError: Error {
+    case unavailable
+    case authorizationFailed
+    case queryFailed
+
+    var responseCode: String {
+        switch self {
+        case .unavailable: return "HEALTH_DATA_UNAVAILABLE"
+        case .authorizationFailed: return "HEALTH_AUTHORIZATION_FAILED"
+        case .queryFailed: return "HEALTH_QUERY_FAILED"
+        }
+    }
+}
 
 @MainActor
 private final class MyOSHealthKitReader {
@@ -159,11 +179,20 @@ private final class MyOSHealthKitReader {
         let energy = HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!
         let walkingDistance = HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning)!
         let cyclingDistance = HKObjectType.quantityType(forIdentifier: .distanceCycling)!
-        try await store.requestAuthorization(toShare: [], read: [workoutType, heartRate, energy, walkingDistance, cyclingDistance])
+        do {
+            try await store.requestAuthorization(toShare: [], read: [workoutType, heartRate, energy, walkingDistance, cyclingDistance])
+        } catch {
+            throw MyOSHealthKitError.authorizationFailed
+        }
 
         let start = Calendar.current.date(byAdding: .day, value: -daysBack, to: Date()) ?? Date()
         let predicate = HKQuery.predicateForSamples(withStart: start, end: Date(), options: .strictStartDate)
-        let workouts = try await queryWorkouts(predicate: predicate)
+        let workouts: [HKWorkout]
+        do {
+            workouts = try await queryWorkouts(predicate: predicate)
+        } catch {
+            throw MyOSHealthKitError.queryFailed
+        }
         var summaries: [[String: Any]] = []
         for workout in workouts.prefix(30) {
             let (average, peak) = await heartRateStats(for: workout, type: heartRate)
