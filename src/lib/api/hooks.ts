@@ -294,7 +294,32 @@ export interface FitnessSession {
   id: string; planId: string | null; title: string; status: 'active' | 'completed' | 'cancelled'
   startedAt: string; endedAt: string | null; exercises: FitnessExercise[]
 }
+export interface HealthKitWorkoutSummary {
+  activity: string
+  startedAt: string
+  durationMinutes: number
+  distanceKm: number | null
+  activeEnergyKcal: number | null
+  averageHeartRateBpm: number | null
+  peakHeartRateBpm: number | null
+}
+export interface FitnessCoachResult { advice: string; provider: 'deepseek'; model: string }
 const fitnessRoot = '/api/personal-workbench/lifeos/fitness'
+
+export function useFitnessCoachStatus() {
+  return useQuery({
+    queryKey: ['fitness', 'coach-status'],
+    queryFn: () => apiGet<{ enabled: boolean; reason?: string; providers?: { deepseek?: boolean } }>('/api/agent/health'),
+    staleTime: 30_000,
+    retry: false,
+  })
+}
+export function useFitnessCoach() {
+  return useMutation({
+    mutationFn: (data: { consent: true; summary: { periodDays: number; workouts: Record<string, unknown>[] } }) =>
+      apiPost<FitnessCoachResult>('/api/agent/fitness-coach', data),
+  })
+}
 
 export function useFitnessPlans() {
   return useQuery({ queryKey: ['fitness', 'plans'], queryFn: () => apiGet<FitnessPlan[]>(`${fitnessRoot}/plans`) })

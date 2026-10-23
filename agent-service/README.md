@@ -5,10 +5,20 @@ runtime or package dependency and can run on a managed Node/container platform w
 managed PostgreSQL database. It has not been deployed or connected to Life OS.
 
 The worker produces editable task proposals only. It has no code-execution
-tools, business API credentials, or access to HappySpa operational data. The
-first data scope is user-entered text. A server-side Life OS bridge and a
-reviewed hosting environment are still required before a browser session can
-submit or read runs.
+tools, business API credentials, or access to HappySpa operational data. A
+server-side Life OS bridge and a reviewed hosting environment are required
+before a browser session can submit or read runs.
+
+The separate `POST /v1/fitness-coach` route returns a one-time general fitness
+suggestion from a bounded, explicitly consented summary. It accepts up to 30
+days of aggregated MyOS and Apple Health workout data, requires `consent: true`,
+uses DeepSeek only, caps each response at USD 0.01 and 500 output tokens, and
+rate-limits each owner to one request per minute per service process. It does
+not persist the submitted health summary or the response. Raw heart-rate
+samples and HealthKit identifiers are not accepted. The MyOS interface requires
+a separate opt-in before sending Apple Health summaries. The feature stays
+unavailable until this service, its database, bridge secrets, DeepSeek key, and
+current price settings are configured.
 
 ## Runtime configuration
 

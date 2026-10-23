@@ -267,6 +267,26 @@ dump and SHA-256 file privately.
 No AI provider credentials are bundled. Without the optional profile and
 credentials, core Life OS remains usable and AI reports itself unavailable.
 
+The Fitness module can optionally call `POST /v1/fitness-coach` through the
+same signed private bridge. This one-shot endpoint does not require the
+background task worker heartbeat; it does require the AI service, PostgreSQL,
+DeepSeek provider configuration, and current price settings. Each request is
+bounded to USD 0.01 and 500 output tokens and is limited to one request per
+owner per minute per service process. The UI must obtain explicit consent
+before sending MyOS training summaries and separate opt-in before including
+Apple Health workout summaries. The endpoint returns a general fitness
+suggestion without storing the submitted summary or response. HealthKit data is
+read on demand by the native iOS wrapper, remains in that page session, and is
+never written back to Apple Health.
+
+`ios/MyOSHealthBridge` contains an unsigned XcodeGen iPhone wrapper with the
+HealthKit read capability and a same-origin WKWebView bridge. It reads up to
+30 recent workouts and their duration, distance, active energy, and aggregate
+average/peak heart rate. Configure the actual HTTPS `/workbench/` URL in the
+app on-device. The app is not signed or distributed; before distribution,
+register the production bundle identifier, enable HealthKit for its App ID,
+publish the approved privacy policy, and complete App Store privacy review.
+
 ## Research state machine and Obsidian sync
 
 The private Life OS research surface (`/api/research/*`) persists a bounded

@@ -1,0 +1,25 @@
+name: MyOSHealthBridge
+options:
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    PRODUCT_BUNDLE_IDENTIFIER: com.happyspa.myos.healthbridge
+targets:
+  MyOSHealthBridge:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+    entitlements:
+      path: MyOSHealthBridge.entitlements
+    settings:
+      base:
+        INFOPLIST_KEY_NSHealthShareUsageDescription: "MyOS reads recent workouts and their summary metrics so you can review your training in MyOS."
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: "YES"
+        INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTS_MACCATALYST: "NO"
+        GENERATE_INFOPLIST_FILE: "YES"

@@ -1,6 +1,6 @@
 'use client'
 
-import { BookOpen, CalendarDays, FolderKanban, GraduationCap, Settings, StickyNote, Target, Timer, Wallet } from 'lucide-react'
+import { BookOpen, CalendarDays, Dumbbell, FolderKanban, GraduationCap, Settings, StickyNote, Target, Timer, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useProfile } from '@/lib/api/hooks'
@@ -13,6 +13,7 @@ const modules: { id: ModuleId; label: string; icon: typeof FolderKanban }[] = [
   { id: 'calendar', label: '日历', icon: CalendarDays },
   { id: 'time', label: '时间追踪', icon: Timer },
   { id: 'habits', label: '习惯', icon: BookOpen },
+  { id: 'fitness', label: '健身', icon: Dumbbell },
   { id: 'journal', label: '日志', icon: BookOpen },
   { id: 'goals', label: '目标', icon: Target },
   { id: 'learning', label: '学习', icon: GraduationCap },

@@ -17,5 +17,8 @@ assert.equal(headers['x-workspace-subject-signature'], createHmac('sha256', 'tes
 assert.equal(mapAgentTarget('/workbench/api/agent/health'), '/v1/health')
 assert.equal(mapAgentTarget('/workbench/api/agent/runs', '?limit=3'), '/v1/runs?limit=3')
 assert.equal(mapAgentTarget('/workbench/api/agent/runs/not-a-run/approve'), null)
+assert.equal(mapAgentTarget('/workbench/api/agent/fitness-coach'), '/v1/fitness-coach')
+assert.equal(mapAgentTarget('/workbench/api/agent/fitness-coach', '?extra=1'), null)
+assert.equal(mapAgentTarget('/workbench/api/agent/fitness-coach/other'), null)
 assert.throws(() => createWorkspaceSubjectHeaders({ ownerId: 'bad\nowner', method: 'GET', requestTarget, serviceToken: 'x', signingSecret: 'y' }))
 process.stdout.write('Agent bridge signing and route mapping passed.\n')
